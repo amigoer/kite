@@ -26,42 +26,42 @@ type PostListParams struct {
 }
 
 type CreatePostInput struct {
-	Title        string     `json:"title"`
-	Slug         string     `json:"slug"`
-	Summary      string     `json:"summary"`
-	Content      string     `json:"content"`
-	Status       string     `json:"status"`
-	CoverImage   string     `json:"cover_image"`
-	PublishedAt  *time.Time `json:"published_at"`
-	ShowComments *bool      `json:"show_comments"`
-	CategoryID   *string    `json:"category_id"`
-	TagIDs       []string   `json:"tag_ids"`
+	Title           string     `json:"title"`
+	Slug            string     `json:"slug"`
+	Summary         string     `json:"summary"`
+	ContentMarkdown string     `json:"content_markdown"`
+	Status          string     `json:"status"`
+	CoverImage      string     `json:"cover_image"`
+	PublishedAt     *time.Time `json:"published_at"`
+	ShowComments    *bool      `json:"show_comments"`
+	CategoryID      *string    `json:"category_id"`
+	TagIDs          []string   `json:"tag_ids"`
 }
 
 type UpdatePostInput struct {
-	Title        string     `json:"title"`
-	Slug         string     `json:"slug"`
-	Summary      string     `json:"summary"`
-	Content      string     `json:"content"`
-	Status       string     `json:"status"`
-	CoverImage   string     `json:"cover_image"`
-	PublishedAt  *time.Time `json:"published_at"`
-	ShowComments *bool      `json:"show_comments"`
-	CategoryID   *string    `json:"category_id"`
-	TagIDs       []string   `json:"tag_ids"`
+	Title           string     `json:"title"`
+	Slug            string     `json:"slug"`
+	Summary         string     `json:"summary"`
+	ContentMarkdown string     `json:"content_markdown"`
+	Status          string     `json:"status"`
+	CoverImage      string     `json:"cover_image"`
+	PublishedAt     *time.Time `json:"published_at"`
+	ShowComments    *bool      `json:"show_comments"`
+	CategoryID      *string    `json:"category_id"`
+	TagIDs          []string   `json:"tag_ids"`
 }
 
 type PatchPostInput struct {
-	Title        *string    `json:"title"`
-	Slug         *string    `json:"slug"`
-	Summary      *string    `json:"summary"`
-	Content      *string    `json:"content"`
-	Status       *string    `json:"status"`
-	CoverImage   *string    `json:"cover_image"`
-	PublishedAt  *time.Time `json:"published_at"`
-	ShowComments *bool      `json:"show_comments"`
-	CategoryID   *string    `json:"category_id"`
-	TagIDs       *[]string  `json:"tag_ids"`
+	Title           *string    `json:"title"`
+	Slug            *string    `json:"slug"`
+	Summary         *string    `json:"summary"`
+	ContentMarkdown *string    `json:"content_markdown"`
+	Status          *string    `json:"status"`
+	CoverImage      *string    `json:"cover_image"`
+	PublishedAt     *time.Time `json:"published_at"`
+	ShowComments    *bool      `json:"show_comments"`
+	CategoryID      *string    `json:"category_id"`
+	TagIDs          *[]string  `json:"tag_ids"`
 }
 
 type PostListResult struct {
@@ -179,19 +179,21 @@ func (s *PostService) Create(input CreatePostInput) (*model.Post, error) {
 	}
 
 	post := &model.Post{
-		Title:        strings.TrimSpace(input.Title),
-		Slug:         strings.TrimSpace(input.Slug),
-		Summary:      strings.TrimSpace(input.Summary),
-		Content:      input.Content,
-		Status:       normalizeStatus(input.Status),
-		CoverImage:   strings.TrimSpace(input.CoverImage),
-		PublishedAt:  normalizeTimePointer(input.PublishedAt),
-		ShowComments: normalizeShowComments(input.ShowComments, true),
-		CategoryID:   categoryID,
-		Tags:         tags,
+		Title:           strings.TrimSpace(input.Title),
+		Slug:            strings.TrimSpace(input.Slug),
+		Summary:         strings.TrimSpace(input.Summary),
+		ContentMarkdown: strings.TrimSpace(input.ContentMarkdown),
+		Status:          normalizeStatus(input.Status),
+		CoverImage:      strings.TrimSpace(input.CoverImage),
+		PublishedAt:     normalizeTimePointer(input.PublishedAt),
+		ShowComments:    normalizeShowComments(input.ShowComments, true),
+		CategoryID:      categoryID,
+		Tags:            tags,
 	}
 
-	preparePostForSave(post)
+	if err := preparePostForSave(post); err != nil {
+		return nil, err
+	}
 	if err := validatePost(post); err != nil {
 		return nil, err
 	}
@@ -223,7 +225,7 @@ func (s *PostService) Update(id string, input UpdatePostInput) (*model.Post, err
 	existing.Title = strings.TrimSpace(input.Title)
 	existing.Slug = strings.TrimSpace(input.Slug)
 	existing.Summary = strings.TrimSpace(input.Summary)
-	existing.Content = input.Content
+	existing.ContentMarkdown = strings.TrimSpace(input.ContentMarkdown)
 	existing.Status = normalizeStatus(input.Status)
 	existing.CoverImage = strings.TrimSpace(input.CoverImage)
 	if input.PublishedAt != nil {
@@ -233,7 +235,9 @@ func (s *PostService) Update(id string, input UpdatePostInput) (*model.Post, err
 	existing.CategoryID = categoryID
 	existing.Tags = tags
 
-	preparePostForSave(existing)
+	if err := preparePostForSave(existing); err != nil {
+		return nil, err
+	}
 	if err := validatePost(existing); err != nil {
 		return nil, err
 	}
@@ -266,8 +270,8 @@ func (s *PostService) Patch(id string, input PatchPostInput) (*model.Post, error
 	if input.Summary != nil {
 		existing.Summary = strings.TrimSpace(*input.Summary)
 	}
-	if input.Content != nil {
-		existing.Content = *input.Content
+	if input.ContentMarkdown != nil {
+		existing.ContentMarkdown = strings.TrimSpace(*input.ContentMarkdown)
 	}
 	if input.Status != nil {
 		existing.Status = normalizeStatus(*input.Status)
@@ -296,7 +300,9 @@ func (s *PostService) Patch(id string, input PatchPostInput) (*model.Post, error
 		existing.Tags = tags
 	}
 
-	preparePostForSave(existing)
+	if err := preparePostForSave(existing); err != nil {
+		return nil, err
+	}
 	if err := validatePost(existing); err != nil {
 		return nil, err
 	}
@@ -413,8 +419,11 @@ func validatePost(post *model.Post) error {
 	if post.Slug == "" {
 		return fmt.Errorf("%w: slug is required", ErrInvalidPostPayload)
 	}
-	if post.Content == "" {
-		return fmt.Errorf("%w: content is required", ErrInvalidPostPayload)
+	if post.ContentMarkdown == "" {
+		return fmt.Errorf("%w: content_markdown is required", ErrInvalidPostPayload)
+	}
+	if post.ContentHTML == "" {
+		return fmt.Errorf("%w: content_html is required", ErrInvalidPostPayload)
 	}
 	if !isValidStatus(post.Status) {
 		return fmt.Errorf("%w: invalid status", ErrInvalidPostPayload)
@@ -433,14 +442,22 @@ func ensureSlugAvailable(postRepo *repo.PostRepository, slug string, currentID u
 	return nil
 }
 
-func preparePostForSave(post *model.Post) {
+func preparePostForSave(post *model.Post) error {
 	if post == nil {
-		return
+		return nil
 	}
+
+	contentHTML, err := renderPostMarkdown(post.ContentMarkdown)
+	if err != nil {
+		return fmt.Errorf("%w: invalid markdown content", ErrInvalidPostPayload)
+	}
+	post.ContentHTML = contentHTML
+
 	if post.Status == model.PostStatusPublished && post.PublishedAt == nil {
 		now := time.Now().UTC()
 		post.PublishedAt = &now
 	}
+	return nil
 }
 
 func normalizeTimePointer(value *time.Time) *time.Time {

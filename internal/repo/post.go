@@ -45,7 +45,7 @@ func (r *PostRepository) List(params PostListParams) ([]model.Post, int64, error
 	}
 	if params.Keyword != "" {
 		keyword := "%" + strings.TrimSpace(params.Keyword) + "%"
-		query = query.Where("title LIKE ? OR summary LIKE ? OR content LIKE ?", keyword, keyword, keyword)
+		query = query.Where("title LIKE ? OR summary LIKE ? OR content_markdown LIKE ?", keyword, keyword, keyword)
 	}
 	if params.CategoryID != nil {
 		query = query.Where("category_id = ?", *params.CategoryID)
@@ -166,7 +166,7 @@ func (r *PostRepository) Update(post *model.Post) error {
 		return fmt.Errorf("post repository is unavailable")
 	}
 
-	result := r.db.Model(post).Select("title", "slug", "summary", "content", "status", "cover_image", "published_at", "show_comments", "category_id").Updates(post)
+	result := r.db.Model(post).Select("title", "slug", "summary", "content_markdown", "content_html", "status", "cover_image", "published_at", "show_comments", "category_id").Updates(post)
 	if result.Error != nil {
 		return fmt.Errorf("update post: %w", result.Error)
 	}

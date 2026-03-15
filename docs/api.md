@@ -179,7 +179,8 @@ admin:
   "title": "Hello Kite",
   "slug": "hello-kite",
   "summary": "A lightweight AI-native blog engine.",
-  "content": "# Hello Kite",
+  "content_markdown": "# Hello Kite",
+  "content_html": "<h1 id=\"hello-kite\">Hello Kite</h1>\n",
   "status": "draft",
   "cover_image": "",
   "published_at": null,
@@ -206,6 +207,8 @@ admin:
 - `status`: `draft` / `published` / `archived`
 - `slug`: 全局唯一，用于前台路由
 - `summary`: 可人工填写，也可由 AI 自动生成
+- `content_markdown`: 文章 Markdown 原文，作为唯一编辑源
+- `content_html`: 服务端根据 `content_markdown` 渲染并缓存的 HTML，用于前台展示
 - `published_at`: 文章发布时间；当前台接口查询时，只有 `status=published` 且 `published_at<=当前时间` 的文章会被公开
 - `show_comments`: 是否展示文章底部评论区
 - `category_id`: 可为空，表示文章所属分类
@@ -363,7 +366,8 @@ admin:
         "title": "Hello Kite",
         "slug": "hello-kite",
         "summary": "A lightweight AI-native blog engine.",
-        "content": "# Hello Kite",
+        "content_markdown": "# Hello Kite",
+        "content_html": "<h1 id=\"hello-kite\">Hello Kite</h1>\n",
         "status": "published",
         "cover_image": "",
         "published_at": "2026-03-15T10:00:00Z",
@@ -451,7 +455,7 @@ admin:
   "title": "Hello Kite",
   "slug": "hello-kite",
   "summary": "A lightweight AI-native blog engine.",
-  "content": "# Hello Kite",
+  "content_markdown": "# Hello Kite",
   "status": "draft",
   "cover_image": "",
   "published_at": null,
@@ -464,6 +468,7 @@ admin:
 ```
 
 请求体字段补充说明：
+- `content_markdown` 为后台唯一编辑源，`content_html` 由服务端自动渲染与缓存
 - `status=published` 且未显式传入 `published_at` 时，服务端会自动将发布时间补为当前时间
 - `show_comments=false` 时，前台可据此隐藏文章底部评论区
 
