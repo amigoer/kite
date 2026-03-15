@@ -88,6 +88,52 @@
   transform: translateX(-50%) translateY(0);
 }
 
+/* ========== 源码模式 ========== */
+/* 源码模式标签 */
+.tiptap-source-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--semi-color-warning);
+  font-weight: 600;
+  gap: 4px;
+  padding: 0 8px;
+  user-select: none;
+}
+
+.tiptap-source-label::before {
+  content: 'MD';
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--semi-color-warning-light-default);
+  color: var(--semi-color-warning);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* 源码编辑 textarea */
+.tiptap-source-editor {
+  display: block;
+  width: 100%;
+  min-height: 400px;
+  max-height: 70vh;
+  padding: 1rem 1.25rem;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--semi-color-text-0);
+  background: var(--semi-color-bg-0);
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
 /* ========== 编辑区域 ========== */
 .tiptap-wrapper .tiptap {
   padding: 1rem 1.25rem;
