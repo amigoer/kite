@@ -117,7 +117,6 @@ export function useSavePost() {
   return useMutation({
     mutationFn: async (data: PostFormData & { id?: string }) => {
       await delay(500)
-      // Mock: 返回生成的 ID
       return { id: data.id || crypto.randomUUID(), ...data }
     },
     onSuccess: () => {

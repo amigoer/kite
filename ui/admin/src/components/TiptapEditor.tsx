@@ -27,7 +27,7 @@ interface TiptapEditorProps {
 
 /**
  * Tiptap 富文本编辑器
- * 工具栏使用 shadcn Button + Tooltip，编辑区使用 prose 排版
+ * 工具栏使用 shadcn Button + Tooltip
  */
 export function TiptapEditor({ content = '', onChange, placeholder = '开始写作…' }: TiptapEditorProps) {
   const editor = useEditor({

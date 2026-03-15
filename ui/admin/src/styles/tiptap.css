@@ -1,6 +1,4 @@
 /* ========== Tiptap 编辑器样式 ========== */
-/* 使用 .tiptap-wrapper 嵌套选择器确保优先级高于 Tailwind preflight */
-/* 颜色变量使用 oklch 格式，直接用 var() 引用，不能套 hsl() */
 
 /* 编辑器容器 */
 .tiptap-wrapper {
@@ -121,7 +119,7 @@
 .tiptap-wrapper .tiptap code {
   background: var(--muted) !important;
   padding: 0.15rem 0.4rem !important;
-  border-radius: 4px !important;
+  border-radius: calc(var(--radius) - 2px) !important;
   font-size: 0.85em !important;
   font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace !important;
 }
@@ -170,7 +168,7 @@
   outline-offset: 2px !important;
 }
 
-/* 代码高亮（lowlight） */
+/* 代码高亮 */
 .tiptap-wrapper .tiptap pre .hljs-comment,
 .tiptap-wrapper .tiptap pre .hljs-quote { color: #6a737d; }
 .tiptap-wrapper .tiptap pre .hljs-keyword,
