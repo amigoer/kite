@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AdminLayout } from '@/layouts/AdminLayout'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { PostsPage } from '@/pages/PostsPage'
+import { CategoriesPage } from '@/pages/CategoriesPage'
 
 /** TanStack Query 客户端 */
 const queryClient = new QueryClient({
@@ -25,8 +27,8 @@ function App() {
           <Route element={<AdminLayout />}>
             <Route index element={<DashboardPage />} />
             {/* 后续页面路由在此扩展 */}
-            <Route path="posts" element={<PlaceholderPage title="文章管理" />} />
-            <Route path="categories" element={<PlaceholderPage title="分类管理" />} />
+            <Route path="posts" element={<PostsPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
             <Route path="settings" element={<PlaceholderPage title="系统设置" />} />
           </Route>
         </Routes>
