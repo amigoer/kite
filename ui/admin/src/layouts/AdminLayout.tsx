@@ -15,7 +15,7 @@ export function AdminLayout() {
       <Sidebar />
       <Layout>
         <Header />
-        <Content style={{ overflow: 'auto', background: '#f5f5f5', padding: 24 }}>
+        <Content style={{ overflow: 'auto', background: 'var(--semi-color-bg-1)', padding: 24 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
             <Outlet />
           </div>

@@ -36,7 +36,7 @@ export function Sidebar() {
   const { isCollapsed } = useSidebarStore()
 
   return (
-    <Sider style={{ background: '#fff', borderRight: '1px solid var(--semi-color-border)' }}>
+    <Sider style={{ background: 'var(--semi-color-bg-0)', borderRight: '1px solid var(--semi-color-border)' }}>
       {/* Logo 区域 */}
       <div style={{ height: 60, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 10 }}>
         <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>
