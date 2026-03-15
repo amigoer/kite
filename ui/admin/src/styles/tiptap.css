@@ -658,3 +658,62 @@
   color: var(--semi-color-text-3);
   user-select: none;
 }
+
+/* ========== 可调整尺寸的图片 ========== */
+.resizable-image-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 0.75rem 0;
+}
+
+.resizable-image {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.resizable-image img {
+  max-width: 100%;
+  border-radius: 4px;
+  transition: box-shadow 0.15s;
+}
+
+.resizable-image.selected img {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: 2px;
+}
+
+/* 拖拽手柄 */
+.resize-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--semi-color-primary);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  z-index: 10;
+}
+
+.resize-handle.nw { top: -4px; left: -4px; cursor: nw-resize; }
+.resize-handle.ne { top: -4px; right: -4px; cursor: ne-resize; }
+.resize-handle.sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+.resize-handle.se { bottom: -4px; right: -4px; cursor: se-resize; }
+.resize-handle.n  { top: -4px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.resize-handle.s  { bottom: -4px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.resize-handle.w  { top: 50%; left: -4px; transform: translateY(-50%); cursor: w-resize; }
+.resize-handle.e  { top: 50%; right: -4px; transform: translateY(-50%); cursor: e-resize; }
+
+/* 宽度指示器 */
+.resize-indicator {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -2,7 +2,7 @@ import { useCallback, useState, useRef, useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import TiptapImage from '@tiptap/extension-image'
+import { ResizableImage } from '@/extensions/resizable-image/resizable-image-extension'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Underline from '@tiptap/extension-underline'
@@ -128,7 +128,7 @@ export function TiptapEditor({ content = '', onChange, placeholder = '开始写�
     extensions: [
       StarterKit.configure({ codeBlock: false, link: false }),
       Placeholder.configure({ placeholder }),
-      TiptapImage.configure({ inline: false, allowBase64: true }),
+      ResizableImage.configure({ inline: false, allowBase64: true }),
       Link.configure({ openOnClick: false, autolink: true }),
       CodeBlockLowlight.configure({ lowlight }),
       Underline,
