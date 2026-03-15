@@ -1,10 +1,10 @@
 import { PanelLeftClose, PanelLeft, Settings } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import { useSidebarStore } from '@/stores/use-sidebar-store'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 
-/**
- * 面包屑路径映射
- */
+/** 面包屑路径映射 */
 const breadcrumbMap: Record<string, string> = {
   '/': '仪表盘',
   '/posts': '文章管理',
@@ -16,66 +16,37 @@ const breadcrumbMap: Record<string, string> = {
 }
 
 /**
- * 页面图标前缀 emoji
- */
-const pageEmoji: Record<string, string> = {
-  '/': '📊',
-  '/posts': '📝',
-  '/categories': '📂',
-  '/tags': '🏷️',
-  '/comments': '💬',
-  '/links': '🔗',
-  '/settings': '⚙️',
-}
-
-/**
  * 顶部 Header 组件
- * 扁平化硬线条，干净留白
+ * 使用 shadcn Button / Separator
  */
 export function Header() {
   const { isCollapsed, toggle } = useSidebarStore()
   const location = useLocation()
   const navigate = useNavigate()
   const currentLabel = breadcrumbMap[location.pathname] || '未知页面'
-  const emoji = pageEmoji[location.pathname] || '📄'
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-[var(--kite-border)] bg-[var(--kite-bg)] px-6">
-      {/* 左侧：折叠按钮 + 面包屑 */}
+    <header className="flex h-14 items-center justify-between border-b bg-background px-4">
+      {/* 左侧 */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={toggle}
-          className="flex h-8 w-8 items-center justify-center text-[var(--kite-text-muted)] transition-colors duration-100 hover:text-[var(--kite-text-heading)] cursor-pointer"
-          aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
-        >
-          {isCollapsed ? (
-            <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" strokeWidth={1.5} />
-          )}
-        </button>
+        <Button variant="ghost" size="icon" onClick={toggle} aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}>
+          {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </Button>
 
-        {/* 分隔线 */}
-        <div className="h-4 w-px bg-[var(--kite-border)]" />
+        <Separator orientation="vertical" className="h-4" />
 
-        {/* 面包屑 */}
-        <nav className="flex items-center gap-2 text-sm">
-          <span className="text-base">{emoji}</span>
-          <span className="font-medium text-[var(--kite-text-heading)]">
-            {currentLabel}
-          </span>
+        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span>Kite</span>
+          <span>/</span>
+          <span className="font-medium text-foreground">{currentLabel}</span>
         </nav>
       </div>
 
-      {/* 右侧：设置快捷入口 */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => navigate('/settings')}
-          className="flex h-8 w-8 items-center justify-center text-[var(--kite-text-muted)] transition-colors duration-100 hover:text-[var(--kite-text-heading)] cursor-pointer"
-          title="设置"
-        >
-          <Settings className="h-4 w-4" strokeWidth={1.5} />
-        </button>
+      {/* 右侧 */}
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} title="设置">
+          <Settings className="h-4 w-4" />
+        </Button>
       </div>
     </header>
   )

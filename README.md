@@ -15,7 +15,6 @@ Kite supports both classic server-side rendering and headless API delivery, maki
 
 ## Features
 
-- Flat design with zero radius and zero shadow
 - AI-native blog workflow for future summarization and content assistance
 - Classic SSR and headless rendering modes
 - SQLite and PostgreSQL support
@@ -32,15 +31,6 @@ Kite supports both classic server-side rendering and headless API delivery, maki
 ├── embed.go                  # Embedded assets
 └── Makefile                  # Build automation
 ```
-
-## Design Philosophy
-
-Kite follows a strict flat design language:
-
-- Zero border radius
-- Zero box shadow
-- Hard borders and strong contrast
-- Minimal, content-first reading experience
 
 ## License
 

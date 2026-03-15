@@ -1,38 +1,22 @@
 import { useState } from 'react'
-import {
-  Search,
-  Check,
-  Trash2,
-  AlertTriangle,
-  MessageSquare,
-  Clock,
-  FileText,
-  Shield,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react'
-import { cn } from '@/lib/cn'
+import { Search, Check, Trash2, AlertTriangle, MessageSquare, Clock, FileText, Shield, ChevronDown, ChevronUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useComments, useCommentStats, useModerateComment } from '@/hooks/use-comments'
 import type { CommentStatus } from '@/types/comment'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-/** 状态筛选选项 */
-const statusFilters: { key: CommentStatus | 'all'; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
-  { key: 'all', label: '全部', icon: MessageSquare },
-  { key: 'pending', label: '待审核', icon: Clock },
-  { key: 'approved', label: '已通过', icon: Check },
-  { key: 'spam', label: '垃圾', icon: AlertTriangle },
-]
-
-/** 状态徽标样式 */
-const statusBadge: Record<CommentStatus, { text: string; cls: string }> = {
-  approved: { text: '已通过', cls: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
-  pending: { text: '待审核', cls: 'border-amber-300 bg-amber-50 text-amber-700' },
-  spam: { text: '垃圾', cls: 'border-red-300 bg-red-50 text-red-700' },
+/** 状态徽标 */
+const statusBadge: Record<CommentStatus, { text: string; variant: 'default' | 'secondary' | 'destructive' }> = {
+  approved: { text: '已通过', variant: 'default' },
+  pending: { text: '待审核', variant: 'secondary' },
+  spam: { text: '垃圾', variant: 'destructive' },
 }
 
-/**
- * 格式化时间
- */
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(diff / 60000)
@@ -45,8 +29,7 @@ function timeAgo(dateStr: string): string {
 }
 
 /**
- * 评论管理页面
- * 支持状态筛选、关键词搜索、审核操作（通过/垃圾/删除）、评论展开
+ * 评论管理页面 - 使用 shadcn Tabs / Card / Badge / Button / Input / Separator
  */
 export function CommentsPage() {
   const [statusFilter, setStatusFilter] = useState<CommentStatus | 'all'>('all')
@@ -57,7 +40,6 @@ export function CommentsPage() {
   const { data: stats } = useCommentStats()
   const moderateMutation = useModerateComment()
 
-  /** 执行审核操作 */
   function handleModerate(id: string, action: 'approve' | 'spam' | 'delete') {
     if (action === 'delete' && !window.confirm('确定删除此评论？此操作不可撤销。')) return
     moderateMutation.mutate({ id, action })
@@ -65,217 +47,133 @@ export function CommentsPage() {
 
   return (
     <div>
-      {/* 页面标题 */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--kite-text-heading)]">
-          评论管理
-        </h1>
-        <p className="mt-1 text-sm text-[var(--kite-text-muted)]">
-          审核和管理读者的评论
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">评论管理</h1>
+        <p className="mt-1 text-sm text-muted-foreground">审核和管理读者的评论</p>
       </div>
 
       {/* 统计卡片 */}
       {stats && (
         <div className="mb-6 grid grid-cols-4 gap-4">
           {[
-            { label: '全部评论', value: stats.total, cls: 'border-l-[var(--kite-accent)]' },
-            { label: '待审核', value: stats.pending, cls: 'border-l-amber-400' },
-            { label: '已通过', value: stats.approved, cls: 'border-l-emerald-400' },
-            { label: '垃圾评论', value: stats.spam, cls: 'border-l-red-400' },
+            { label: '全部评论', value: stats.total },
+            { label: '待审核', value: stats.pending },
+            { label: '已通过', value: stats.approved },
+            { label: '垃圾评论', value: stats.spam },
           ].map((card) => (
-            <div
-              key={card.label}
-              className={cn(
-                'border border-[var(--kite-border)] border-l-2 bg-[var(--kite-bg)] p-4 transition-colors duration-100 hover:border-[var(--kite-border-hover)]',
-                card.cls
-              )}
-            >
-              <p className="text-xs text-[var(--kite-text-muted)]">{card.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-[var(--kite-text-heading)]">{card.value}</p>
-            </div>
+            <Card key={card.label}>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+                <p className="mt-1 text-2xl font-semibold">{card.value}</p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
       {/* 筛选栏 */}
       <div className="mb-4 flex items-center justify-between gap-4">
-        {/* 状态 Tab */}
-        <div className="flex border border-[var(--kite-border)]">
-          {statusFilters.map((f) => {
-            const Icon = f.icon
-            const isActive = statusFilter === f.key
-            const count = stats
-              ? f.key === 'all'
-                ? stats.total
-                : stats[f.key as keyof typeof stats]
-              : 0
-            return (
-              <button
-                key={f.key}
-                onClick={() => setStatusFilter(f.key)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors duration-100 cursor-pointer',
-                  f.key !== 'all' && 'border-l border-[var(--kite-border)]',
-                  isActive
-                    ? 'bg-[var(--kite-accent)] text-white'
-                    : 'text-[var(--kite-text-muted)] hover:bg-[var(--kite-bg-hover)] hover:text-[var(--kite-text-heading)]'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
-                {f.label}
-                <span className={cn(
-                  'ml-0.5 text-xs',
-                  isActive ? 'text-white/70' : 'text-[var(--kite-text-muted)]'
-                )}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as CommentStatus | 'all')}>
+          <TabsList>
+            <TabsTrigger value="all">
+              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+              全部 {stats?.total ?? 0}
+            </TabsTrigger>
+            <TabsTrigger value="pending">
+              <Clock className="mr-1.5 h-3.5 w-3.5" />
+              待审核 {stats?.pending ?? 0}
+            </TabsTrigger>
+            <TabsTrigger value="approved">
+              <Check className="mr-1.5 h-3.5 w-3.5" />
+              已通过 {stats?.approved ?? 0}
+            </TabsTrigger>
+            <TabsTrigger value="spam">
+              <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+              垃圾 {stats?.spam ?? 0}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        {/* 搜索框 */}
         <div className="relative max-w-xs flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--kite-text-muted)]" strokeWidth={1.5} />
-          <input
-            type="text"
-            placeholder="搜索评论内容、作者…"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className="h-9 w-full border border-[var(--kite-border)] bg-[var(--kite-bg)] pl-9 pr-3 text-sm text-[var(--kite-text)] outline-none placeholder:text-[var(--kite-text-muted)] focus:border-[var(--kite-accent)]"
-          />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="搜索评论内容、作者…" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="pl-9" />
         </div>
       </div>
 
-      {/* 加载态 */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-16 text-sm text-[var(--kite-text-muted)]">
-          加载中…
-        </div>
-      )}
+      {isLoading && <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">加载中…</div>}
 
-      {/* 空态 */}
       {!isLoading && comments?.length === 0 && (
-        <div className="flex flex-col items-center justify-center border border-dashed border-[var(--kite-border)] py-16 text-sm text-[var(--kite-text-muted)]">
-          <MessageSquare className="mb-3 h-8 w-8" strokeWidth={1} />
-          <p>暂无评论</p>
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <MessageSquare className="mb-3 h-8 w-8" strokeWidth={1} />
+            <p className="text-sm">暂无评论</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* 评论列表 */}
       {comments && comments.length > 0 && (
-        <div className="border border-[var(--kite-border)] bg-[var(--kite-bg)]">
+        <Card>
           {comments.map((comment, index) => {
             const badge = statusBadge[comment.status]
             const isExpanded = expandedId === comment.id
             return (
-              <div
-                key={comment.id}
-                className={cn(
-                  'transition-colors duration-100',
-                  index < comments.length - 1 && 'border-b border-[var(--kite-border)]',
-                  comment.status === 'spam' && 'bg-red-50/30'
-                )}
-              >
-                {/* 主行 */}
-                <div className="flex items-start gap-4 px-5 py-4">
-                  {/* 头像占位 */}
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[var(--kite-border)] bg-[var(--kite-bg-hover)] text-xs font-semibold text-[var(--kite-text-muted)]">
+              <div key={comment.id}>
+                {index > 0 && <Separator />}
+                <div className={cn('flex items-start gap-4 px-5 py-4', comment.status === 'spam' && 'bg-destructive/5')}>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold">
                     {comment.author.charAt(0).toUpperCase()}
                   </div>
-
-                  {/* 内容区 */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-[var(--kite-text-heading)]">
-                        {comment.author}
-                      </span>
-                      <span className={cn('border px-1.5 py-0.5 text-xs', badge.cls)}>
-                        {badge.text}
-                      </span>
-                      <span className="ml-auto flex items-center gap-1 text-xs text-[var(--kite-text-muted)]">
+                      <span className="text-sm font-medium">{comment.author}</span>
+                      <Badge variant={badge.variant}>{badge.text}</Badge>
+                      <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" strokeWidth={1.5} />
                         {timeAgo(comment.createdAt)}
                       </span>
                     </div>
-
-                    {/* 所属文章 */}
-                    <div className="mt-1 flex items-center gap-1 text-xs text-[var(--kite-text-muted)]">
+                    <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <FileText className="h-3 w-3" strokeWidth={1.5} />
                       {comment.postTitle}
                     </div>
-
-                    {/* 评论内容 */}
-                    <p className={cn(
-                      'mt-2 text-sm text-[var(--kite-text)] leading-relaxed',
-                      !isExpanded && 'line-clamp-2'
-                    )}>
-                      {comment.content}
-                    </p>
-
-                    {/* 展开/收起 */}
+                    <p className={cn('mt-2 text-sm leading-relaxed', !isExpanded && 'line-clamp-2')}>{comment.content}</p>
                     {comment.content.length > 100 && (
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : comment.id)}
-                        className="mt-1 flex items-center gap-0.5 text-xs text-[var(--kite-text-muted)] hover:text-[var(--kite-text-heading)] cursor-pointer"
-                      >
-                        {isExpanded ? (
-                          <>收起 <ChevronUp className="h-3 w-3" strokeWidth={1.5} /></>
-                        ) : (
-                          <>展开 <ChevronDown className="h-3 w-3" strokeWidth={1.5} /></>
-                        )}
-                      </button>
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs text-muted-foreground" onClick={() => setExpandedId(isExpanded ? null : comment.id)}>
+                        {isExpanded ? <>收起 <ChevronUp className="ml-0.5 h-3 w-3" /></> : <>展开 <ChevronDown className="ml-0.5 h-3 w-3" /></>}
+                      </Button>
                     )}
-
-                    {/* 展开后的详细信息 */}
                     {isExpanded && (
-                      <div className="mt-3 flex gap-4 border-t border-[var(--kite-border)] pt-3 text-xs text-[var(--kite-text-muted)]">
-                        <span>邮箱：{comment.email}</span>
-                        <span>IP：{comment.ip}</span>
-                        <span>UA：{comment.userAgent}</span>
-                      </div>
+                      <>
+                        <Separator className="my-3" />
+                        <div className="flex gap-4 text-xs text-muted-foreground">
+                          <span>邮箱：{comment.email}</span>
+                          <span>IP：{comment.ip}</span>
+                          <span>UA：{comment.userAgent}</span>
+                        </div>
+                      </>
                     )}
                   </div>
-
-                  {/* 操作按钮 */}
-                  <div className="flex flex-shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     {comment.status !== 'approved' && (
-                      <button
-                        onClick={() => handleModerate(comment.id, 'approve')}
-                        disabled={moderateMutation.isPending}
-                        className="flex h-8 items-center gap-1 border border-[var(--kite-border)] px-2 text-xs text-[var(--kite-text-muted)] transition-colors duration-100 hover:border-emerald-300 hover:text-emerald-600 cursor-pointer"
-                        title="通过"
-                      >
-                        <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        通过
-                      </button>
+                      <Button variant="outline" size="sm" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'approve')}>
+                        <Check className="mr-1 h-3.5 w-3.5" />通过
+                      </Button>
                     )}
                     {comment.status !== 'spam' && (
-                      <button
-                        onClick={() => handleModerate(comment.id, 'spam')}
-                        disabled={moderateMutation.isPending}
-                        className="flex h-8 items-center gap-1 border border-[var(--kite-border)] px-2 text-xs text-[var(--kite-text-muted)] transition-colors duration-100 hover:border-amber-300 hover:text-amber-600 cursor-pointer"
-                        title="标记垃圾"
-                      >
-                        <Shield className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        垃圾
-                      </button>
+                      <Button variant="outline" size="sm" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'spam')}>
+                        <Shield className="mr-1 h-3.5 w-3.5" />垃圾
+                      </Button>
                     )}
-                    <button
-                      onClick={() => handleModerate(comment.id, 'delete')}
-                      disabled={moderateMutation.isPending}
-                      className="flex h-8 items-center gap-1 border border-[var(--kite-border)] px-2 text-xs text-[var(--kite-text-muted)] transition-colors duration-100 hover:border-red-300 hover:text-red-600 cursor-pointer"
-                      title="删除"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    </button>
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'delete')}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>
             )
           })}
-        </div>
+        </Card>
       )}
     </div>
   )

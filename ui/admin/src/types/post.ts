@@ -38,3 +38,20 @@ export interface PaginatedData<T> {
   page: number
   pageSize: number
 }
+
+/** 文章详情（含正文内容） */
+export interface PostDetail extends Post {
+  content: string
+}
+
+/** 文章表单数据 */
+export interface PostFormData {
+  title: string
+  slug: string
+  summary: string
+  content: string
+  category: string
+  tags: string[]
+  status: PostStatus
+  coverUrl: string
+}
