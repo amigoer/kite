@@ -123,20 +123,19 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 
 ### 4.2 排序
 
-列表接口建议支持：
-- `sort_by`: 排序字段，如 `created_at`、`updated_at`
-- `sort_order`: `asc` 或 `desc`
+当前已实现的列表接口采用服务端固定排序：
+- 文章：`created_at DESC`
+- 友情链接：`sort ASC, created_at DESC`
 
 ### 4.3 过滤
 
-列表接口按资源特性支持过滤，例如：
-- `status=published`
-- `tag_id=<uuid>`
-- `keyword=golang`
+当前已实现的过滤能力：
+- 文章：`status`、`keyword`
+- 友情链接：`keyword`、`is_active`
 
 ## 5. 数据模型草案
 
-以下是后续后端 API 的核心资源。
+以下是当前已经落地或即将扩展的核心资源。
 
 ### 5.1 Post
 
@@ -155,12 +154,33 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-字段建议：
+字段说明：
 - `status`: `draft` / `published` / `archived`
 - `slug`: 全局唯一，用于前台路由
 - `summary`: 可人工填写，也可由 AI 自动生成
 
-### 5.2 Tag
+### 5.2 FriendLink
+
+```json
+{
+  "id": "0195f401-2f0a-7a1d-9d8f-2d62d8f1bc2a",
+  "name": "Example Blog",
+  "url": "https://example.com",
+  "description": "A friendly site about writing and engineering.",
+  "logo": "https://example.com/logo.png",
+  "sort": 10,
+  "is_active": true,
+  "created_at": "2026-03-15T10:00:00Z",
+  "updated_at": "2026-03-15T10:00:00Z"
+}
+```
+
+字段说明：
+- `url`: 全局唯一
+- `sort`: 数值越小越靠前
+- `is_active`: 是否启用该友情链接
+
+### 5.3 Tag
 
 ```json
 {
@@ -172,7 +192,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-### 5.3 Category
+### 5.4 Category
 
 ```json
 {
@@ -184,9 +204,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-## 6. 首批 API 规划
-
-本阶段优先定义基础能力与文章系统接口。
+## 6. 当前已实现 API
 
 ### 6.1 Health Check
 
@@ -223,10 +241,6 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 - `page_size`
 - `status`
 - `keyword`
-- `tag_id`
-- `category_id`
-- `sort_by`
-- `sort_order`
 
 响应示例：
 
@@ -240,7 +254,9 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
         "title": "Hello Kite",
         "slug": "hello-kite",
         "summary": "A lightweight AI-native blog engine.",
+        "content": "# Hello Kite",
         "status": "published",
+        "cover_image": "",
         "published_at": "2026-03-15T10:00:00Z",
         "created_at": "2026-03-15T10:00:00Z",
         "updated_at": "2026-03-15T10:00:00Z"
@@ -281,8 +297,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
   "summary": "A lightweight AI-native blog engine.",
   "content": "# Hello Kite",
   "status": "draft",
-  "tag_ids": [],
-  "category_id": null,
+  "cover_image": "",
   "published_at": null
 }
 ```
@@ -303,7 +318,88 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 用途：
 - 软删除文章
 
-### 6.3 Tags
+### 6.3 Friend Links
+
+#### `GET /api/v1/friend-links`
+
+用途：
+- 获取友情链接列表
+- 支持分页、关键字搜索、启用状态过滤
+
+查询参数：
+- `page`
+- `page_size`
+- `keyword`
+- `is_active`
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "id": "0195f401-2f0a-7a1d-9d8f-2d62d8f1bc2a",
+        "name": "Example Blog",
+        "url": "https://example.com",
+        "description": "A friendly site about writing and engineering.",
+        "logo": "https://example.com/logo.png",
+        "sort": 10,
+        "is_active": true,
+        "created_at": "2026-03-15T10:00:00Z",
+        "updated_at": "2026-03-15T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 10,
+      "total": 1
+    }
+  },
+  "msg": "ok"
+}
+```
+
+#### `GET /api/v1/friend-links/:id`
+
+用途：
+- 根据 UUID 获取友情链接详情
+
+#### `POST /api/v1/friend-links`
+
+用途：
+- 创建友情链接
+
+请求体示例：
+
+```json
+{
+  "name": "Example Blog",
+  "url": "https://example.com",
+  "description": "A friendly site about writing and engineering.",
+  "logo": "https://example.com/logo.png",
+  "sort": 10,
+  "is_active": true
+}
+```
+
+#### `PUT /api/v1/friend-links/:id`
+
+用途：
+- 全量更新友情链接
+
+#### `PATCH /api/v1/friend-links/:id`
+
+用途：
+- 局部更新友情链接
+
+#### `DELETE /api/v1/friend-links/:id`
+
+用途：
+- 软删除友情链接
+
+### 6.4 Tags
 
 #### `GET /api/v1/tags`
 #### `GET /api/v1/tags/:id`
@@ -311,7 +407,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `PUT /api/v1/tags/:id`
 #### `DELETE /api/v1/tags/:id`
 
-### 6.4 Categories
+### 6.5 Categories
 
 #### `GET /api/v1/categories`
 #### `GET /api/v1/categories/:id`
@@ -332,8 +428,8 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 例如：
 - `GET /api/v1/posts/slug/:slug` 供前台使用
 - `GET /api/v1/admin/posts` 供后台管理使用
-
-这样可以避免后台字段误暴露给公共 API。
+- `GET /api/v1/friend-links` 可作为公开友情链接读取接口
+- `GET /api/v1/admin/friend-links` 可作为后台管理接口的后续扩展
 
 ## 8. 错误处理约定
 
@@ -343,23 +439,21 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 - 数据库错误在 `repo` 中包装后上抛
 - 禁止直接把底层数据库错误原文暴露给客户端
 
-建议错误消息：
+当前常见错误消息：
 - `invalid request payload`
 - `resource not found`
 - `duplicate slug`
-- `database operation failed`
+- `duplicate friend link url`
 - `internal server error`
 
 ## 9. 后续实现顺序建议
 
-建议按以下顺序落地：
-1. `api/response.go`，统一响应封装
-2. `api/handler/health.go`，实现健康检查
-3. `model/post.go`，定义文章模型
-4. `repo/post.go`，封装文章存储层
-5. `service/post.go`，实现文章业务逻辑
-6. `api/handler/post.go`，暴露文章接口
-7. `api/router.go`，统一注册路由
+建议后续按以下顺序继续扩展：
+1. `Tag` 与 `Category` 模型及 CRUD
+2. 文章与标签/分类关联
+3. 管理端接口拆分到 `/api/v1/admin`
+4. 鉴权与权限控制
+5. OpenAPI 文档生成
 
 ## 10. OpenAPI 规划
 

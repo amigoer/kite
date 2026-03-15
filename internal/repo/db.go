@@ -44,6 +44,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.Post{},
+		&model.FriendLink{},
 	)
 }
 

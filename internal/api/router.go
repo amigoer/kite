@@ -27,6 +27,9 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	postRepository := repo.NewPostRepository(db)
 	postService := service.NewPostService(postRepository)
 	postHandler := NewPostHandler(postService)
+	friendLinkRepository := repo.NewFriendLinkRepository(db)
+	friendLinkService := service.NewFriendLinkService(friendLinkRepository)
+	friendLinkHandler := NewFriendLinkHandler(friendLinkService)
 
 	apiV1 := router.Group("/api/v1")
 	apiV1.GET("/health", healthHandler.Get)
@@ -37,6 +40,12 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	apiV1.PUT("/posts/:id", postHandler.Update)
 	apiV1.PATCH("/posts/:id", postHandler.Patch)
 	apiV1.DELETE("/posts/:id", postHandler.Delete)
+	apiV1.GET("/friend-links", friendLinkHandler.List)
+	apiV1.GET("/friend-links/:id", friendLinkHandler.GetByID)
+	apiV1.POST("/friend-links", friendLinkHandler.Create)
+	apiV1.PUT("/friend-links/:id", friendLinkHandler.Update)
+	apiV1.PATCH("/friend-links/:id", friendLinkHandler.Patch)
+	apiV1.DELETE("/friend-links/:id", friendLinkHandler.Delete)
 }
 
 func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS) {
