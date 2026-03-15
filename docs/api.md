@@ -133,7 +133,10 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 当前已实现的过滤能力：
 - 前台文章：`keyword`、`tag_id`、`category_id`，并强制追加公开约束
 - 后台文章：`status`、`keyword`、`tag_id`、`category_id`
-- 友情链接：`keyword`、`is_active`
+- 前台友情链接：`keyword`，并强制追加 `is_active=true`
+- 后台友情链接：`keyword`、`is_active`
+- 标签：`keyword`
+- 分类：`keyword`
 
 ## 5. 数据模型草案
 
@@ -321,49 +324,9 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 - 供 classic 前台和 headless 前端共用
 - 草稿、归档和未来发布时间的文章统一返回 `404`
 
-#### `POST /api/v1/posts`
-
-用途：
-- 创建文章（兼容现有写入路径，推荐后台管理端优先使用 `/api/v1/admin/posts`）
-
-请求体示例：
-
-```json
-{
-  "title": "Hello Kite",
-  "slug": "hello-kite",
-  "summary": "A lightweight AI-native blog engine.",
-  "content": "# Hello Kite",
-  "status": "draft",
-  "cover_image": "",
-  "published_at": null,
-  "show_comments": true,
-  "category_id": "0195f400-0d80-730a-bf8a-4d9776db8f4d",
-  "tag_ids": [
-    "0195f400-13ad-7cbb-9b9f-04d15b759cb8"
-  ]
-}
-```
-
-请求体字段补充说明：
-- `status=published` 且未显式传入 `published_at` 时，服务端会自动将发布时间补为当前时间
-- `show_comments=false` 时，前台可据此隐藏文章底部评论区
-
-#### `PUT /api/v1/posts/:id`
-
-用途：
-- 全量更新文章
-
-#### `PATCH /api/v1/posts/:id`
-
-用途：
-- 局部更新文章
-- 推荐给后台表单自动保存场景
-
-#### `DELETE /api/v1/posts/:id`
-
-用途：
-- 软删除文章
+说明：
+- 公共文章接口仅提供只读能力
+- 创建、更新、删除文章请使用 `/api/v1/admin/posts` 这组后台接口
 
 ### 6.2.1 Admin Posts
 
@@ -397,6 +360,29 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 用途：
 - 创建文章
 
+请求体示例：
+
+```json
+{
+  "title": "Hello Kite",
+  "slug": "hello-kite",
+  "summary": "A lightweight AI-native blog engine.",
+  "content": "# Hello Kite",
+  "status": "draft",
+  "cover_image": "",
+  "published_at": null,
+  "show_comments": true,
+  "category_id": "0195f400-0d80-730a-bf8a-4d9776db8f4d",
+  "tag_ids": [
+    "0195f400-13ad-7cbb-9b9f-04d15b759cb8"
+  ]
+}
+```
+
+请求体字段补充说明：
+- `status=published` 且未显式传入 `published_at` 时，服务端会自动将发布时间补为当前时间
+- `show_comments=false` 时，前台可据此隐藏文章底部评论区
+
 #### `PUT /api/v1/admin/posts/:id`
 
 用途：
@@ -417,14 +403,14 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/friend-links`
 
 用途：
-- 获取友情链接列表
-- 支持分页、关键字搜索、启用状态过滤
+- 获取前台公开友情链接列表
+- 支持分页与关键字搜索
+- 仅返回 `is_active=true` 的友情链接
 
 查询参数：
 - `page`
 - `page_size`
 - `keyword`
-- `is_active`
 
 响应示例：
 
@@ -458,9 +444,33 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/friend-links/:id`
 
 用途：
-- 根据 UUID 获取友情链接详情
+- 根据 UUID 获取前台公开友情链接详情
+- 未启用友情链接统一返回 `404`
 
-#### `POST /api/v1/friend-links`
+说明：
+- 公共友情链接接口仅提供只读能力
+- 创建、更新、删除友情链接请使用 `/api/v1/admin/friend-links`
+
+### 6.3.1 Admin Friend Links
+
+#### `GET /api/v1/admin/friend-links`
+
+用途：
+- 获取后台友情链接列表
+- 支持分页、关键字搜索、启用状态过滤
+
+查询参数：
+- `page`
+- `page_size`
+- `keyword`
+- `is_active`
+
+#### `GET /api/v1/admin/friend-links/:id`
+
+用途：
+- 根据 UUID 获取后台友情链接详情
+
+#### `POST /api/v1/admin/friend-links`
 
 用途：
 - 创建友情链接
@@ -478,17 +488,17 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-#### `PUT /api/v1/friend-links/:id`
+#### `PUT /api/v1/admin/friend-links/:id`
 
 用途：
 - 全量更新友情链接
 
-#### `PATCH /api/v1/friend-links/:id`
+#### `PATCH /api/v1/admin/friend-links/:id`
 
 用途：
 - 局部更新友情链接
 
-#### `DELETE /api/v1/friend-links/:id`
+#### `DELETE /api/v1/admin/friend-links/:id`
 
 用途：
 - 软删除友情链接
@@ -498,7 +508,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/tags`
 
 用途：
-- 获取标签列表
+- 获取公开标签列表
 - 支持分页与关键字搜索
 
 查询参数：
@@ -534,9 +544,26 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/tags/:id`
 
 用途：
-- 根据 UUID 获取标签详情
+- 根据 UUID 获取公开标签详情
 
-#### `POST /api/v1/tags`
+说明：
+- 公共标签接口仅提供只读能力
+- 创建、更新、删除标签请使用 `/api/v1/admin/tags`
+
+### 6.4.1 Admin Tags
+
+#### `GET /api/v1/admin/tags`
+
+用途：
+- 获取后台标签列表
+- 支持分页与关键字搜索
+
+#### `GET /api/v1/admin/tags/:id`
+
+用途：
+- 根据 UUID 获取后台标签详情
+
+#### `POST /api/v1/admin/tags`
 
 用途：
 - 创建标签
@@ -550,17 +577,17 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-#### `PUT /api/v1/tags/:id`
+#### `PUT /api/v1/admin/tags/:id`
 
 用途：
 - 全量更新标签
 
-#### `PATCH /api/v1/tags/:id`
+#### `PATCH /api/v1/admin/tags/:id`
 
 用途：
 - 局部更新标签
 
-#### `DELETE /api/v1/tags/:id`
+#### `DELETE /api/v1/admin/tags/:id`
 
 用途：
 - 软删除标签
@@ -570,7 +597,7 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/categories`
 
 用途：
-- 获取分类列表
+- 获取公开分类列表
 - 支持分页与关键字搜索
 
 查询参数：
@@ -606,9 +633,26 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 #### `GET /api/v1/categories/:id`
 
 用途：
-- 根据 UUID 获取分类详情
+- 根据 UUID 获取公开分类详情
 
-#### `POST /api/v1/categories`
+说明：
+- 公共分类接口仅提供只读能力
+- 创建、更新、删除分类请使用 `/api/v1/admin/categories`
+
+### 6.5.1 Admin Categories
+
+#### `GET /api/v1/admin/categories`
+
+用途：
+- 获取后台分类列表
+- 支持分页与关键字搜索
+
+#### `GET /api/v1/admin/categories/:id`
+
+用途：
+- 根据 UUID 获取后台分类详情
+
+#### `POST /api/v1/admin/categories`
 
 用途：
 - 创建分类
@@ -622,24 +666,24 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 }
 ```
 
-#### `PUT /api/v1/categories/:id`
+#### `PUT /api/v1/admin/categories/:id`
 
 用途：
 - 全量更新分类
 
-#### `PATCH /api/v1/categories/:id`
+#### `PATCH /api/v1/admin/categories/:id`
 
 用途：
 - 局部更新分类
 
-#### `DELETE /api/v1/categories/:id`
+#### `DELETE /api/v1/admin/categories/:id`
 
 用途：
 - 软删除分类
 
 ## 7. 管理端与前台接口边界
 
-当前已将文章接口按使用场景分为两类：
+当前已将文章、友情链接、标签、分类接口按使用场景分为两类：
 - 公共接口：面向前台展示与外部 headless 消费
 - 管理接口：面向后台管理端，后续可接入鉴权
 
@@ -650,8 +694,10 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 当前文章接口示例：
 - `GET /api/v1/posts/slug/:slug` 供前台使用
 - `GET /api/v1/admin/posts` 供后台管理使用
-- `GET /api/v1/friend-links` 可作为公开友情链接读取接口
-- `GET /api/v1/admin/friend-links` 可作为后台管理接口的后续扩展
+- `GET /api/v1/friend-links` 供前台读取已启用友情链接
+- `GET /api/v1/admin/friend-links` 供后台管理全量友情链接
+- `GET /api/v1/tags` 与 `GET /api/v1/categories` 供前台读取基础元数据
+- `GET /api/v1/admin/tags` 与 `GET /api/v1/admin/categories` 供后台管理使用
 
 ## 8. 错误处理约定
 
@@ -674,8 +720,8 @@ Kite 后端采用严格分层结构：`api -> service -> repo -> model`。
 
 建议后续按以下顺序继续扩展：
 1. 文章与标签/分类关联
-2. 管理端接口拆分到 `/api/v1/admin`
-3. 鉴权与权限控制
+2. 为 `/api/v1/admin` 接口补充鉴权中间件
+3. 角色与权限控制
 4. OpenAPI 文档生成
 
 ## 10. OpenAPI 规划

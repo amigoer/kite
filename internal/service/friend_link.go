@@ -64,6 +64,14 @@ func NewFriendLinkService(repo *repo.FriendLinkRepository) *FriendLinkService {
 }
 
 func (s *FriendLinkService) List(params FriendLinkListParams) (*FriendLinkListResult, error) {
+	return s.list(params, false)
+}
+
+func (s *FriendLinkService) ListPublic(params FriendLinkListParams) (*FriendLinkListResult, error) {
+	return s.list(params, true)
+}
+
+func (s *FriendLinkService) list(params FriendLinkListParams, publicOnly bool) (*FriendLinkListResult, error) {
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("friend link service is unavailable")
 	}
@@ -79,10 +87,11 @@ func (s *FriendLinkService) List(params FriendLinkListParams) (*FriendLinkListRe
 	}
 
 	items, total, err := s.repo.List(repo.FriendLinkListParams{
-		Page:     params.Page,
-		PageSize: params.PageSize,
-		Keyword:  strings.TrimSpace(params.Keyword),
-		IsActive: params.IsActive,
+		Page:       params.Page,
+		PageSize:   params.PageSize,
+		Keyword:    strings.TrimSpace(params.Keyword),
+		IsActive:   normalizeFriendLinkActiveFilter(params.IsActive, publicOnly),
+		PublicOnly: publicOnly,
 	})
 	if err != nil {
 		return nil, err
@@ -104,6 +113,14 @@ func (s *FriendLinkService) GetByID(id string) (*model.FriendLink, error) {
 		return nil, fmt.Errorf("%w: invalid friend link id", ErrInvalidFriendLinkPayload)
 	}
 	return s.repo.GetByID(parsedID)
+}
+
+func (s *FriendLinkService) GetPublicByID(id string) (*model.FriendLink, error) {
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid friend link id", ErrInvalidFriendLinkPayload)
+	}
+	return s.repo.GetPublicByID(parsedID)
 }
 
 func (s *FriendLinkService) Create(input CreateFriendLinkInput) (*model.FriendLink, error) {
@@ -246,4 +263,11 @@ func ensureFriendLinkURLAvailable(friendLinkRepo *repo.FriendLinkRepository, raw
 		return err
 	}
 	return nil
+}
+
+func normalizeFriendLinkActiveFilter(isActive *bool, publicOnly bool) *bool {
+	if publicOnly {
+		return nil
+	}
+	return isActive
 }

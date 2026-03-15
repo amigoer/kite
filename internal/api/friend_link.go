@@ -46,8 +46,35 @@ func (h *FriendLinkHandler) List(c *gin.Context) {
 	Success(c, result)
 }
 
+func (h *FriendLinkHandler) ListPublic(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	result, err := h.friendLinkService.ListPublic(service.FriendLinkListParams{
+		Page:     page,
+		PageSize: pageSize,
+		Keyword:  c.Query("keyword"),
+	})
+	if err != nil {
+		handleFriendLinkError(c, err)
+		return
+	}
+
+	Success(c, result)
+}
+
 func (h *FriendLinkHandler) GetByID(c *gin.Context) {
 	link, err := h.friendLinkService.GetByID(c.Param("id"))
+	if err != nil {
+		handleFriendLinkError(c, err)
+		return
+	}
+
+	Success(c, link)
+}
+
+func (h *FriendLinkHandler) GetPublicByID(c *gin.Context) {
+	link, err := h.friendLinkService.GetPublicByID(c.Param("id"))
 	if err != nil {
 		handleFriendLinkError(c, err)
 		return

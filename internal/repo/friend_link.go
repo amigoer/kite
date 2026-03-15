@@ -13,10 +13,11 @@ import (
 var ErrFriendLinkNotFound = errors.New("friend link not found")
 
 type FriendLinkListParams struct {
-	Page     int
-	PageSize int
-	Keyword  string
-	IsActive *bool
+	Page       int
+	PageSize   int
+	Keyword    string
+	IsActive   *bool
+	PublicOnly bool
 }
 
 type FriendLinkRepository struct {
@@ -33,6 +34,9 @@ func (r *FriendLinkRepository) List(params FriendLinkListParams) ([]model.Friend
 	}
 
 	query := r.db.Model(&model.FriendLink{})
+	if params.PublicOnly {
+		query = query.Where("is_active = ?", true)
+	}
 	if params.IsActive != nil {
 		query = query.Where("is_active = ?", *params.IsActive)
 	}
@@ -75,6 +79,22 @@ func (r *FriendLinkRepository) GetByID(id uuid.UUID) (*model.FriendLink, error) 
 			return nil, ErrFriendLinkNotFound
 		}
 		return nil, fmt.Errorf("get friend link by id: %w", err)
+	}
+
+	return &link, nil
+}
+
+func (r *FriendLinkRepository) GetPublicByID(id uuid.UUID) (*model.FriendLink, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("friend link repository is unavailable")
+	}
+
+	var link model.FriendLink
+	if err := r.db.First(&link, "id = ? AND is_active = ?", id, true).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrFriendLinkNotFound
+		}
+		return nil, fmt.Errorf("get public friend link by id: %w", err)
 	}
 
 	return &link, nil
