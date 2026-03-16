@@ -789,6 +789,230 @@ admin:
 - `GET /api/v1/tags` 与 `GET /api/v1/categories` 供前台读取基础元数据
 - `GET /api/v1/admin/tags` 与 `GET /api/v1/admin/categories` 供后台管理使用
 
+### 6.6 Comment（评论）
+
+#### `GET /api/v1/posts/:id/comments`
+
+用途：
+- 获取指定文章的**已审核**评论列表
+
+查询参数：
+- `page`: 页码，默认 `1`
+- `page_size`: 每页数量，默认 `20`
+
+#### `POST /api/v1/posts/:id/comments`
+
+用途：
+- 前台访客提交评论（默认进入 `pending` 待审核状态）
+
+请求体示例：
+
+```json
+{
+  "author": "访客",
+  "email": "visitor@example.com",
+  "content": "写得真好！"
+}
+```
+
+说明：
+- 服务端自动记录 IP 和 User-Agent
+- 新评论状态为 `pending`，需管理员审核后才会前台展示
+
+#### 6.6.1 Admin Comments
+
+#### `GET /api/v1/admin/comments`
+
+用途：
+- 获取后台评论列表
+- 支持按状态、关键字、文章筛选
+
+查询参数：
+- `page`, `page_size`: 分页
+- `status`: 可选值 `approved` / `pending` / `spam`
+- `keyword`: 搜索评论内容或作者
+- `post_id`: 按文章 UUID 筛选
+
+#### `GET /api/v1/admin/comments/stats`
+
+用途：
+- 获取评论统计
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "total": 42,
+    "approved": 30,
+    "pending": 10,
+    "spam": 2
+  },
+  "msg": "ok"
+}
+```
+
+#### `PATCH /api/v1/admin/comments/:id`
+
+用途：
+- 审核评论（修改状态）
+
+请求体示例：
+
+```json
+{
+  "status": "approved"
+}
+```
+
+可选值：`approved` / `pending` / `spam`
+
+#### `DELETE /api/v1/admin/comments/:id`
+
+用途：
+- 删除评论
+
+### 6.7 Page（独立页面）
+
+数据模型：
+
+```json
+{
+  "id": "uuid",
+  "title": "关于",
+  "slug": "about",
+  "content_markdown": "# 关于我\n...",
+  "content_html": "<h1>关于我</h1>...",
+  "status": "published",
+  "sort_order": 0,
+  "show_in_nav": true,
+  "published_at": "2026-03-16T10:00:00Z",
+  "template": "default",
+  "config": "{}"
+}
+```
+
+特殊字段说明：
+- `template`: 模板名，对应 `templates/pages/{template}.html`，默认 `"default"`
+- `config`: JSON 格式的模板参数，由模板清单（`*.json`）声明所需字段
+
+#### `GET /api/v1/pages`
+
+用途：
+- 前台获取**已发布**页面列表
+
+#### `GET /api/v1/pages/slug/:slug`
+
+用途：
+- 前台根据 slug 获取已发布页面详情
+
+#### 6.7.1 Admin Pages
+
+#### `GET /api/v1/admin/pages`
+
+用途：
+- 获取后台页面列表
+- 支持分页、状态筛选、关键字搜索
+
+#### `GET /api/v1/admin/pages/:id`
+
+用途：
+- 根据 UUID 获取页面详情
+
+#### `POST /api/v1/admin/pages`
+
+用途：
+- 创建独立页面
+
+请求体示例：
+
+```json
+{
+  "title": "我的开源项目",
+  "slug": "github",
+  "content_markdown": "以下是我的 GitHub 项目展示。",
+  "status": "published",
+  "sort_order": 10,
+  "show_in_nav": true,
+  "template": "github",
+  "config": "{\"username\": \"amigoer\", \"count\": 6}"
+}
+```
+
+#### `PUT /api/v1/admin/pages/:id`
+
+用途：
+- 全量更新页面
+
+#### `PATCH /api/v1/admin/pages/:id`
+
+用途：
+- 局部更新页面
+
+#### `DELETE /api/v1/admin/pages/:id`
+
+用途：
+- 软删除页面
+
+### 6.8 Settings（系统设置）
+
+#### `GET /api/v1/admin/settings`
+
+用途：
+- 获取全部系统设置
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "site": {
+      "site_name": "Kite",
+      "site_url": "https://example.com",
+      "description": "一个 AI 原生博客引擎",
+      "keywords": "blog, kite",
+      "favicon": "/favicon.ico",
+      "logo": "",
+      "icp": "京ICP备xxxxxxxx号",
+      "footer": "© 2026 Kite"
+    },
+    "post": {
+      "posts_per_page": 10,
+      "enable_comment": true,
+      "enable_toc": true,
+      "summary_length": 200,
+      "default_cover_url": ""
+    },
+    "render": {
+      "render_mode": "classic",
+      "api_prefix": "/api/v1",
+      "enable_cors": true
+    },
+    "ai": {
+      "enabled": false,
+      "provider": "",
+      "api_key": "****",
+      "model": "",
+      "auto_summary": false,
+      "auto_tag": false
+    }
+  },
+  "msg": "ok"
+}
+```
+
+说明：
+- `ai.api_key` 返回掩码值（如 `sk-4****abcd`），不会暴露完整密钥
+
+#### `PUT /api/v1/admin/settings`
+
+用途：
+- 更新全部系统设置（运行时覆盖，不持久化到配置文件）
+
+请求体：与 GET 返回的 `data` 结构一致
+
 ## 8. 错误处理约定
 
 错误处理原则：
