@@ -18,6 +18,9 @@ type Config struct {
 	RenderMode string         `yaml:"render_mode"`
 	Database   DatabaseConfig `yaml:"database"`
 	Admin      AdminConfig    `yaml:"admin"`
+	Site       SiteConfig     `yaml:"site"`
+	Post       PostConfig     `yaml:"post"`
+	AI         AIConfig       `yaml:"ai"`
 }
 
 type DatabaseConfig struct {
@@ -47,6 +50,37 @@ type AdminProfileConfig struct {
 	Avatar      string `yaml:"avatar"`
 	Website     string `yaml:"website"`
 	Location    string `yaml:"location"`
+}
+
+// SiteConfig 站点基础设置
+type SiteConfig struct {
+	SiteName    string `yaml:"site_name"`
+	SiteURL     string `yaml:"site_url"`
+	Description string `yaml:"description"`
+	Keywords    string `yaml:"keywords"`
+	Favicon     string `yaml:"favicon"`
+	Logo        string `yaml:"logo"`
+	ICP         string `yaml:"icp"`
+	Footer      string `yaml:"footer"`
+}
+
+// PostConfig 文章相关设置
+type PostConfig struct {
+	PostsPerPage    int    `yaml:"posts_per_page"`
+	EnableComment   bool   `yaml:"enable_comment"`
+	EnableToc       bool   `yaml:"enable_toc"`
+	SummaryLength   int    `yaml:"summary_length"`
+	DefaultCoverURL string `yaml:"default_cover_url"`
+}
+
+// AIConfig AI 集成设置
+type AIConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	Provider    string `yaml:"provider"`
+	APIKey      string `yaml:"api_key"`
+	Model       string `yaml:"model"`
+	AutoSummary bool   `yaml:"auto_summary"`
+	AutoTag     bool   `yaml:"auto_tag"`
 }
 
 func Load(path string) (*Config, error) {
@@ -81,6 +115,15 @@ func Default() *Config {
 		Admin: AdminConfig{
 			SessionTTLHours: 168,
 		},
+		Site: SiteConfig{
+			SiteName: "Kite",
+		},
+		Post: PostConfig{
+			PostsPerPage:  10,
+			EnableComment: true,
+			EnableToc:     true,
+			SummaryLength: 200,
+		},
 	}
 	cfg.ApplyDefaults()
 	return cfg
@@ -110,6 +153,15 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Admin.Profile.DisplayName == "" && c.Admin.Username != "" {
 		c.Admin.Profile.DisplayName = c.Admin.Username
+	}
+	if c.Site.SiteName == "" {
+		c.Site.SiteName = "Kite"
+	}
+	if c.Post.PostsPerPage <= 0 {
+		c.Post.PostsPerPage = 10
+	}
+	if c.Post.SummaryLength <= 0 {
+		c.Post.SummaryLength = 200
 	}
 }
 

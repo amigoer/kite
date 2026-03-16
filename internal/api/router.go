@@ -13,7 +13,7 @@ import (
 
 func NewRouter(cfg *config.Config, templateFS fs.FS, db *gorm.DB) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery())
+	router.Use(gin.Logger(), gin.Recovery(), CORSMiddleware())
 
 	registerAPIRoutes(router, cfg, db)
 	registerPageRoutes(router, cfg, templateFS)
@@ -40,18 +40,30 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	tagHandler := NewTagHandler(tagService)
 	categoryService := service.NewCategoryService(categoryRepository)
 	categoryHandler := NewCategoryHandler(categoryService)
+	commentRepository := repo.NewCommentRepository(db)
+	commentService := service.NewCommentService(commentRepository, postRepository)
+	commentHandler := NewCommentHandler(commentService)
+	pageRepository := repo.NewPageRepository(db)
+	pageService := service.NewPageService(pageRepository)
+	pageHandler := NewPageHandler(pageService)
+	settingsService := service.NewSettingsService(cfg)
+	settingsHandler := NewSettingsHandler(settingsService)
 
 	apiV1 := router.Group("/api/v1")
 	apiV1.GET("/health", healthHandler.Get)
 	apiV1.GET("/posts", postHandler.ListPublic)
 	apiV1.GET("/posts/:id", postHandler.GetPublicByID)
 	apiV1.GET("/posts/slug/:slug", postHandler.GetPublicBySlug)
+	apiV1.GET("/posts/:id/comments", commentHandler.ListByPost)
+	apiV1.POST("/posts/:id/comments", commentHandler.Create)
 	apiV1.GET("/friend-links", friendLinkHandler.ListPublic)
 	apiV1.GET("/friend-links/:id", friendLinkHandler.GetPublicByID)
 	apiV1.GET("/tags", tagHandler.List)
 	apiV1.GET("/tags/:id", tagHandler.GetByID)
 	apiV1.GET("/categories", categoryHandler.List)
 	apiV1.GET("/categories/:id", categoryHandler.GetByID)
+	apiV1.GET("/pages", pageHandler.ListPublic)
+	apiV1.GET("/pages/slug/:slug", pageHandler.GetPublicBySlug)
 
 	adminV1 := apiV1.Group("/admin")
 	adminV1.POST("/auth/login", adminAuthHandler.Login)
@@ -85,6 +97,18 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.PUT("/categories/:id", categoryHandler.Update)
 	protectedAdminV1.PATCH("/categories/:id", categoryHandler.Patch)
 	protectedAdminV1.DELETE("/categories/:id", categoryHandler.Delete)
+	protectedAdminV1.GET("/comments", commentHandler.List)
+	protectedAdminV1.GET("/comments/stats", commentHandler.Stats)
+	protectedAdminV1.PATCH("/comments/:id", commentHandler.Moderate)
+	protectedAdminV1.DELETE("/comments/:id", commentHandler.Delete)
+	protectedAdminV1.GET("/pages", pageHandler.List)
+	protectedAdminV1.GET("/pages/:id", pageHandler.GetByID)
+	protectedAdminV1.POST("/pages", pageHandler.Create)
+	protectedAdminV1.PUT("/pages/:id", pageHandler.Update)
+	protectedAdminV1.PATCH("/pages/:id", pageHandler.Patch)
+	protectedAdminV1.DELETE("/pages/:id", pageHandler.Delete)
+	protectedAdminV1.GET("/settings", settingsHandler.Get)
+	protectedAdminV1.PUT("/settings", settingsHandler.Update)
 }
 
 func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS) {

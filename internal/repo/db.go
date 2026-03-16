@@ -48,6 +48,8 @@ func autoMigrate(db *gorm.DB) error {
 		&model.Category{},
 		&model.Post{},
 		&model.FriendLink{},
+		&model.Comment{},
+		&model.Page{},
 	)
 }
 
