@@ -90,6 +90,9 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	pageHandler := NewPageHandler(pageService)
 	settingsService := service.NewSettingsService(cfg)
 	settingsHandler := NewSettingsHandler(settingsService)
+	uploadService := service.NewUploadService("")
+	uploadHandler := NewUploadHandler(uploadService)
+	feedHandler := NewFeedHandler(cfg, postService, pageService)
 
 	apiV1 := router.Group("/api/v1")
 	apiV1.GET("/health", healthHandler.Get)
@@ -106,6 +109,13 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	apiV1.GET("/categories/:id", categoryHandler.GetByID)
 	apiV1.GET("/pages", pageHandler.ListPublic)
 	apiV1.GET("/pages/slug/:slug", pageHandler.GetPublicBySlug)
+
+	// RSS 和 Sitemap
+	router.GET("/feed.xml", feedHandler.RSS)
+	router.GET("/sitemap.xml", feedHandler.Sitemap)
+
+	// 上传文件静态服务
+	router.Static("/uploads", service.DefaultUploadDir)
 
 	adminV1 := apiV1.Group("/admin")
 	adminV1.POST("/auth/login", adminAuthHandler.Login)
@@ -151,6 +161,7 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.DELETE("/pages/:id", pageHandler.Delete)
 	protectedAdminV1.GET("/settings", settingsHandler.Get)
 	protectedAdminV1.PUT("/settings", settingsHandler.Update)
+	protectedAdminV1.POST("/upload/image", uploadHandler.Image)
 }
 
 func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS, db *gorm.DB) {

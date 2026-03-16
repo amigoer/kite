@@ -142,3 +142,24 @@ export async function apiDelete<T = void>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE' })
   return handleResponse<T>(res, path)
 }
+
+/** 上传结果类型 */
+export interface UploadResult {
+  url: string
+  filename: string
+  size: number
+}
+
+/**
+ * 上传图片
+ */
+export async function apiUpload(file: File): Promise<UploadResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE}/admin/upload/image`, {
+    method: 'POST',
+    body: formData,
+  })
+  return handleResponse<UploadResult>(res, '/admin/upload/image')
+}
