@@ -1,0 +1,8 @@
+{{ define "footer" }}
+<footer class="site-footer">
+  <div class="container-wide">
+    <span>{{ if .Footer }}{{ .Footer }}{{ else }}© {{ .SiteName }}{{ end }}</span>
+    <span>{{ if .ICP }}{{ .ICP }}{{ end }}</span>
+  </div>
+</footer>
+{{ end }}

@@ -127,7 +127,7 @@ func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS
 
 	router.SetHTMLTemplate(tmpl)
 	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.tmpl", gin.H{
+		c.HTML(http.StatusOK, "index.html", gin.H{
 			"Title":      "Kite",
 			"RenderMode": cfg.RenderMode,
 		})

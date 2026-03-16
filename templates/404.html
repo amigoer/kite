@@ -1,0 +1,21 @@
+{{ define "404.html" }}
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{ template "head" . }}
+<body>
+  {{ template "header" . }}
+
+  <main>
+    <div class="container">
+      <div class="error-page">
+        <h1>404</h1>
+        <p>你访问的页面不存在，或者已经被删除了。</p>
+        <a href="/">返回首页</a>
+      </div>
+    </div>
+  </main>
+
+  {{ template "footer" . }}
+</body>
+</html>
+{{ end }}

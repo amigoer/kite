@@ -1,0 +1,42 @@
+{{ define "post.html" }}
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{ template "head" . }}
+<body>
+  {{ template "header" . }}
+
+  <main>
+    <div class="container">
+      <article>
+        <header class="post-header">
+          <h1 class="post-title">{{ .Post.Title }}</h1>
+          <div class="post-meta">
+            {{ if .Post.PublishedAt }}
+              <time>{{ formatDate .Post.PublishedAt }}</time>
+            {{ else }}
+              <time>{{ formatDate .Post.CreatedAt }}</time>
+            {{ end }}
+            {{ if .Post.Category }}
+              <a class="category-badge" href="/categories/{{ .Post.Category.Slug }}">{{ .Post.Category.Name }}</a>
+            {{ end }}
+          </div>
+          {{ if .Post.Tags }}
+          <div class="post-card-tags" style="margin-top: 0.75rem;">
+            {{ range .Post.Tags }}
+              <a class="tag" href="/tags/{{ .Slug }}">{{ .Name }}</a>
+            {{ end }}
+          </div>
+          {{ end }}
+        </header>
+
+        <div class="post-content">
+          {{ .Post.ContentHTML }}
+        </div>
+      </article>
+    </div>
+  </main>
+
+  {{ template "footer" . }}
+</body>
+</html>
+{{ end }}

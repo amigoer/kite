@@ -1,0 +1,21 @@
+{{ define "pagination" }}
+{{ if gt .TotalPages 1 }}
+<nav class="pagination">
+  {{ if gt .CurrentPage 1 }}
+    <a href="{{ .BasePath }}?page={{ subtract .CurrentPage 1 }}">← 上一页</a>
+  {{ end }}
+
+  {{ range .PageNumbers }}
+    {{ if eq . $.CurrentPage }}
+      <span class="current">{{ . }}</span>
+    {{ else }}
+      <a href="{{ $.BasePath }}?page={{ . }}">{{ . }}</a>
+    {{ end }}
+  {{ end }}
+
+  {{ if lt .CurrentPage .TotalPages }}
+    <a href="{{ .BasePath }}?page={{ add .CurrentPage 1 }}">下一页 →</a>
+  {{ end }}
+</nav>
+{{ end }}
+{{ end }}
