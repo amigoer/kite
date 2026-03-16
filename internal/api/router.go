@@ -16,7 +16,7 @@ func NewRouter(cfg *config.Config, templateFS fs.FS, db *gorm.DB) *gin.Engine {
 	router.Use(gin.Logger(), gin.Recovery(), CORSMiddleware())
 
 	registerAPIRoutes(router, cfg, db)
-	registerPageRoutes(router, cfg, templateFS)
+	registerPageRoutes(router, cfg, templateFS, db)
 
 	return router
 }
@@ -111,7 +111,7 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.PUT("/settings", settingsHandler.Update)
 }
 
-func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS) {
+func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS, db *gorm.DB) {
 	if cfg == nil || cfg.RenderMode != config.RenderModeClassic {
 		return
 	}
@@ -126,10 +126,35 @@ func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS
 	}
 
 	router.SetHTMLTemplate(tmpl)
-	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"Title":      "Kite",
-			"RenderMode": cfg.RenderMode,
-		})
+
+	// 静态资源服务（从 templates/static/ 提供）
+	staticFS, err := fs.Sub(templateFS, "templates/static")
+	if err == nil {
+		router.StaticFS("/static", http.FS(staticFS))
+	}
+
+	// 构建 SSR 所需的 service/repo 实例
+	tagRepo := repo.NewTagRepository(db)
+	categoryRepo := repo.NewCategoryRepository(db)
+	postRepo := repo.NewPostRepository(db)
+	postService := service.NewPostService(postRepo, tagRepo, categoryRepo)
+	pageRepo := repo.NewPageRepository(db)
+	pageService := service.NewPageService(pageRepo)
+	friendLinkRepo := repo.NewFriendLinkRepository(db)
+	friendLinkService := service.NewFriendLinkService(friendLinkRepo)
+
+	ssr := NewSSRHandler(cfg, postService, pageService, friendLinkService, categoryRepo, tagRepo, pageRepo)
+
+	// 前台页面路由
+	router.GET("/", ssr.Index)
+	router.GET("/posts/:slug", ssr.PostDetail)
+	router.GET("/categories/:slug", ssr.CategoryArchive)
+	router.GET("/tags/:slug", ssr.TagArchive)
+	router.GET("/pages/:slug", ssr.PageDetail)
+	router.GET("/friends", ssr.Friends)
+
+	// 404 兜底
+	router.NoRoute(func(c *gin.Context) {
+		ssr.renderError(c, http.StatusNotFound)
 	})
 }
