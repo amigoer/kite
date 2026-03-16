@@ -5,7 +5,7 @@
 /** 友链状态 */
 export type LinkStatus = 'active' | 'pending' | 'down'
 
-/** 友链数据结构 */
+/** 友链数据结构（与后端对齐） */
 export interface FriendLink {
   id: string
   name: string
@@ -13,6 +13,7 @@ export interface FriendLink {
   logo: string
   description: string
   status: LinkStatus
-  sortOrder: number
+  sort: number
   createdAt: string
+  updatedAt: string
 }

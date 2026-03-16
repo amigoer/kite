@@ -1,37 +1,80 @@
-# Kite
+# 🪁 Kite Blog
 
-> **Flight on Code, Focused on Words.**
-> A flat-designed, AI-native blog engine powered by Go.
+轻量级 AI 原生博客引擎，Go + React + SQLite 单二进制部署。
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/amigoer/kite-blog)](https://goreportcard.com/report/github.com/amigoer/kite-blog)
-[![License](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.25%2B-blue.svg)](https://golang.org)
+## 特性
 
-## Introduction
+- 🚀 **单二进制部署** — 无需外部依赖，`CGO_ENABLED=0` 纯静态编译
+- 🎨 **双渲染模式** — SSR（经典）/ Headless（纯 API）+ 主题系统
+- 🤖 **AI 原生** — 集成 AI 自动摘要、自动标签
+- ✍️ **富文本编辑** — 基于 Tiptap 的现代编辑器
+- 📦 **内嵌 SQLite** — 零配置数据库，纯 Go 实现
+- 🌐 **Web 安装引导** — 首次运行浏览器交互式设置
 
-Kite is a lightweight blog engine built with Go, designed around a strict flat visual language and an AI-native content workflow. It aims to provide a clean writing and reading experience while keeping the architecture simple, portable, and extensible.
+## 快速开始
 
-Kite supports both classic server-side rendering and headless API delivery, making it suitable for traditional blogs as well as custom frontends.
+### 1. 编译
 
-## Features
-
-- AI-native blog workflow for future summarization and content assistance
-- Classic SSR and headless rendering modes
-- SQLite and PostgreSQL support
-- UUID-based data model design
-- Single-binary deployment with embedded assets
-
-## Project Structure
-
-```text
-├── cmd/kite/main.go          # Application entry point
-├── internal/                 # Private backend logic
-├── templates/                # SSR templates
-├── ui/admin/                 # Admin frontend source
-├── embed.go                  # Embedded assets
-└── Makefile                  # Build automation
+```bash
+go build -o kite ./cmd/kite
 ```
+
+### 2. 运行
+
+```bash
+./kite
+```
+
+首次运行（无 `kite.yaml`）会自动启动安装引导页：
+
+```
+🪁 Kite 首次运行 — 请访问安装引导页: http://localhost:8080
+```
+
+打开浏览器，填写站点名称和管理员账号即可完成安装。
+
+### 3. 配置
+
+安装引导自动生成 `kite.yaml`，完整配置项参考 [`kite.example.yaml`](kite.example.yaml)。
+
+## 开发
+
+### 后端
+
+```bash
+# 运行后端（需有 kite.yaml）
+go run ./cmd/kite
+```
+
+### 前端 Admin
+
+```bash
+cd ui/admin
+npm install
+npm run dev          # 启动开发服务器 (Vite)
+```
+
+Vite 已配置代理，开发时 `/api` 请求自动转发到 `http://localhost:8080`。
+
+### SSR 主题
+
+模板目录 `templates/`，参考 [`docs/theme-dev.md`](docs/theme-dev.md)。
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 后端 | Go, Gin, GORM, SQLite (modernc) |
+| 前端 | React 19, TypeScript, Vite, Semi Design |
+| 编辑器 | Tiptap |
+| 模板 | html/template |
+
+## 文档
+
+- [API 文档](docs/api.md)
+- [SSR 接口文档](docs/ssr.md)
+- [主题开发指南](docs/theme-dev.md)
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for details.
+MIT

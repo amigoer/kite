@@ -1,0 +1,143 @@
+/**
+ * API 客户端基础设施
+ * 封装 fetch 调用后端 API，处理统一响应和 camelCase/snake_case 转换
+ */
+import type { ApiResponse } from '@/types/api'
+
+/** API 基础路径 */
+const API_BASE = '/api/v1'
+
+/** snake_case → camelCase */
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
+/** camelCase → snake_case */
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+}
+
+/** 递归转换对象的 key */
+function convertKeys(obj: unknown, converter: (key: string) => string): unknown {
+  if (obj === null || obj === undefined) return obj
+  if (Array.isArray(obj)) return obj.map((item) => convertKeys(item, converter))
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[converter(key)] = convertKeys(value, converter)
+    }
+    return result
+  }
+  return obj
+}
+
+/** 将后端 snake_case 响应转为前端 camelCase */
+export function camelizeResponse<T>(data: unknown): T {
+  return convertKeys(data, toCamelCase) as T
+}
+
+/** 将前端 camelCase 请求体转为后端 snake_case */
+export function snakeifyRequest(data: unknown): unknown {
+  return convertKeys(data, toSnakeCase)
+}
+
+/** API 错误类 */
+export class ApiError extends Error {
+  code: number
+  constructor(code: number, msg: string) {
+    super(msg)
+    this.code = code
+    this.name = 'ApiError'
+  }
+}
+
+/**
+ * 通用 GET 请求
+ */
+export async function apiGet<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const url = new URL(`${API_BASE}${path}`, window.location.origin)
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') {
+        url.searchParams.set(toSnakeCase(key), String(value))
+      }
+    }
+  }
+
+  const res = await fetch(url.toString())
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (json.code < 200 || json.code >= 300) {
+    throw new ApiError(json.code, json.msg)
+  }
+
+  return camelizeResponse<T>(json.data)
+}
+
+/**
+ * 通用 POST 请求
+ */
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(snakeifyRequest(body)) : undefined,
+  })
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (json.code < 200 || json.code >= 300) {
+    throw new ApiError(json.code, json.msg)
+  }
+
+  return camelizeResponse<T>(json.data)
+}
+
+/**
+ * 通用 PUT 请求
+ */
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(snakeifyRequest(body)) : undefined,
+  })
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (json.code < 200 || json.code >= 300) {
+    throw new ApiError(json.code, json.msg)
+  }
+
+  return camelizeResponse<T>(json.data)
+}
+
+/**
+ * 通用 PATCH 请求
+ */
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(snakeifyRequest(body)) : undefined,
+  })
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (json.code < 200 || json.code >= 300) {
+    throw new ApiError(json.code, json.msg)
+  }
+
+  return camelizeResponse<T>(json.data)
+}
+
+/**
+ * 通用 DELETE 请求
+ */
+export async function apiDelete<T = void>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE' })
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (json.code < 200 || json.code >= 300) {
+    throw new ApiError(json.code, json.msg)
+  }
+
+  return camelizeResponse<T>(json.data)
+}

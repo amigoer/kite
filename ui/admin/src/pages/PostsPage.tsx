@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Table, Button, Input, Tag, Select, Card, Typography, Pagination, Tooltip, Modal } from '@douyinfe/semi-ui'
-import { IconSearch, IconPlus, IconEdit, IconDelete, IconEyeOpened, IconComment } from '@douyinfe/semi-icons'
-import { usePosts, useCategories } from '@/hooks/use-posts'
+import { IconSearch, IconPlus, IconEdit, IconDelete } from '@douyinfe/semi-icons'
+import { usePosts, useDeletePost } from '@/hooks/use-posts'
+import { useCategoryList } from '@/hooks/use-categories'
 import type { Post, PostStatus } from '@/types/post'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag'
@@ -37,14 +38,15 @@ export function PostsPage() {
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<PostStatus | 'all'>('all')
-  const [category, setCategory] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [page, setPage] = useState(1)
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | 'batch' | null>(null)
   const pageSize = 10
 
-  const { data, isLoading } = usePosts({ page, pageSize, keyword, status, category })
-  const { data: categories } = useCategories()
+  const { data, isLoading } = usePosts({ page, pageSize, keyword, status, categoryId: categoryId || undefined })
+  const { data: categories } = useCategoryList()
+  const deleteMutation = useDeletePost()
 
   const columns: ColumnProps[] = [
     {
@@ -65,7 +67,8 @@ export function PostsPage() {
     },
     {
       title: '分类', dataIndex: 'category', width: 100,
-      render: (val: string) => <Tag size="small" color="light-blue">{val}</Tag>,
+      render: (val: { name: string } | null) =>
+        val ? <Tag size="small" color="light-blue">{val.name}</Tag> : <Text type="tertiary" size="small">—</Text>,
     },
     {
       title: '状态', dataIndex: 'status', width: 90, align: 'center' as const,
@@ -73,24 +76,6 @@ export function PostsPage() {
         const cfg = statusConfig[val]
         return <Tag color={cfg.color} size="small">{cfg.label}</Tag>
       },
-    },
-    {
-      title: '浏览', dataIndex: 'viewCount', width: 90, align: 'center' as const,
-      sorter: (a: Record<string, number>, b: Record<string, number>) => a.viewCount - b.viewCount,
-      render: (val: number) => (
-        <Text type="tertiary" size="small" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-          <IconEyeOpened size="small" /> {val.toLocaleString()}
-        </Text>
-      ),
-    },
-    {
-      title: '评论', dataIndex: 'commentCount', width: 80, align: 'center' as const,
-      sorter: (a: Record<string, number>, b: Record<string, number>) => a.commentCount - b.commentCount,
-      render: (val: number) => (
-        <Text type="tertiary" size="small" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-          <IconComment size="small" /> {val}
-        </Text>
-      ),
     },
     {
       title: '更新日期', dataIndex: 'updatedAt', width: 120,
@@ -129,6 +114,17 @@ export function PostsPage() {
     },
   }
 
+  function handleDelete() {
+    if (deleteTarget === 'batch') {
+      // 逐个删除选中的文章
+      Promise.all(selectedKeys.map((id) => deleteMutation.mutateAsync(id)))
+        .then(() => setSelectedKeys([]))
+    } else if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id)
+    }
+    setDeleteTarget(null)
+  }
+
   return (
     <div>
       {/* 标题区 */}
@@ -153,13 +149,6 @@ export function PostsPage() {
               onClick={() => { setStatus(tab.key); setPage(1) }}
             >
               {tab.label}
-              {tab.key !== 'all' && data && (
-                <Text type="tertiary" size="small" style={{ marginLeft: 4 }}>
-                  {tab.key === 'published' ? data.list.filter((p) => p.status === 'published').length : ''}
-                  {tab.key === 'draft' ? data.list.filter((p) => p.status === 'draft').length : ''}
-                  {tab.key === 'archived' ? data.list.filter((p) => p.status === 'archived').length : ''}
-                </Text>
-              )}
             </Tag>
           ))}
         </div>
@@ -181,21 +170,21 @@ export function PostsPage() {
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <Input
           prefix={<IconSearch />}
-          placeholder="搜索文章标题、摘要或标签…"
+          placeholder="搜索文章标题、摘要…"
           value={keyword}
           onChange={(v) => { setKeyword(v); setPage(1) }}
           style={{ flex: 1 }}
           showClear
         />
         <Select
-          value={category || 'all'}
-          onChange={(v) => { setCategory(v === 'all' ? '' : v as string); setPage(1) }}
-          style={{ width: 140 }}
+          value={categoryId || 'all'}
+          onChange={(v) => { setCategoryId(v === 'all' ? '' : v as string); setPage(1) }}
+          style={{ width: 160 }}
           prefix="分类"
         >
           <Select.Option value="all">全部</Select.Option>
           {categories?.map((c) => (
-            <Select.Option key={c} value={c}>{c}</Select.Option>
+            <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>
           ))}
         </Select>
       </div>
@@ -204,7 +193,7 @@ export function PostsPage() {
       <Card bodyStyle={{ padding: 0 }}>
         <Table
           columns={columns}
-          dataSource={data?.list || []}
+          dataSource={data?.items || []}
           loading={isLoading}
           pagination={false}
           rowKey="id"
@@ -218,10 +207,10 @@ export function PostsPage() {
       </Card>
 
       {/* 分页 */}
-      {data && data.total > 0 && (
+      {data && data.pagination.total > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <Text type="tertiary" size="small">共 {data.total} 篇文章</Text>
-          <Pagination total={data.total} pageSize={pageSize} currentPage={page} onPageChange={setPage} showSizeChanger />
+          <Text type="tertiary" size="small">共 {data.pagination.total} 篇文章</Text>
+          <Pagination total={data.pagination.total} pageSize={pageSize} currentPage={page} onPageChange={setPage} showSizeChanger />
         </div>
       )}
 
@@ -230,15 +219,7 @@ export function PostsPage() {
         title={null}
         header={null}
         visible={deleteTarget !== null}
-        onOk={() => {
-          if (deleteTarget === 'batch') {
-            // TODO: 调用批量删除 mutation
-            setSelectedKeys([])
-          } else if (deleteTarget) {
-            // TODO: 调用删除 mutation
-          }
-          setDeleteTarget(null)
-        }}
+        onOk={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         okType="danger"
         okText="确认删除"

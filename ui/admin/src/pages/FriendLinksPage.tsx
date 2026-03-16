@@ -7,10 +7,10 @@ import type { LinkStatus } from '@/types/friend-link'
 const { Title, Text } = Typography
 
 /** 状态配置 */
-const statusConfig: Record<LinkStatus, { text: string; color: string }> = {
-  active: { text: '正常', color: 'blue' },
-  pending: { text: '待审核', color: 'orange' },
-  down: { text: '已下线', color: 'red' },
+const statusConfig = {
+  active: { text: '正常', color: 'blue' as const },
+  pending: { text: '待审核', color: 'orange' as const },
+  down: { text: '已下线', color: 'red' as const },
 }
 
 /**
@@ -111,7 +111,7 @@ export function FriendLinksPage() {
                 {link.description && <Text type="tertiary" style={{ display: 'block', marginTop: 12, fontSize: 14 }}>{link.description}</Text>}
                 <Divider margin={12} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text type="tertiary" size="small">#{link.sortOrder}</Text>
+                  <Text type="tertiary" size="small">#{link.sort}</Text>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Button icon={<IconExternalOpen />} theme="light" size="small" onClick={() => window.open(link.url, '_blank')}>访问</Button>
                     <Button icon={link.status === 'active' ? <IconAlertTriangle /> : <IconTickCircle />} theme="light" size="small" disabled={toggleMutation.isPending} onClick={() => handleToggle(link.id, link.status)}>

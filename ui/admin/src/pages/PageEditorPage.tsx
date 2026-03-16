@@ -18,8 +18,9 @@ export function PageEditorPage() {
   const [saved, setSaved] = useState(false)
 
   const [form, setForm] = useState<PageFormData>({
-    title: '', slug: '', content: '',
+    title: '', slug: '', contentMarkdown: '',
     status: 'draft', sortOrder: 10, showInNav: false,
+    template: '', config: '',
   })
 
   const { data: page, isLoading } = usePageDetail(id)
@@ -28,8 +29,9 @@ export function PageEditorPage() {
   useEffect(() => {
     if (page) {
       setForm({
-        title: page.title, slug: page.slug, content: page.content,
+        title: page.title, slug: page.slug, contentMarkdown: page.contentMarkdown || '',
         status: page.status, sortOrder: page.sortOrder, showInNav: page.showInNav,
+        template: page.template || '', config: page.config || '',
       })
     }
   }, [page])
@@ -84,8 +86,8 @@ export function PageEditorPage() {
             size="large"
           />
           <TiptapEditor
-            content={form.content}
-            onChange={(html) => setForm((prev) => ({ ...prev, content: html }))}
+            content={form.contentMarkdown}
+            onChange={(html) => setForm((prev) => ({ ...prev, contentMarkdown: html }))}
             placeholder="开始编写页面内容…"
           />
         </div>

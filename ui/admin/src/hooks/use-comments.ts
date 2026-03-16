@@ -1,14 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { mockComments } from '@/mocks/comments'
-import type { Comment, CommentStatus } from '@/types/comment'
-
-/** 模拟延迟 */
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-/** 内存中的评论副本 */
-let commentsStore = [...mockComments]
+import { apiGet, apiPatch, apiDelete } from '@/lib/api-client'
+import type { Comment, CommentStatus, CommentStats } from '@/types/comment'
 
 /** 查询参数 */
 interface CommentQueryParams {
@@ -16,44 +8,10 @@ interface CommentQueryParams {
   keyword?: string
 }
 
-/**
- * Mock 获取评论列表
- */
-async function fetchComments(params: CommentQueryParams): Promise<Comment[]> {
-  await delay(200)
-  let result = [...commentsStore]
-
-  if (params.status && params.status !== 'all') {
-    result = result.filter((c) => c.status === params.status)
-  }
-
-  if (params.keyword) {
-    const kw = params.keyword.toLowerCase()
-    result = result.filter(
-      (c) =>
-        c.content.toLowerCase().includes(kw) ||
-        c.author.toLowerCase().includes(kw) ||
-        c.postTitle.toLowerCase().includes(kw)
-    )
-  }
-
-  // 按时间倒序
-  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  return result
-}
-
-/**
- * Mock 审核评论（通过/标记垃圾/删除）
- */
-async function moderateComment(data: { id: string; action: 'approve' | 'spam' | 'delete' }): Promise<void> {
-  await delay(200)
-  if (data.action === 'delete') {
-    commentsStore = commentsStore.filter((c) => c.id !== data.id)
-  } else {
-    commentsStore = commentsStore.map((c) =>
-      c.id === data.id ? { ...c, status: data.action === 'approve' ? 'approved' : 'spam' } : c
-    )
-  }
+/** 后端评论列表响应 */
+interface CommentListResponse {
+  items: Comment[]
+  pagination: { page: number; pageSize: number; total: number }
 }
 
 /**
@@ -62,7 +20,14 @@ async function moderateComment(data: { id: string; action: 'approve' | 'spam' | 
 export function useComments(params: CommentQueryParams) {
   return useQuery({
     queryKey: ['comments', params],
-    queryFn: () => fetchComments(params),
+    queryFn: async () => {
+      const result = await apiGet<CommentListResponse>('/admin/comments', {
+        pageSize: 100,
+        status: params.status === 'all' ? undefined : params.status,
+        keyword: params.keyword,
+      })
+      return result.items
+    },
   })
 }
 
@@ -72,15 +37,7 @@ export function useComments(params: CommentQueryParams) {
 export function useCommentStats() {
   return useQuery({
     queryKey: ['commentStats'],
-    queryFn: async () => {
-      await delay(100)
-      return {
-        total: commentsStore.length,
-        approved: commentsStore.filter((c) => c.status === 'approved').length,
-        pending: commentsStore.filter((c) => c.status === 'pending').length,
-        spam: commentsStore.filter((c) => c.status === 'spam').length,
-      }
-    },
+    queryFn: () => apiGet<CommentStats>('/admin/comments/stats'),
   })
 }
 
@@ -90,7 +47,13 @@ export function useCommentStats() {
 export function useModerateComment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: moderateComment,
+    mutationFn: async (data: { id: string; action: 'approve' | 'spam' | 'delete' }) => {
+      if (data.action === 'delete') {
+        return apiDelete(`/admin/comments/${data.id}`)
+      }
+      const status = data.action === 'approve' ? 'approved' : 'spam'
+      return apiPatch(`/admin/comments/${data.id}`, { status })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments'] })
       queryClient.invalidateQueries({ queryKey: ['commentStats'] })

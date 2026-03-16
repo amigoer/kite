@@ -3,7 +3,9 @@ import { useParams, useNavigate } from 'react-router'
 import { Card, Button, Input, Tag, Select, Typography, TextArea } from '@douyinfe/semi-ui'
 import { IconArrowLeft, IconSave, IconSend, IconTick } from '@douyinfe/semi-icons'
 import { TiptapEditor } from '@/components/TiptapEditor'
-import { usePostDetail, useSavePost, useCategories } from '@/hooks/use-posts'
+import { usePostDetail, useSavePost } from '@/hooks/use-posts'
+import { useCategoryList } from '@/hooks/use-categories'
+import { useTagList } from '@/hooks/use-tags'
 import type { PostFormData } from '@/types/post'
 
 const { Title, Text } = Typography
@@ -18,21 +20,23 @@ export function PostEditorPage() {
   const [saved, setSaved] = useState(false)
 
   const [form, setForm] = useState<PostFormData>({
-    title: '', slug: '', summary: '', content: '',
-    category: '', tags: [], status: 'draft', coverUrl: '',
+    title: '', slug: '', summary: '', contentMarkdown: '',
+    categoryId: '', tagIds: [], status: 'draft', coverImage: '',
   })
-  const [tagInput, setTagInput] = useState('')
 
   const { data: post, isLoading } = usePostDetail(id)
-  const { data: categories } = useCategories()
+  const { data: categories } = useCategoryList()
+  const { data: allTags } = useTagList()
   const saveMutation = useSavePost()
 
   useEffect(() => {
     if (post) {
       setForm({
         title: post.title, slug: post.slug, summary: post.summary,
-        content: post.content, category: post.category, tags: [...post.tags],
-        status: post.status, coverUrl: post.coverUrl,
+        contentMarkdown: post.contentMarkdown || '',
+        categoryId: post.categoryId || '',
+        tagIds: post.tags?.map((t) => t.id) || [],
+        status: post.status, coverImage: post.coverImage || '',
       })
     }
   }, [post])
@@ -44,14 +48,13 @@ export function PostEditorPage() {
     }))
   }
 
-  function addTag() {
-    const tag = tagInput.trim()
-    if (tag && !form.tags.includes(tag)) setForm((prev) => ({ ...prev, tags: [...prev.tags, tag] }))
-    setTagInput('')
+  function removeTag(tagId: string) {
+    setForm((prev) => ({ ...prev, tagIds: prev.tagIds.filter((id) => id !== tagId) }))
   }
 
-  function removeTag(tag: string) {
-    setForm((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }))
+  /** 根据 tagId 获取标签名称 */
+  function getTagName(tagId: string): string {
+    return allTags?.find((t) => t.id === tagId)?.name || tagId
   }
 
   function handleSave(publish = false) {
@@ -97,8 +100,8 @@ export function PostEditorPage() {
             size="large"
           />
           <TiptapEditor
-            content={form.content}
-            onChange={(html) => setForm((prev) => ({ ...prev, content: html }))}
+            content={form.contentMarkdown}
+            onChange={(html) => setForm((prev) => ({ ...prev, contentMarkdown: html }))}
             placeholder="开始写作…"
           />
         </div>
@@ -110,26 +113,38 @@ export function PostEditorPage() {
           </Card>
 
           <Card title="分类">
-            <Select value={form.category} onChange={(v) => setForm((prev) => ({ ...prev, category: v as string }))} placeholder="选择分类" style={{ width: '100%' }}>
-              {categories?.map((c) => <Select.Option key={c} value={c}>{c}</Select.Option>)}
+            <Select
+              value={form.categoryId || undefined}
+              onChange={(v) => setForm((prev) => ({ ...prev, categoryId: v as string }))}
+              placeholder="选择分类"
+              style={{ width: '100%' }}
+            >
+              {categories?.map((c) => <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>)}
             </Select>
           </Card>
 
           <Card title="标签">
             <div style={{ display: 'flex', gap: 8 }}>
-              <Input
-                value={tagInput}
-                onChange={(v) => setTagInput(v)}
-                onEnterPress={() => addTag()}
-                placeholder="输入标签…"
+              <Select
+                filter
+                value={undefined}
+                onChange={(v) => {
+                  if (v && !form.tagIds.includes(v as string)) {
+                    setForm((prev) => ({ ...prev, tagIds: [...prev.tagIds, v as string] }))
+                  }
+                }}
+                placeholder="选择标签…"
                 style={{ flex: 1 }}
-              />
-              <Button theme="light" size="small" onClick={addTag} disabled={!tagInput.trim()}>添加</Button>
+              >
+                {allTags?.filter((t) => !form.tagIds.includes(t.id)).map((t) => (
+                  <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+                ))}
+              </Select>
             </div>
-            {form.tags.length > 0 && (
+            {form.tagIds.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-                {form.tags.map((tag) => (
-                  <Tag key={tag} closable onClose={() => removeTag(tag)} color="blue">{tag}</Tag>
+                {form.tagIds.map((tagId) => (
+                  <Tag key={tagId} closable onClose={() => removeTag(tagId)} color="blue">{getTagName(tagId)}</Tag>
                 ))}
               </div>
             )}
@@ -146,12 +161,12 @@ export function PostEditorPage() {
 
           <Card title="封面图">
             <Input
-              value={form.coverUrl}
-              onChange={(v) => setForm((prev) => ({ ...prev, coverUrl: v }))}
+              value={form.coverImage}
+              onChange={(v) => setForm((prev) => ({ ...prev, coverImage: v }))}
               placeholder="https://example.com/cover.jpg"
             />
-            {form.coverUrl && (
-              <img src={form.coverUrl} alt="封面预览" style={{ marginTop: 8, width: '100%', borderRadius: 4, border: '1px solid var(--semi-color-border)' }} />
+            {form.coverImage && (
+              <img src={form.coverImage} alt="封面预览" style={{ marginTop: 8, width: '100%', borderRadius: 4, border: '1px solid var(--semi-color-border)' }} />
             )}
           </Card>
         </div>
