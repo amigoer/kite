@@ -6,7 +6,7 @@ import (
 	"github.com/amigoer/kite-blog/internal/config"
 	"github.com/amigoer/kite-blog/internal/model"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 

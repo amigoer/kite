@@ -22,21 +22,11 @@ func (h *FriendLinkHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	var isActive *bool
-	if raw := c.Query("is_active"); raw != "" {
-		parsed, err := strconv.ParseBool(raw)
-		if err != nil {
-			Error(c, http.StatusBadRequest, http.StatusBadRequest, "invalid is_active value")
-			return
-		}
-		isActive = &parsed
-	}
-
 	result, err := h.friendLinkService.List(service.FriendLinkListParams{
 		Page:     page,
 		PageSize: pageSize,
 		Keyword:  c.Query("keyword"),
-		IsActive: isActive,
+		Status:   c.Query("status"),
 	})
 	if err != nil {
 		handleFriendLinkError(c, err)

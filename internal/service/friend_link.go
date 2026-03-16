@@ -20,7 +20,7 @@ type FriendLinkListParams struct {
 	Page     int
 	PageSize int
 	Keyword  string
-	IsActive *bool
+	Status   string
 }
 
 type CreateFriendLinkInput struct {
@@ -29,7 +29,7 @@ type CreateFriendLinkInput struct {
 	Description string `json:"description"`
 	Logo        string `json:"logo"`
 	Sort        int    `json:"sort"`
-	IsActive    *bool  `json:"is_active"`
+	Status      string `json:"status"`
 }
 
 type UpdateFriendLinkInput struct {
@@ -38,7 +38,7 @@ type UpdateFriendLinkInput struct {
 	Description string `json:"description"`
 	Logo        string `json:"logo"`
 	Sort        int    `json:"sort"`
-	IsActive    bool   `json:"is_active"`
+	Status      string `json:"status"`
 }
 
 type PatchFriendLinkInput struct {
@@ -47,7 +47,7 @@ type PatchFriendLinkInput struct {
 	Description *string `json:"description"`
 	Logo        *string `json:"logo"`
 	Sort        *int    `json:"sort"`
-	IsActive    *bool   `json:"is_active"`
+	Status      *string `json:"status"`
 }
 
 type FriendLinkListResult struct {
@@ -90,7 +90,7 @@ func (s *FriendLinkService) list(params FriendLinkListParams, publicOnly bool) (
 		Page:       params.Page,
 		PageSize:   params.PageSize,
 		Keyword:    strings.TrimSpace(params.Keyword),
-		IsActive:   normalizeFriendLinkActiveFilter(params.IsActive, publicOnly),
+		Status:     params.Status,
 		PublicOnly: publicOnly,
 	})
 	if err != nil {
@@ -124,18 +124,13 @@ func (s *FriendLinkService) GetPublicByID(id string) (*model.FriendLink, error) 
 }
 
 func (s *FriendLinkService) Create(input CreateFriendLinkInput) (*model.FriendLink, error) {
-	isActive := true
-	if input.IsActive != nil {
-		isActive = *input.IsActive
-	}
-
 	link := &model.FriendLink{
 		Name:        strings.TrimSpace(input.Name),
 		URL:         strings.TrimSpace(input.URL),
 		Description: strings.TrimSpace(input.Description),
 		Logo:        strings.TrimSpace(input.Logo),
 		Sort:        input.Sort,
-		IsActive:    isActive,
+		Status:      normalizeFriendLinkStatus(input.Status),
 	}
 
 	if err := validateFriendLink(link); err != nil {
@@ -166,7 +161,7 @@ func (s *FriendLinkService) Update(id string, input UpdateFriendLinkInput) (*mod
 	link.Description = strings.TrimSpace(input.Description)
 	link.Logo = strings.TrimSpace(input.Logo)
 	link.Sort = input.Sort
-	link.IsActive = input.IsActive
+	link.Status = normalizeFriendLinkStatus(input.Status)
 
 	if err := validateFriendLink(link); err != nil {
 		return nil, err
@@ -206,8 +201,8 @@ func (s *FriendLinkService) Patch(id string, input PatchFriendLinkInput) (*model
 	if input.Sort != nil {
 		link.Sort = *input.Sort
 	}
-	if input.IsActive != nil {
-		link.IsActive = *input.IsActive
+	if input.Status != nil {
+		link.Status = normalizeFriendLinkStatus(*input.Status)
 	}
 
 	if err := validateFriendLink(link); err != nil {
@@ -265,9 +260,13 @@ func ensureFriendLinkURLAvailable(friendLinkRepo *repo.FriendLinkRepository, raw
 	return nil
 }
 
-func normalizeFriendLinkActiveFilter(isActive *bool, publicOnly bool) *bool {
-	if publicOnly {
-		return nil
+// normalizeFriendLinkStatus 规范化友链状态，默认 active
+func normalizeFriendLinkStatus(status string) string {
+	status = strings.TrimSpace(status)
+	switch status {
+	case model.FriendLinkStatusActive, model.FriendLinkStatusPending, model.FriendLinkStatusDown:
+		return status
+	default:
+		return model.FriendLinkStatusActive
 	}
-	return isActive
 }

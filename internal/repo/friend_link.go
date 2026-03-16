@@ -16,7 +16,7 @@ type FriendLinkListParams struct {
 	Page       int
 	PageSize   int
 	Keyword    string
-	IsActive   *bool
+	Status     string
 	PublicOnly bool
 }
 
@@ -35,10 +35,10 @@ func (r *FriendLinkRepository) List(params FriendLinkListParams) ([]model.Friend
 
 	query := r.db.Model(&model.FriendLink{})
 	if params.PublicOnly {
-		query = query.Where("is_active = ?", true)
+		query = query.Where("status = ?", "active")
 	}
-	if params.IsActive != nil {
-		query = query.Where("is_active = ?", *params.IsActive)
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
 	}
 	if params.Keyword != "" {
 		keyword := "%" + strings.TrimSpace(params.Keyword) + "%"
@@ -90,7 +90,7 @@ func (r *FriendLinkRepository) GetPublicByID(id uuid.UUID) (*model.FriendLink, e
 	}
 
 	var link model.FriendLink
-	if err := r.db.First(&link, "id = ? AND is_active = ?", id, true).Error; err != nil {
+	if err := r.db.First(&link, "id = ? AND status = ?", id, "active").Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrFriendLinkNotFound
 		}
@@ -130,7 +130,7 @@ func (r *FriendLinkRepository) Update(link *model.FriendLink) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("friend link repository is unavailable")
 	}
-	result := r.db.Model(link).Select("name", "url", "description", "logo", "sort", "is_active").Updates(link)
+	result := r.db.Model(link).Select("name", "url", "description", "logo", "sort", "status").Updates(link)
 	if result.Error != nil {
 		return fmt.Errorf("update friend link: %w", result.Error)
 	}
