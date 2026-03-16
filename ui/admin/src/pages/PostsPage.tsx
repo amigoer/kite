@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router'
 import { Table, Button, Input, Tag, Select, Card, Typography, Pagination, Tooltip, Modal } from '@douyinfe/semi-ui'
 import { IconSearch, IconPlus, IconEdit, IconDelete, IconEyeOpened, IconComment } from '@douyinfe/semi-icons'
 import { usePosts, useCategories } from '@/hooks/use-posts'
-import type { PostStatus } from '@/types/post'
+import type { Post, PostStatus } from '@/types/post'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
+import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag'
 
 const { Title, Text } = Typography
 
 /** 状态标签配置 */
-const statusConfig: Record<PostStatus, { label: string; color: string }> = {
+const statusConfig: Record<PostStatus, { label: string; color: TagColor }> = {
   published: { label: '已发布', color: 'blue' },
   draft: { label: '草稿', color: 'grey' },
   archived: { label: '已归档', color: 'yellow' },
@@ -123,8 +124,8 @@ export function PostsPage() {
 
   const rowSelection = {
     selectedRowKeys: selectedKeys,
-    onChange: (_: unknown, selectedRows: Record<string, unknown>[]) => {
-      setSelectedKeys(selectedRows?.map((r) => r.id as string) || [])
+    onChange: (_: unknown, selectedRows?: Post[]) => {
+      setSelectedKeys(selectedRows?.map((r) => r.id) || [])
     },
   }
 
@@ -210,7 +211,7 @@ export function PostsPage() {
           rowSelection={rowSelection}
           onRow={(record) => ({
             style: { cursor: 'pointer' },
-            onDoubleClick: () => navigate(`/posts/${(record as Record<string, unknown>).id}/edit`),
+            onDoubleClick: () => navigate(`/posts/${(record as unknown as Post).id}/edit`),
           })}
           empty={<Text type="tertiary" style={{ padding: 40, display: 'block', textAlign: 'center' }}>没有找到匹配的文章</Text>}
         />
