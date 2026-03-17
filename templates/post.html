@@ -33,9 +33,53 @@
         <img src="{{ .Post.CoverImage }}" alt="{{ .Post.Title }}" style="width:100%;border-radius:var(--radius);margin-bottom:var(--gap);">
         {{ end }}
 
+        {{ if .NeedPassword }}
+        <!-- 密码保护：需要输入密码才能查看全文 -->
+        <div class="kite-password-form" id="password-form">
+          <div class="kite-lock-icon">🔒</div>
+          <p class="kite-lock-hint">本文已加密，请输入密码查看全文</p>
+          <div class="kite-password-input-group">
+            <input type="password" id="post-password" placeholder="请输入密码" class="kite-password-input" />
+            <button onclick="verifyPassword()" class="kite-password-btn">解锁</button>
+          </div>
+          <p id="password-error" class="kite-password-error" style="display:none;">密码错误，请重试</p>
+        </div>
+        <div class="post-content" id="post-content" style="display:none;"></div>
+        <script>
+          function verifyPassword() {
+            var pwd = document.getElementById('post-password').value;
+            var errorEl = document.getElementById('password-error');
+            errorEl.style.display = 'none';
+            fetch('/api/v1/posts/{{ .Post.ID }}/verify-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password: pwd })
+            })
+            .then(function(resp) {
+              if (!resp.ok) throw new Error('密码错误');
+              return resp.json();
+            })
+            .then(function(json) {
+              var data = json.data || json;
+              document.getElementById('password-form').style.display = 'none';
+              var contentEl = document.getElementById('post-content');
+              contentEl.innerHTML = data.content_html;
+              contentEl.style.display = 'block';
+            })
+            .catch(function() {
+              errorEl.style.display = 'block';
+            });
+          }
+          // 回车键提交
+          document.getElementById('post-password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') verifyPassword();
+          });
+        </script>
+        {{ else }}
         <div class="post-content">
           {{ .Post.ContentHTML | safeHTML }}
         </div>
+        {{ end }}
       </article>
     </div>
   </main>

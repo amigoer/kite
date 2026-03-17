@@ -30,6 +30,8 @@ var templateFuncs = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 	// subtract 减法
 	"subtract": func(a, b int) int { return a - b },
+	// currentYear 返回当前年份
+	"currentYear": func() int { return time.Now().Year() },
 }
 
 func loadTemplateSet(templateFS fs.FS) (*template.Template, error) {

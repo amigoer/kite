@@ -61,7 +61,7 @@ const turndown = new TurndownService({
     if (el.nodeName === 'DIV' && el.hasAttribute && el.hasAttribute('data-protected')) {
       const hint = el.getAttribute('data-hint') || ''
       const header = hint ? `protected ${hint}` : 'protected'
-      return `\n\n:::${header}\n\n:::\n\n`
+      return `\n\n::: ${header}\n\n:::\n\n`
     }
     return '\n\n'
   },
@@ -114,7 +114,7 @@ turndown.addRule('protectedBlock', {
     const hint = el.getAttribute('data-hint') || ''
     const header = hint ? `protected ${hint}` : 'protected'
     const body = content.trim()
-    return `\n\n:::${header}\n${body}\n:::\n\n`
+    return `\n\n::: ${header}\n${body}\n:::\n\n`
   },
 })
 

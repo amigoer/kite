@@ -1,3 +1,6 @@
+/* ===== Google Fonts (Inter) ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 /* Kite Theme — PaperMod 风格 */
 /* 极简、可读、暗色模式、响应式 */
 
@@ -415,6 +418,58 @@ main {
   font-size: 0.9rem;
 }
 
+/* ===== 密码保护表单 ===== */
+.kite-password-form {
+  background: var(--entry);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 3rem 2rem;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+.kite-password-input-group {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1.25rem;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.kite-password-input {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--theme);
+  color: var(--content);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.kite-password-input:focus {
+  border-color: var(--link);
+}
+.kite-password-btn {
+  padding: 0.6rem 1.5rem;
+  background: var(--link);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kite-password-btn:hover {
+  background: var(--link-hover);
+}
+.kite-password-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
 /* ===== 归档页 ===== */
 .archive-header {
   margin-bottom: calc(var(--gap) * 1.5);
@@ -603,6 +658,3 @@ main {
     padding: 0.75rem;
   }
 }
-
-/* ===== Google Fonts (Inter) ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');

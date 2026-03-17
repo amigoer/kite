@@ -137,6 +137,20 @@ func (h *SSRHandler) PostDetail(c *gin.Context) {
 	}
 
 	data := h.commonData(post.Title)
+
+	hasPassword := post.Password != ""
+	hasProtected := service.HasProtectedBlocks(post.ContentHTML)
+
+	if hasPassword {
+		// 全局密码：隐藏全部内容，由前台密码表单解锁
+		post.ContentHTML = ""
+		post.ContentMarkdown = ""
+		data["NeedPassword"] = true
+	} else if hasProtected {
+		// 片段保护：将 protected 块替换为占位符
+		post.ContentHTML = service.FilterProtectedHTML(post.ContentHTML)
+	}
+
 	data["Post"] = post
 
 	c.HTML(http.StatusOK, "post.html", data)

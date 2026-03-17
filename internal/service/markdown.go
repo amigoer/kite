@@ -31,5 +31,9 @@ func renderPostMarkdown(contentMarkdown string) (string, error) {
 
 	policy := bluemonday.UGCPolicy()
 	policy.AllowAttrs("class").OnElements("code", "pre")
+	// 允许 callout 容器的属性
+	policy.AllowAttrs("data-callout", "data-callout-title", "class").OnElements("div")
+	// 允许 protected block 容器的属性
+	policy.AllowAttrs("data-protected", "data-hint").OnElements("div")
 	return policy.Sanitize(buf.String()), nil
 }

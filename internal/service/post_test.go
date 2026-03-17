@@ -29,13 +29,18 @@ func TestValidatePost(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "empty content_markdown",
+			name:    "only content_html is valid",
 			post:    &model.Post{Title: "Test", Slug: "test", ContentHTML: "<p>html</p>", Status: "draft"},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name:    "empty content_html",
+			name:    "only content_markdown is valid",
 			post:    &model.Post{Title: "Test", Slug: "test", ContentMarkdown: "md", Status: "draft"},
+			wantErr: false,
+		},
+		{
+			name:    "both content empty",
+			post:    &model.Post{Title: "Test", Slug: "test", Status: "draft"},
 			wantErr: true,
 		},
 		{
