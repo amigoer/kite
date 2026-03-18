@@ -19,7 +19,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { common, createLowlight } from 'lowlight'
-import { Divider, Modal, Input } from '@douyinfe/semi-ui'
+
 import TurndownService from 'turndown'
 import { marked } from 'marked'
 import {
@@ -389,14 +389,14 @@ export function TiptapEditor({ content = '', onChange, placeholder = '开始写�
             <ToolBtn icon={Undo2} tooltip="撤销" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} />
             <ToolBtn icon={Redo2} tooltip="重做" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 标题 */}
             <ToolBtn icon={Heading1} tooltip="标题 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} />
             <ToolBtn icon={Heading2} tooltip="标题 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} />
             <ToolBtn icon={Heading3} tooltip="标题 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 文本格式 */}
             <ToolBtn icon={Bold} tooltip="加粗" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} />
@@ -406,13 +406,13 @@ export function TiptapEditor({ content = '', onChange, placeholder = '开始写�
             <ToolBtn icon={Code} tooltip="行内代码" onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} />
             <ToolBtn icon={Highlighter} tooltip="高亮" onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 上标 / 下标 */}
             <ToolBtn icon={SuperscriptIcon} tooltip="上标" onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} />
             <ToolBtn icon={SubscriptIcon} tooltip="下标" onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 对齐 */}
             <ToolBtn icon={AlignLeft} tooltip="左对齐" onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} />
@@ -420,14 +420,14 @@ export function TiptapEditor({ content = '', onChange, placeholder = '开始写�
             <ToolBtn icon={AlignRight} tooltip="右对齐" onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} />
             <ToolBtn icon={AlignJustify} tooltip="两端对齐" onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 列表 */}
             <ToolBtn icon={List} tooltip="无序列表" onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} />
             <ToolBtn icon={ListOrdered} tooltip="有序列表" onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} />
             <ToolBtn icon={ListTodo} tooltip="任务列表" onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} />
 
-            <Divider layout="vertical" style={{ margin: '0 4px', height: 20 }} />
+            <div className="tiptap-toolbar-divider" />
 
             {/* 块级元素 */}
             <ToolBtn icon={Quote} tooltip="引用" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} />
@@ -565,107 +565,82 @@ export function TiptapEditor({ content = '', onChange, placeholder = '开始写�
       )}
 
       {/* 链接对话框 */}
-      <Modal
-        title="插入链接"
-        visible={linkModalVisible}
-        onOk={confirmLink}
-        onCancel={() => { setLinkModalVisible(false); setLinkUrl('') }}
-        okText="确认"
-        cancelText="取消"
-        width={480}
-        centered
-        maskClosable={false}
-      >
-        <Input
-          value={linkUrl}
-          onChange={setLinkUrl}
-          placeholder="https://example.com"
-          prefix="🔗"
-          size="large"
-          autoFocus
-          onEnterPress={confirmLink}
-        />
-      </Modal>
+      {linkModalVisible && (
+        <div className="tiptap-modal-overlay" onClick={() => { setLinkModalVisible(false); setLinkUrl('') }}>
+          <div className="tiptap-modal" onClick={e => e.stopPropagation()}>
+            <div className="tiptap-modal-header">
+              <span className="tiptap-modal-title">插入链接</span>
+            </div>
+            <div className="tiptap-modal-body">
+              <input
+                className="tiptap-modal-input"
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && confirmLink()}
+              />
+            </div>
+            <div className="tiptap-modal-footer">
+              <button className="tiptap-modal-btn" onClick={() => { setLinkModalVisible(false); setLinkUrl('') }}>取消</button>
+              <button className="tiptap-modal-btn primary" onClick={confirmLink}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 图片对话框 */}
-      <Modal
-        title="插入图片"
-        visible={imageModalVisible}
-        onOk={confirmImage}
-        onCancel={() => { setImageModalVisible(false); setImageUrl(''); setUploadPreview('') }}
-        okText="插入"
-        cancelText="取消"
-        width={520}
-        centered
-        maskClosable={false}
-        okButtonProps={{ disabled: imageTab === 'url' ? !imageUrl.trim() : !uploadPreview }}
-      >
-        {/* Tab 切换 */}
-        <div className="img-upload-tabs">
-          <button className={`img-upload-tab${imageTab === 'url' ? ' active' : ''}`} onClick={() => setImageTab('url')} type="button">
-            🔗 外部链接
-          </button>
-          <button className={`img-upload-tab${imageTab === 'upload' ? ' active' : ''}`} onClick={() => setImageTab('upload')} type="button">
-            <Upload className="h-3.5 w-3.5" style={{ marginRight: 4 }} /> 本地上传
-          </button>
+      {imageModalVisible && (
+        <div className="tiptap-modal-overlay" onClick={() => { setImageModalVisible(false); setImageUrl(''); setUploadPreview('') }}>
+          <div className="tiptap-modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="tiptap-modal-header">
+              <span className="tiptap-modal-title">插入图片</span>
+            </div>
+            <div className="tiptap-modal-body">
+              <div className="img-upload-tabs">
+                <button className={`img-upload-tab${imageTab === 'url' ? ' active' : ''}`} onClick={() => setImageTab('url')} type="button">🔗 外部链接</button>
+                <button className={`img-upload-tab${imageTab === 'upload' ? ' active' : ''}`} onClick={() => setImageTab('upload')} type="button"><Upload className="h-3.5 w-3.5" style={{ marginRight: 4 }} /> 本地上传</button>
+              </div>
+              {imageTab === 'url' && (
+                <>
+                  <input
+                    className="tiptap-modal-input"
+                    value={imageUrl}
+                    onChange={e => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    autoFocus
+                    onKeyDown={e => e.key === 'Enter' && confirmImage()}
+                  />
+                  {imageUrl.trim() && (
+                    <div className="img-preview-box"><img src={imageUrl.trim()} alt="预览" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} onLoad={e => { (e.target as HTMLImageElement).style.display = 'block' }} /></div>
+                  )}
+                </>
+              )}
+              {imageTab === 'upload' && (
+                <>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                  {!uploadPreview ? (
+                    <div className={`img-dropzone${dragOver ? ' drag-over' : ''}`} onClick={() => fileInputRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={handleDrop}>
+                      <Upload className="img-dropzone-icon" />
+                      <p className="img-dropzone-title">{uploading ? '上传中…' : '点击选择图片或拖拽到此处'}</p>
+                      <p className="img-dropzone-hint">支持 JPG、PNG、GIF、WebP 格式</p>
+                    </div>
+                  ) : (
+                    <div className="img-preview-box">
+                      <img src={uploadPreview} alt="上传预览" />
+                      <button className="img-preview-replace" onClick={() => { setUploadPreview(''); fileInputRef.current?.click() }} type="button">重新选择</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="tiptap-modal-footer">
+              <button className="tiptap-modal-btn" onClick={() => { setImageModalVisible(false); setImageUrl(''); setUploadPreview('') }}>取消</button>
+              <button className="tiptap-modal-btn primary" onClick={confirmImage} disabled={imageTab === 'url' ? !imageUrl.trim() : !uploadPreview}>插入</button>
+            </div>
+          </div>
         </div>
-
-        {/* URL 模式 */}
-        {imageTab === 'url' && (
-          <>
-            <Input
-              value={imageUrl}
-              onChange={setImageUrl}
-              placeholder="https://example.com/image.jpg"
-              prefix="🖼️"
-              size="large"
-              autoFocus
-              onEnterPress={confirmImage}
-            />
-            {imageUrl.trim() && (
-              <div className="img-preview-box">
-                <img
-                  src={imageUrl.trim()}
-                  alt="预览"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                  onLoad={(e) => { (e.target as HTMLImageElement).style.display = 'block' }}
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 上传模式 */}
-        {imageTab === 'upload' && (
-          <>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-            {!uploadPreview ? (
-              <div
-                className={`img-dropzone${dragOver ? ' drag-over' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-              >
-                <Upload className="img-dropzone-icon" />
-                <p className="img-dropzone-title">{uploading ? '上传中…' : '点击选择图片或拖拽到此处'}</p>
-                <p className="img-dropzone-hint">支持 JPG、PNG、GIF、WebP 格式</p>
-              </div>
-            ) : (
-              <div className="img-preview-box">
-                <img src={uploadPreview} alt="上传预览" />
-                <button
-                  className="img-preview-replace"
-                  onClick={() => { setUploadPreview(''); fileInputRef.current?.click() }}
-                  type="button"
-                >
-                  重新选择
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </Modal>
+      )}
     </div>
   )
 }

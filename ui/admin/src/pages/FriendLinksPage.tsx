@@ -1,20 +1,26 @@
 import { useState } from 'react'
-import { Card, Button, Input, Tag, Divider, Typography, Empty, Avatar } from '@douyinfe/semi-ui'
-import { IconSearch, IconPlus, IconClose, IconDelete, IconLink, IconGlobe, IconTickCircle, IconAlertTriangle, IconExternalOpen } from '@douyinfe/semi-icons'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
+import { Search, Plus, Trash2, ExternalLink, Globe, Link2, X, Loader2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { useFriendLinks, useCreateFriendLink, useDeleteFriendLink, useToggleLinkStatus } from '@/hooks/use-friend-links'
 import type { LinkStatus } from '@/types/friend-link'
+import { cn } from '@/lib/utils'
 
-const { Title, Text } = Typography
-
-/** 状态配置 */
-const statusConfig = {
-  active: { text: '正常', color: 'blue' as const },
-  pending: { text: '待审核', color: 'orange' as const },
-  down: { text: '已下线', color: 'red' as const },
+const statusConfig: Record<LinkStatus, { text: string }> = {
+  active: { text: '正常' },
+  pending: { text: '待审核' },
+  down: { text: '已下线' },
 }
 
+function extractDomain(url: string): string {
+  try { return new URL(url).hostname } catch { return url }
+}
+
+const inputCls = 'border-zinc-200 dark:border-zinc-700 bg-transparent rounded-md shadow-none focus-visible:ring-1 focus-visible:ring-zinc-400'
+
 /**
- * 友链管理页面 — Semi Card / Input / Tag / Button / Avatar
+ * 友链管理 — Vercel 风格
  */
 export function FriendLinksPage() {
   const [keyword, setKeyword] = useState('')
@@ -30,97 +36,90 @@ export function FriendLinksPage() {
     if (!formData.name.trim() || !formData.url.trim()) return
     createMutation.mutate(formData, { onSuccess: () => { setFormData({ name: '', url: '', description: '' }); setShowForm(false) } })
   }
-
-  function handleDelete(id: string, name: string) {
-    if (window.confirm(`确定删除友链「${name}」吗？`)) deleteMutation.mutate(id)
-  }
-
-  function handleToggle(id: string, currentStatus: LinkStatus) {
-    toggleMutation.mutate({ id, status: currentStatus === 'active' ? 'down' : 'active' })
-  }
-
-  function extractDomain(url: string): string {
-    try { return new URL(url).hostname } catch { return url }
-  }
+  function handleDelete(id: string, name: string) { if (window.confirm(`确定删除友链「${name}」吗？`)) deleteMutation.mutate(id) }
+  function handleToggle(id: string, currentStatus: LinkStatus) { toggleMutation.mutate({ id, status: currentStatus === 'active' ? 'down' : 'active' }) }
 
   const activeCount = links?.filter((l) => l.status === 'active').length ?? 0
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <Title heading={4}>友链管理</Title>
-          <Text type="tertiary" size="small">管理博客友情链接，互换链接、共建生态</Text>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">友链管理</h1>
+          <p className="text-sm text-zinc-500 mt-1">管理博客友情链接</p>
         </div>
-        <Button icon={<IconPlus />} theme="solid" onClick={() => setShowForm(true)}>新增友链</Button>
+        <Button className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-sm hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => setShowForm(true)}>
+          <Plus className="w-4 h-4 mr-1.5" /> 新增友链
+        </Button>
       </div>
 
       {showForm && (
-        <Card style={{ marginBottom: 24 }} title="新增友链" headerExtraContent={<Button icon={<IconClose />} theme="borderless" size="small" onClick={() => setShowForm(false)} />}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>名称 *</Text>
-              <Input value={formData.name} onChange={(v) => setFormData((p) => ({ ...p, name: v }))} placeholder="例如：阮一峰的网络日志" />
-            </div>
-            <div>
-              <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>链接 *</Text>
-              <Input value={formData.url} onChange={(v) => setFormData((p) => ({ ...p, url: v }))} placeholder="https://example.com" />
-            </div>
+        <div className="mb-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5">
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">新增友链</p>
+            <Button variant="ghost" size="icon" className="w-7 h-7 rounded-md" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
           </div>
-          <div style={{ marginTop: 16 }}>
-            <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>描述</Text>
-            <Input value={formData.description} onChange={(v) => setFormData((p) => ({ ...p, description: v }))} placeholder="一句话介绍这个博客…" />
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-xs font-medium text-zinc-500 mb-1.5 block">名称 *</label><Input value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="例如：阮一峰的网络日志" className={inputCls} /></div>
+            <div><label className="text-xs font-medium text-zinc-500 mb-1.5 block">链接 *</label><Input value={formData.url} onChange={(e) => setFormData((p) => ({ ...p, url: e.target.value }))} placeholder="https://example.com" className={inputCls} /></div>
           </div>
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button theme="light" onClick={() => setShowForm(false)}>取消</Button>
-            <Button theme="solid" onClick={handleCreate} disabled={!formData.name.trim() || !formData.url.trim() || createMutation.isPending}>
+          <div className="mt-4"><label className="text-xs font-medium text-zinc-500 mb-1.5 block">描述</label><Input value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} placeholder="一句话介绍…" className={inputCls} /></div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" className="shadow-sm rounded-md border-zinc-200 dark:border-zinc-700 bg-white" onClick={() => setShowForm(false)}>取消</Button>
+            <Button className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-sm hover:bg-zinc-800" onClick={handleCreate} disabled={!formData.name.trim() || !formData.url.trim() || createMutation.isPending}>
               {createMutation.isPending ? '创建中…' : '创建'}
             </Button>
           </div>
-        </Card>
+        </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Input prefix={<IconSearch />} placeholder="搜索友链…" value={keyword} onChange={(v) => setKeyword(v)} style={{ maxWidth: 360 }} showClear />
-        <Text type="tertiary" size="small">共 {links?.length ?? 0} 条友链 · {activeCount} 条在线</Text>
+      <div className="flex justify-between items-center mb-4">
+        <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" /><Input placeholder="搜索友链…" value={keyword} onChange={(e) => setKeyword(e.target.value)} className={`pl-9 ${inputCls}`} /></div>
+        <span className="text-xs text-zinc-500">共 {links?.length ?? 0} 条 · {activeCount} 条在线</span>
       </div>
 
-      {isLoading && <div style={{ textAlign: 'center', padding: 64 }}><Text type="tertiary">加载中…</Text></div>}
+      {isLoading && <div className="text-center py-16"><Loader2 className="w-4 h-4 animate-spin text-zinc-400 mx-auto" /></div>}
 
       {!isLoading && links?.length === 0 && (
-        <Card><Empty image={<IconLink style={{ fontSize: 48 }} />} description="暂无友链，点击上方按钮添加" /></Card>
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm py-16">
+          <div className="flex flex-col items-center text-center">
+            <Link2 className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mb-3" />
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">暂无友链</p>
+            <p className="text-sm text-zinc-500 mt-1">点击上方按钮添加</p>
+            <Button variant="outline" size="sm" className="mt-3 shadow-sm border-zinc-200 bg-white rounded-md" onClick={() => setShowForm(true)}>新增友链</Button>
+          </div>
+        </div>
       )}
 
       {links && links.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="grid grid-cols-2 gap-4">
           {links.map((link) => {
             const st = statusConfig[link.status]
             return (
-              <Card key={link.id} style={{ opacity: link.status === 'down' ? 0.6 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <Avatar size="small" alt={link.name}>{link.name.charAt(0)}</Avatar>
+              <div key={link.id} className={cn('bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors', link.status === 'down' && 'opacity-60')}>
+                <div className="flex justify-between items-start">
+                  <div className="flex gap-3 items-center">
+                    <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-sm font-medium text-zinc-600 dark:text-zinc-400">{link.name.charAt(0)}</div>
                     <div>
-                      <Text strong>{link.name}</Text>
-                      <br />
-                      <Text type="tertiary" size="small"><IconGlobe size="extra-small" /> {extractDomain(link.url)}</Text>
+                      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{link.name}</p>
+                      <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5"><Globe className="w-3 h-3" /> {extractDomain(link.url)}</p>
                     </div>
                   </div>
-                  <Tag color={st.color} size="small">{st.text}</Tag>
+                  <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-full px-2.5 py-0.5 text-xs font-medium">{st.text}</span>
                 </div>
-                {link.description && <Text type="tertiary" style={{ display: 'block', marginTop: 12, fontSize: 14 }}>{link.description}</Text>}
-                <Divider margin={12} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text type="tertiary" size="small">#{link.sort}</Text>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <Button icon={<IconExternalOpen />} theme="light" size="small" onClick={() => window.open(link.url, '_blank')}>访问</Button>
-                    <Button icon={link.status === 'active' ? <IconAlertTriangle /> : <IconTickCircle />} theme="light" size="small" disabled={toggleMutation.isPending} onClick={() => handleToggle(link.id, link.status)}>
-                      {link.status === 'active' ? '下线' : '上线'}
+                {link.description && <p className="text-sm text-zinc-500 mt-3">{link.description}</p>}
+                <Separator className="my-3 bg-zinc-100 dark:bg-zinc-800" />
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-zinc-500">#{link.sort}</span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs shadow-sm rounded-md border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50" onClick={() => window.open(link.url, '_blank')}><ExternalLink className="w-3 h-3 mr-1" /> 访问</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs shadow-sm rounded-md border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50" disabled={toggleMutation.isPending} onClick={() => handleToggle(link.id, link.status)}>
+                      {link.status === 'active' ? <><ArrowDownCircle className="w-3 h-3 mr-1" /> 下线</> : <><ArrowUpCircle className="w-3 h-3 mr-1" /> 上线</>}
                     </Button>
-                    <Button icon={<IconDelete />} theme="borderless" type="danger" size="small" disabled={deleteMutation.isPending} onClick={() => handleDelete(link.id, link.name)} />
+                    <Button variant="ghost" size="icon" className="w-7 h-7 rounded-md text-zinc-400 hover:text-red-500" disabled={deleteMutation.isPending} onClick={() => handleDelete(link.id, link.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             )
           })}
         </div>

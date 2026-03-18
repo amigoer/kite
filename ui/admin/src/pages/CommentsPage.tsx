@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { Card, Button, Input, Tag, Tabs, TabPane, Divider, Typography, Empty, Avatar } from '@douyinfe/semi-ui'
-import { IconSearch, IconTick, IconDelete, IconClose, IconComment, IconClock, IconArticle, IconShield } from '@douyinfe/semi-icons'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Search, Check, Trash2, Shield, Clock, FileText, MessageSquare, Loader2 } from 'lucide-react'
 import { useComments, useCommentStats, useModerateComment } from '@/hooks/use-comments'
 import type { CommentStatus } from '@/types/comment'
+import { cn } from '@/lib/utils'
 
-const { Title, Text, Paragraph } = Typography
-
-/** 状态徽标 */
-const statusBadge = {
-  approved: { text: '已通过', color: 'blue' as const },
-  pending: { text: '待审核', color: 'orange' as const },
-  spam: { text: '垃圾', color: 'red' as const },
+const statusBadge: Record<CommentStatus, { text: string; variant: 'default' | 'secondary' | 'destructive' }> = {
+  approved: { text: '已通过', variant: 'default' },
+  pending: { text: '待审核', variant: 'secondary' },
+  spam: { text: '垃圾', variant: 'destructive' },
 }
 
 function timeAgo(dateStr: string): string {
@@ -25,7 +27,7 @@ function timeAgo(dateStr: string): string {
 }
 
 /**
- * 评论管理页面 — Semi Tabs / Card / Tag / Button / Input
+ * 评论管理页面
  */
 export function CommentsPage() {
   const [statusFilter, setStatusFilter] = useState<CommentStatus | 'all'>('all')
@@ -41,99 +43,139 @@ export function CommentsPage() {
     moderateMutation.mutate({ id, action })
   }
 
+  const tabItems = [
+    { key: 'all' as const, label: '全部', count: stats?.total ?? 0, icon: MessageSquare },
+    { key: 'pending' as const, label: '待审核', count: stats?.pending ?? 0, icon: Clock },
+    { key: 'approved' as const, label: '已通过', count: stats?.approved ?? 0, icon: Check },
+    { key: 'spam' as const, label: '垃圾', count: stats?.spam ?? 0, icon: Shield },
+  ]
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title heading={4}>评论管理</Title>
-        <Text type="tertiary" size="small">审核和管理读者的评论</Text>
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">评论管理</h1>
+        <p className="text-sm text-zinc-500 mt-1">审核和管理读者的评论</p>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 统计 */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        <div className="grid grid-cols-4 gap-3 mb-6">
           {[
             { label: '全部评论', value: stats.total },
             { label: '待审核', value: stats.pending },
             { label: '已通过', value: stats.approved },
             { label: '垃圾评论', value: stats.spam },
-          ].map((card) => (
-            <Card key={card.label}>
-              <Text type="tertiary" size="small">{card.label}</Text>
-              <Title heading={3} style={{ margin: '4px 0 0' }}>{card.value}</Title>
+          ].map((s) => (
+            <Card key={s.label} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+              <CardContent className="p-4">
+                <p className="text-xs text-zinc-500">{s.label}</p>
+                <p className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50 mt-1">{s.value}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* 筛选栏 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Tabs type="button" activeKey={statusFilter} onChange={(key) => setStatusFilter(key as CommentStatus | 'all')}>
-          <TabPane tab={<><IconComment size="small" /> 全部 {stats?.total ?? 0}</>} itemKey="all" />
-          <TabPane tab={<><IconClock size="small" /> 待审核 {stats?.pending ?? 0}</>} itemKey="pending" />
-          <TabPane tab={<><IconTick size="small" /> 已通过 {stats?.approved ?? 0}</>} itemKey="approved" />
-          <TabPane tab={<><IconClose size="small" /> 垃圾 {stats?.spam ?? 0}</>} itemKey="spam" />
-        </Tabs>
-        <Input prefix={<IconSearch />} placeholder="搜索评论内容、作者…" value={keyword} onChange={(v) => setKeyword(v)} style={{ maxWidth: 280 }} showClear />
+      {/* 筛选 */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex gap-1.5">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.key}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1 text-sm rounded-md transition-colors cursor-pointer',
+                  statusFilter === tab.key
+                    ? 'bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                )}
+                onClick={() => setStatusFilter(tab.key)}
+              >
+                <Icon className="w-3.5 h-3.5" /> {tab.label} {tab.count}
+              </button>
+            )
+          })}
+        </div>
+        <div className="relative max-w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Input placeholder="搜索评论内容、作者…" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="pl-9 border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none" />
+        </div>
       </div>
 
-      {isLoading && <div style={{ textAlign: 'center', padding: 64 }}><Text type="tertiary">加载中…</Text></div>}
+      {isLoading && <div className="text-center py-16"><Loader2 className="w-5 h-5 animate-spin text-zinc-400 mx-auto" /></div>}
 
       {!isLoading && comments?.length === 0 && (
-        <Card><Empty image={<IconComment style={{ fontSize: 48 }} />} description="暂无评论" /></Card>
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 py-16">
+          <div className="flex flex-col items-center text-center">
+            <MessageSquare className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mb-3" />
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">暂无评论</p>
+            <p className="text-sm text-zinc-500 mt-1">当读者留下评论后会在这里显示</p>
+          </div>
+        </div>
       )}
 
       {/* 评论列表 */}
       {comments && comments.length > 0 && (
-        <Card bodyStyle={{ padding: 0 }}>
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900">
           {comments.map((comment, index) => {
             const badge = statusBadge[comment.status]
             const isExpanded = expandedId === comment.id
             return (
               <div key={comment.id}>
-                {index > 0 && <Divider margin={0} />}
-                <div style={{ display: 'flex', gap: 12, padding: '16px 20px', background: comment.status === 'spam' ? 'rgba(255,0,0,0.02)' : undefined }}>
-                  <Avatar size="small" alt={comment.author}>{comment.author.charAt(0).toUpperCase()}</Avatar>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Text strong>{comment.author}</Text>
-                      <Tag color={badge.color} size="small">{badge.text}</Tag>
-                      <Text type="tertiary" size="small" style={{ marginLeft: 'auto' }}>
-                        <IconClock size="extra-small" /> {timeAgo(comment.createdAt)}
-                      </Text>
+                {index > 0 && <Separator className="bg-zinc-100 dark:bg-zinc-800" />}
+                <div className={cn('flex gap-3 p-4', comment.status === 'spam' && 'bg-red-50/50 dark:bg-red-950/10')}>
+                  {/* 头像 */}
+                  <div className="w-8 h-8 rounded-md bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-400 shrink-0">
+                    {comment.author.charAt(0).toUpperCase()}
+                  </div>
+                  {/* 内容 */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{comment.author}</span>
+                      <Badge variant={badge.variant} className="text-[10px] h-4">{badge.text}</Badge>
+                      <span className="text-xs text-zinc-500 ml-auto flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {timeAgo(comment.createdAt)}
+                      </span>
                     </div>
-                    <Text type="tertiary" size="small" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <IconArticle size="extra-small" /> {comment.postTitle}
-                    </Text>
-                    <Paragraph
-                      ellipsis={!isExpanded ? { rows: 2, expandable: true, onExpand: () => setExpandedId(comment.id) } : undefined}
-                      style={{ marginTop: 8, fontSize: 14 }}
-                    >
+                    <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
+                      <FileText className="w-3 h-3" /> {comment.postTitle}
+                    </p>
+                    <p className={cn('text-sm text-zinc-700 dark:text-zinc-300 mt-2', !isExpanded && 'line-clamp-2')}>
                       {comment.content}
-                    </Paragraph>
+                    </p>
+                    {!isExpanded && comment.content.length > 120 && (
+                      <button className="text-xs text-zinc-500 hover:text-zinc-700 mt-1 cursor-pointer" onClick={() => setExpandedId(comment.id)}>展开</button>
+                    )}
                     {isExpanded && (
                       <>
-                        <Button theme="borderless" size="small" onClick={() => setExpandedId(null)}>收起</Button>
-                        <Divider margin={8} />
-                        <Text type="tertiary" size="small">
-                          邮箱：{comment.email} · IP：{comment.ip} · UA：{comment.userAgent}
-                        </Text>
+                        <button className="text-xs text-zinc-500 hover:text-zinc-700 mt-1 cursor-pointer" onClick={() => setExpandedId(null)}>收起</button>
+                        <Separator className="my-2 bg-zinc-100 dark:bg-zinc-800" />
+                        <p className="text-xs text-zinc-500">邮箱：{comment.email} · IP：{comment.ip} · UA：{comment.userAgent}</p>
                       </>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+                  {/* 操作 */}
+                  <div className="flex gap-1 items-start shrink-0">
                     {comment.status !== 'approved' && (
-                      <Button icon={<IconTick />} theme="light" size="small" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'approve')}>通过</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs shadow-none border-zinc-200 dark:border-zinc-800" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'approve')}>
+                        <Check className="w-3 h-3 mr-1" /> 通过
+                      </Button>
                     )}
                     {comment.status !== 'spam' && (
-                      <Button icon={<IconShield />} theme="light" size="small" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'spam')}>垃圾</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs shadow-none border-zinc-200 dark:border-zinc-800" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'spam')}>
+                        <Shield className="w-3 h-3 mr-1" /> 垃圾
+                      </Button>
                     )}
-                    <Button icon={<IconDelete />} theme="borderless" type="danger" size="small" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'delete')} />
+                    <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500 hover:text-red-600" disabled={moderateMutation.isPending} onClick={() => handleModerate(comment.id, 'delete')}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>
             )
           })}
-        </Card>
+        </div>
       )}
     </div>
   )

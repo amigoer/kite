@@ -39,6 +39,7 @@ cover.out
 # Go workspace / tooling
 bin/
 dist/
+public/
 
 # SQLite and local data
 *.db

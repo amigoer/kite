@@ -1,108 +1,127 @@
 import { useNavigate } from 'react-router'
-import { Card, Button, Tag, Divider, Empty, Typography, Spin } from '@douyinfe/semi-ui'
-import { IconEdit, IconEyeOpened, IconSetting, IconGridView, IconArticle, IconComment, IconTick } from '@douyinfe/semi-icons'
+import { Button } from '@/components/ui/button'
+import {
+  FileText, FolderOpen, Tags, MessageSquare,
+  PenLine, ExternalLink, Settings, Loader2,
+} from 'lucide-react'
 import { useDashboardStats, useRecentPosts } from '@/hooks/use-dashboard'
 
-const { Title, Text, Paragraph } = Typography
-
-/** 格式化日期 */
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 /**
- * 仪表盘页面 — Semi Design（真实 API 数据）
+ * 仪表盘 — Vercel 风格：单色克制、紧凑阴影、无彩色
  */
 export function DashboardPage() {
   const navigate = useNavigate()
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
   const { data: recentPosts, isLoading: postsLoading } = useRecentPosts(5)
 
-  /** 统计卡片配置 */
   const statsCards = [
-    { label: '文章', value: stats?.postCount ?? '—', icon: <IconArticle style={{ fontSize: 20 }} /> },
-    { label: '分类', value: stats?.categoryCount ?? '—', icon: <IconGridView style={{ fontSize: 20 }} /> },
-    { label: '标签', value: stats?.tagCount ?? '—', icon: <IconEyeOpened style={{ fontSize: 20 }} /> },
-    { label: '待审评论', value: stats?.commentPending ?? '—', icon: <IconComment style={{ fontSize: 20 }} /> },
+    { label: '文章', value: stats?.postCount ?? '—', icon: FileText, path: '/posts' },
+    { label: '分类', value: stats?.categoryCount ?? '—', icon: FolderOpen, path: '/categories' },
+    { label: '标签', value: stats?.tagCount ?? '—', icon: Tags, path: '/tags' },
+    { label: '待审评论', value: stats?.commentPending ?? '—', icon: MessageSquare, path: '/comments' },
   ]
 
   return (
     <div>
-      {/* 页面标题 */}
-      <div style={{ marginBottom: 24 }}>
-        <Title heading={4}>仪表盘</Title>
-        <Text type="tertiary" style={{ fontSize: 14 }}>
-          欢迎回到 Kite 后台管理 — 以下是你的站点概览
-        </Text>
+      <div className="mb-8">
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">仪表盘</h1>
+        <p className="text-sm text-zinc-500 mt-1">站点概览</p>
       </div>
 
-      {/* 统计卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        {statsCards.map((card) => (
-          <Card key={card.label}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
-                {card.icon}
-              </div>
-              <div>
-                <Text type="tertiary" size="small">{card.label}</Text>
-                {statsLoading ? (
-                  <Spin size="small" />
-                ) : (
-                  <Title heading={3} style={{ margin: 0 }}>{card.value}</Title>
-                )}
+      {/* 统计卡片 — 纯白 + border + shadow-sm，裸图标 */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        {statsCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <div
+              key={card.label}
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5 cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              onClick={() => navigate(card.path)}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{card.label}</p>
+                  {statsLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-zinc-300 mt-3" />
+                  ) : (
+                    <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mt-1 tabular-nums tracking-tight">{card.value}</p>
+                  )}
+                </div>
+                <Icon className="w-5 h-5 text-zinc-500" />
               </div>
             </div>
-          </Card>
-        ))}
+          )
+        })}
       </div>
 
-      {/* 第二行：快捷操作 + 最近文章 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 16 }}>
+      <div className="grid grid-cols-3 gap-4">
         {/* 快捷操作 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Card title="快捷操作">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <Button icon={<IconEdit />} theme="light" block onClick={() => navigate('/posts/new')}>写文章</Button>
-              <Button icon={<IconGridView />} theme="light" block onClick={() => navigate('/categories')}>管理分类</Button>
-              <Button icon={<IconEyeOpened />} theme="light" block onClick={() => window.open('/', '_blank')}>预览站点</Button>
-              <Button icon={<IconSetting />} theme="light" block onClick={() => navigate('/settings')}>系统设置</Button>
-            </div>
-          </Card>
-          <Card title="通知">
-            <Empty
-              image={<IconTick style={{ fontSize: 48, color: 'var(--semi-color-text-2)' }} />}
-              description="当前没有未读的消息"
-            />
-          </Card>
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5">
+          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4 tracking-tight">快捷操作</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { icon: PenLine, label: '写文章', onClick: () => navigate('/posts/new') },
+              { icon: FolderOpen, label: '管理分类', onClick: () => navigate('/categories') },
+              { icon: ExternalLink, label: '预览站点', onClick: () => window.open('/', '_blank') },
+              { icon: Settings, label: '系统设置', onClick: () => navigate('/settings') },
+            ].map((a) => (
+              <Button
+                key={a.label}
+                variant="outline"
+                className="justify-start gap-2 h-8 text-[13px] shadow-sm bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-md"
+                onClick={a.onClick}
+              >
+                <a.icon className="w-3.5 h-3.5 text-zinc-500" /> {a.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* 最近文章 */}
-        <Card title="最近文章" headerExtraContent={<Button theme="borderless" size="small" onClick={() => navigate('/posts')}>查看全部 →</Button>}>
-          {postsLoading ? (
-            <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-          ) : recentPosts && recentPosts.length > 0 ? (
-            recentPosts.map((post, i) => (
-              <div key={post.id}>
-                {i > 0 && <Divider margin={0} />}
-                <div
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', cursor: 'pointer' }}
-                  onClick={() => navigate(`/posts/${post.id}/edit`)}
-                >
-                  <div style={{ minWidth: 0, flex: 1, paddingRight: 12 }}>
-                    <Paragraph ellipsis style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{post.title}</Paragraph>
-                    <Text type="tertiary" size="small">{formatDate(post.createdAt)}</Text>
+        <div className="col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
+            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 tracking-tight">最近文章</h2>
+            <button className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors cursor-pointer" onClick={() => navigate('/posts')}>
+              查看全部 →
+            </button>
+          </div>
+          <div>
+            {postsLoading ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-4 h-4 animate-spin text-zinc-300" /></div>
+            ) : recentPosts && recentPosts.length > 0 ? (
+              <div>
+                {recentPosts.map((post, i) => (
+                  <div
+                    key={post.id}
+                    className={`flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${i < recentPosts.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+                    onClick={() => navigate(`/posts/${post.id}/edit`)}
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{post.title}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5 tabular-nums">{formatDate(post.createdAt)}</p>
+                    </div>
+                    <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
+                      {post.status === 'published' ? '已发布' : '草稿'}
+                    </span>
                   </div>
-                  <Tag color={post.status === 'published' ? 'blue' : 'grey'}>
-                    {post.status === 'published' ? '已发布' : '草稿'}
-                  </Tag>
-                </div>
+                ))}
               </div>
-            ))
-          ) : (
-            <Empty description="还没有文章" />
-          )}
-        </Card>
+            ) : (
+              <div className="flex flex-col items-center py-12 text-center">
+                <FileText className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mb-2" />
+                <p className="text-sm text-zinc-700 dark:text-zinc-300">还没有文章</p>
+                <p className="text-xs text-zinc-500 mt-1">开始写第一篇吧</p>
+                <Button variant="outline" size="sm" className="mt-3 shadow-sm border-zinc-200 dark:border-zinc-800 bg-white text-sm rounded-md" onClick={() => navigate('/posts/new')}>
+                  <PenLine className="w-3.5 h-3.5 mr-1.5" /> 写文章
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

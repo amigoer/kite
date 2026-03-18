@@ -1,29 +1,29 @@
 import { Outlet } from 'react-router'
-import { Layout } from '@douyinfe/semi-ui'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
-import { CommandPalette } from '@/components/CommandPalette'
-
-const { Content } = Layout
+import { CommandSearch } from '@/components/CommandSearch'
+import { useSidebarStore } from '@/stores/use-sidebar-store'
 
 /**
- * Admin 全局布局组件
- * 三段式结构：左侧边栏 + 右侧（顶部 Header + 灰底主内容区）
+ * 管理后台主布局 — Vercel 风格
+ * 极浅灰底 + 纯白卡片的层级对比
  */
 export function AdminLayout() {
+  const { isCollapsed } = useSidebarStore()
+
   return (
-    <Layout style={{ height: '100vh' }}>
+    <div className="flex h-screen overflow-hidden bg-[#FAFAFA] dark:bg-zinc-950">
       <Sidebar />
-      <Layout>
+      <div
+        className="flex flex-col flex-1 min-w-0 transition-all duration-200"
+        style={{ marginLeft: isCollapsed ? 64 : 224 }}
+      >
         <Header />
-        <Content style={{ overflow: 'auto', background: 'var(--semi-color-bg-1)', padding: 24 }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <Outlet />
-          </div>
-        </Content>
-      </Layout>
-      {/* 全局命令面板 */}
-      <CommandPalette />
-    </Layout>
+        <main className="flex-1 overflow-auto px-8 py-6">
+          <Outlet />
+        </main>
+      </div>
+      <CommandSearch />
+    </div>
   )
 }

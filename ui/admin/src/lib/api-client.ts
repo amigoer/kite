@@ -67,8 +67,8 @@ function handleUnauthorized(path: string): void {
  * 通用请求处理：解析响应、处理 401、抛出错误
  */
 async function handleResponse<T>(res: Response, path: string): Promise<T> {
-  // 401 自动跳转登录页
-  if (res.status === 401) {
+  // 401 且非鉴权接口：自动跳转登录页
+  if (res.status === 401 && !path.includes('/auth/')) {
     handleUnauthorized(path)
     throw new ApiError(401, 'unauthorized')
   }

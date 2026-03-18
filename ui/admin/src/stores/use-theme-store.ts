@@ -10,7 +10,7 @@ interface ThemeStore {
 
 /**
  * 主题状态管理
- * 通过 body[theme-mode] 属性控制 Semi Design 暗色模式
+ * 通过 html.dark class 控制暗色模式（Tailwind 标准方式）
  */
 export const useThemeStore = create<ThemeStore>()(
   persist(
@@ -25,7 +25,6 @@ export const useThemeStore = create<ThemeStore>()(
     {
       name: 'kite-theme',
       onRehydrateStorage: () => (state) => {
-        // 恢复时同步 DOM 属性
         if (state) applyTheme(state.isDark)
       },
     }
@@ -34,10 +33,10 @@ export const useThemeStore = create<ThemeStore>()(
 
 /** 将主题状态同步到 DOM */
 function applyTheme(isDark: boolean) {
-  const body = document.body
+  const root = document.documentElement
   if (isDark) {
-    body.setAttribute('theme-mode', 'dark')
+    root.classList.add('dark')
   } else {
-    body.removeAttribute('theme-mode')
+    root.classList.remove('dark')
   }
 }

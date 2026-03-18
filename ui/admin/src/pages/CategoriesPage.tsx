@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { Card, Button, Input, Typography, Divider, Empty } from '@douyinfe/semi-ui'
-import { IconSearch, IconPlus, IconEdit, IconDelete, IconClose, IconArticle, IconFolder } from '@douyinfe/semi-icons'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Search, Plus, Pencil, Trash2, FolderOpen, FileText, X, Loader2 } from 'lucide-react'
 import { useCategoryList, useCreateCategory, useDeleteCategory } from '@/hooks/use-categories'
-
-const { Title, Text } = Typography
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 /**
- * 分类管理页面 — Semi Card / Input / Button
+ * 分类管理页面
  */
 export function CategoriesPage() {
   const [keyword, setKeyword] = useState('')
@@ -36,82 +37,104 @@ export function CategoriesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <Title heading={4}>分类管理</Title>
-          <Text type="tertiary" size="small">管理博客文章的分类体系</Text>
+          <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">分类管理</h1>
+          <p className="text-sm text-zinc-500 mt-1">管理博客文章的分类体系</p>
         </div>
-        <Button icon={<IconPlus />} theme="solid" onClick={() => setShowForm(true)}>新建分类</Button>
+        <Button className="bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-none rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => setShowForm(true)}>
+          <Plus className="w-4 h-4 mr-1.5" /> 新建分类
+        </Button>
       </div>
 
       {/* 新建表单 */}
       {showForm && (
-        <Card style={{ marginBottom: 24 }} title="新建分类" headerExtraContent={<Button icon={<IconClose />} theme="borderless" size="small" onClick={() => setShowForm(false)} />}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>分类名称</Text>
-              <Input value={formData.name} onChange={(v) => handleNameChange(v)} placeholder="例如：前端开发" />
-            </div>
-            <div>
-              <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>Slug</Text>
-              <Input value={formData.slug} onChange={(v) => setFormData((prev) => ({ ...prev, slug: v }))} placeholder="例如：frontend" />
-            </div>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 6 }}>描述</Text>
-            <Input value={formData.description} onChange={(v) => setFormData((prev) => ({ ...prev, description: v }))} placeholder="简要描述此分类的内容范围…" />
-          </div>
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button theme="light" onClick={() => setShowForm(false)}>取消</Button>
-            <Button theme="solid" onClick={handleCreate} disabled={!formData.name.trim() || createMutation.isPending}>
-              {createMutation.isPending ? '创建中…' : '创建'}
+        <Card className="mb-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+          <CardHeader className="pb-3 flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">新建分类</CardTitle>
+            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setShowForm(false)}>
+              <X className="w-4 h-4" />
             </Button>
-          </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">分类名称</label>
+                <Input value={formData.name} onChange={(e) => handleNameChange(e.target.value)} placeholder="例如：前端开发" className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Slug</label>
+                <Input value={formData.slug} onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))} placeholder="例如：frontend" className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-medium text-zinc-500 mb-1.5 block">描述</label>
+              <Input value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} placeholder="简要描述此分类的内容范围…" className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" className="shadow-none border-zinc-200 dark:border-zinc-800" onClick={() => setShowForm(false)}>取消</Button>
+              <Button className="bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-none rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={handleCreate} disabled={!formData.name.trim() || createMutation.isPending}>
+                {createMutation.isPending ? '创建中…' : '创建'}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 
-      {/* 搜索栏 */}
-      <div style={{ marginBottom: 16, maxWidth: 360 }}>
-        <Input prefix={<IconSearch />} placeholder="搜索分类名称或 Slug…" value={keyword} onChange={(v) => setKeyword(v)} showClear />
+      {/* 搜索 */}
+      <div className="mb-4 max-w-sm">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Input placeholder="搜索分类名称或 Slug…" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="pl-9 border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+        </div>
       </div>
 
-      {isLoading && <div style={{ textAlign: 'center', padding: 64 }}><Text type="tertiary">加载中…</Text></div>}
+      {isLoading && (
+        <div className="text-center py-16">
+          <Loader2 className="w-5 h-5 animate-spin text-zinc-400 mx-auto" />
+        </div>
+      )}
 
       {!isLoading && categories?.length === 0 && (
-        <Card>
-          <Empty image={<IconFolder style={{ fontSize: 48 }} />} description="暂无分类，点击上方按钮创建第一个分类" />
-        </Card>
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 py-16">
+          <div className="flex flex-col items-center text-center">
+            <FolderOpen className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mb-3" />
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">暂无分类</p>
+            <p className="text-sm text-zinc-500 mt-1">点击上方按钮创建第一个分类</p>
+            <Button variant="outline" size="sm" className="mt-3 shadow-none border-zinc-200 dark:border-zinc-800" onClick={() => setShowForm(true)}>新建分类</Button>
+          </div>
+        </div>
       )}
 
       {/* 分类卡片网格 */}
       {categories && categories.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          {categories.map((cat) => (
-            <Card key={cat.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <Text strong>{cat.name}</Text>
-                  <br />
-                  <Text type="tertiary" size="small">/{cat.slug}</Text>
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <Button icon={<IconEdit />} theme="borderless" size="small" />
-                  <Button icon={<IconDelete />} theme="borderless" type="danger" size="small" onClick={() => handleDelete(cat.id, cat.name)} />
-                </div>
-              </div>
-              <Text type="tertiary" style={{ display: 'block', marginTop: 12, fontSize: 14 }}>{cat.description}</Text>
-              <Divider margin={12} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text type="tertiary" size="small"><IconArticle size="small" /> {cat.postCount} 篇文章</Text>
-                <Text type="tertiary" size="small">更新于 {formatDate(cat.updatedAt)}</Text>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {categories && categories.length > 0 && (
-        <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 16 }}>共 {categories.length} 个分类</Text>
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            {categories.map((cat) => (
+              <Card key={cat.id} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+                <CardContent className="p-5">
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{cat.name}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">/{cat.slug}</p>
+                    </div>
+                    <div className="flex gap-0.5">
+                      <Button variant="ghost" size="icon" className="w-7 h-7"><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500 hover:text-red-600" onClick={() => handleDelete(cat.id, cat.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </div>
+                  {cat.description && <p className="text-sm text-zinc-500 mt-3">{cat.description}</p>}
+                  <Separator className="my-3 bg-zinc-100 dark:bg-zinc-800" />
+                  <div className="flex justify-between items-center text-xs text-zinc-500">
+                    <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {cat.postCount} 篇文章</span>
+                    <span>更新于 {formatDate(cat.updatedAt)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500 mt-4">共 {categories.length} 个分类</p>
+        </>
       )}
     </div>
   )

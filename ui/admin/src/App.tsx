@@ -1,11 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
 import { AdminLayout } from '@/layouts/AdminLayout'
 import { useCurrentUser } from '@/hooks/use-auth'
-import { Typography, Spin } from '@douyinfe/semi-ui'
 import { lazy, Suspense } from 'react'
-
-const { Text } = Typography
+import { Loader2 } from 'lucide-react'
 
 // 路由懒加载 — 按页面分割 chunk
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -33,8 +33,8 @@ const queryClient = new QueryClient({
 /** 页面加载 Loading */
 function PageLoader() {
   return (
-    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Spin size="large" />
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
     </div>
   )
 }
@@ -45,24 +45,21 @@ function PageLoader() {
 function ProtectedRoutes() {
   const { data: currentUser, isLoading, isError } = useCurrentUser()
 
-  // 加载中
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Spin size="large" />
-          <Text type="tertiary" style={{ display: 'block', marginTop: 16 }}>正在验证身份…</Text>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-6 h-6 animate-spin text-zinc-400 mx-auto" />
+          <p className="text-sm text-zinc-500 mt-4">正在验证身份…</p>
         </div>
       </div>
     )
   }
 
-  // 未登录或鉴权失败
   if (isError || !currentUser || (currentUser.authEnabled && !currentUser.authenticated)) {
     return <Navigate to="/login" replace />
   }
 
-  // 已登录，渲染管理后台
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
@@ -93,13 +90,12 @@ function LoginGuard() {
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spin size="large" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
       </div>
     )
   }
 
-  // 已登录
   if (currentUser?.authenticated) {
     return <Navigate to="/" replace />
   }
@@ -117,12 +113,15 @@ function LoginGuard() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-        <Routes>
-          <Route path="/login" element={<LoginGuard />} />
-          <Route path="/*" element={<ProtectedRoutes />} />
-        </Routes>
-      </BrowserRouter>
+      <TooltipProvider>
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Routes>
+            <Route path="/login" element={<LoginGuard />} />
+            <Route path="/*" element={<ProtectedRoutes />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   )
 }

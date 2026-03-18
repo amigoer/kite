@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { Card, Button, Input, Switch, Typography, InputNumber, Select } from '@douyinfe/semi-ui'
-import { IconArrowLeft, IconSave, IconSend, IconTick } from '@douyinfe/semi-icons'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { ArrowLeft, Save, Send, Check, Loader2 } from 'lucide-react'
 import { TiptapEditor } from '@/components/TiptapEditor'
 import { usePageDetail, useSavePage } from '@/hooks/use-pages'
 import type { PageFormData } from '@/types/page'
-
-const { Title, Text } = Typography
 
 /** 模板配置字段定义 */
 interface TemplateField {
@@ -18,7 +22,6 @@ interface TemplateField {
   placeholder?: string
 }
 
-/** 各模板的字段定义 */
 const TEMPLATE_FIELDS: Record<string, TemplateField[]> = {
   default: [],
   github: [
@@ -28,14 +31,13 @@ const TEMPLATE_FIELDS: Record<string, TemplateField[]> = {
   ],
 }
 
-/** 可用的页面模板列表 */
 const PAGE_TEMPLATES = [
   { value: 'default', label: '默认模板' },
   { value: 'github', label: 'GitHub 风格' },
 ]
 
 /**
- * 独立页面编辑器 — 复用 TiptapEditor，含模板选择和动态元数据表单
+ * 独立页面编辑器
  */
 export function PageEditorPage() {
   const { id } = useParams()
@@ -52,34 +54,23 @@ export function PageEditorPage() {
   const { data: page, isLoading } = usePageDetail(id)
   const saveMutation = useSavePage()
 
-  /** 解析 config JSON 为对象 */
   const configObj = useMemo<Record<string, unknown>>(() => {
     if (!form.config) return {}
     try { return JSON.parse(form.config) } catch { return {} }
   }, [form.config])
 
-  /** 更新 config 中的某个字段 */
   function updateConfigField(key: string, value: unknown) {
     const newConfig = { ...configObj, [key]: value }
     setForm((prev) => ({ ...prev, config: JSON.stringify(newConfig) }))
   }
 
-  /** 获取当前模板的字段定义 */
   const currentFields = TEMPLATE_FIELDS[form.template] || []
 
-  /** 切换模板时，初始化默认 config */
   function handleTemplateChange(template: string) {
     const fields = TEMPLATE_FIELDS[template] || []
     const defaults: Record<string, unknown> = {}
-    fields.forEach((f) => {
-      // 保留已有值，只为新字段设默认值
-      defaults[f.key] = configObj[f.key] !== undefined ? configObj[f.key] : f.defaultValue
-    })
-    setForm((prev) => ({
-      ...prev,
-      template,
-      config: fields.length > 0 ? JSON.stringify(defaults) : '',
-    }))
+    fields.forEach((f) => { defaults[f.key] = configObj[f.key] !== undefined ? configObj[f.key] : f.defaultValue })
+    setForm((prev) => ({ ...prev, template, config: fields.length > 0 ? JSON.stringify(defaults) : '' }))
   }
 
   useEffect(() => {
@@ -108,146 +99,112 @@ export function PageEditorPage() {
   }
 
   if (isEdit && isLoading) {
-    return <div style={{ textAlign: 'center', padding: 64 }}><Text type="tertiary">加载中…</Text></div>
+    return <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-zinc-400" /></div>
   }
 
   return (
     <div>
       {/* 顶部操作栏 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button icon={<IconArrowLeft />} theme="borderless" onClick={() => navigate('/pages')} />
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate('/pages')}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           <div>
-            <Title heading={4}>{isEdit ? '编辑页面' : '新建页面'}</Title>
-            <Text type="tertiary" size="small">{isEdit ? `正在编辑：${page?.title}` : '创建独立页面'}</Text>
+            <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">{isEdit ? '编辑页面' : '新建页面'}</h1>
+            <p className="text-sm text-zinc-500">{isEdit ? `正在编辑：${page?.title}` : '创建独立页面'}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button icon={saved ? <IconTick /> : <IconSave />} theme="light" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
-            {saved ? '已保存' : '保存草稿'}
+        <div className="flex gap-2">
+          <Button variant="outline" className="shadow-none border-zinc-200 dark:border-zinc-800" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
+            {saved ? <><Check className="w-4 h-4 mr-1.5" /> 已保存</> : <><Save className="w-4 h-4 mr-1.5" /> 保存草稿</>}
           </Button>
-          <Button icon={<IconSend />} theme="solid" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
-            发布页面
+          <Button className="bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-none hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
+            <Send className="w-4 h-4 mr-1.5" /> 发布页面
           </Button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 24 }}>
+      <div className="flex gap-6">
         {/* 左侧编辑区 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input
-            value={form.title}
-            onChange={(v) => handleTitleChange(v)}
-            placeholder="页面标题"
-            size="large"
-          />
-          <TiptapEditor
-            content={form.contentMarkdown}
-            onChange={(html) => setForm((prev) => ({ ...prev, contentMarkdown: html }))}
-            placeholder="开始编写页面内容…"
-          />
+        <div className="flex-1 flex flex-col gap-4">
+          <Input value={form.title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="页面标题" className="text-lg font-medium border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md h-12" />
+          <TiptapEditor content={form.contentMarkdown} onChange={(html) => setForm((prev) => ({ ...prev, contentMarkdown: html }))} placeholder="开始编写页面内容…" />
         </div>
 
         {/* 右侧元数据面板 */}
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Card title="URL Slug">
-            <Input
-              value={form.slug}
-              onChange={(v) => setForm((prev) => ({ ...prev, slug: v }))}
-              placeholder="page-slug"
-              prefix="/"
-            />
-            <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
-              访问地址：/{form.slug || 'page-slug'}
-            </Text>
+        <div className="w-72 flex flex-col gap-4 shrink-0">
+          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">URL Slug</CardTitle></CardHeader>
+            <CardContent className="pt-0">
+              <Input value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} placeholder="page-slug" className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+              <p className="text-xs text-zinc-500 mt-1.5">访问地址：/{form.slug || 'page-slug'}</p>
+            </CardContent>
           </Card>
 
-          {/* 模板选择 */}
-          <Card title="页面模板">
-            <Select
-              value={form.template}
-              onChange={(v) => handleTemplateChange(v as string)}
-              optionList={PAGE_TEMPLATES}
-              style={{ width: '100%' }}
-              placeholder="选择模板"
-            />
-            <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
-              模板文件：pages/{form.template || 'default'}.html
-            </Text>
+          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">页面模板</CardTitle></CardHeader>
+            <CardContent className="pt-0">
+              <Select value={form.template} onValueChange={handleTemplateChange}>
+                <SelectTrigger className="border-zinc-200 dark:border-zinc-800 shadow-none"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                  {PAGE_TEMPLATES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-zinc-500 mt-1.5">模板文件：pages/{form.template || 'default'}.html</p>
+            </CardContent>
           </Card>
 
-          {/* 模板参数 — 根据所选模板动态渲染表单字段 */}
+          {/* 模板参数 */}
           {currentFields.length > 0 && (
-            <Card title="模板参数">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">模板参数</CardTitle></CardHeader>
+              <CardContent className="pt-0 space-y-4">
                 {currentFields.map((field) => (
                   <div key={field.key}>
                     {field.type === 'switch' ? (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div className="flex justify-between items-center">
                         <div>
-                          <Text strong style={{ fontSize: 13 }}>{field.label}</Text>
-                          {field.description && (
-                            <Text type="tertiary" size="small" style={{ display: 'block' }}>{field.description}</Text>
-                          )}
+                          <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{field.label}</p>
+                          {field.description && <p className="text-xs text-zinc-500">{field.description}</p>}
                         </div>
-                        <Switch
-                          checked={Boolean(configObj[field.key] ?? field.defaultValue)}
-                          onChange={(v) => updateConfigField(field.key, v)}
-                        />
+                        <Switch checked={Boolean(configObj[field.key] ?? field.defaultValue)} onCheckedChange={(v) => updateConfigField(field.key, v)} />
                       </div>
                     ) : (
                       <>
-                        <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>{field.label}</Text>
-                        {field.type === 'text' ? (
-                          <Input
-                            value={String(configObj[field.key] ?? field.defaultValue)}
-                            onChange={(v) => updateConfigField(field.key, v)}
-                            placeholder={field.placeholder}
-                          />
-                        ) : (
-                          <InputNumber
-                            value={Number(configObj[field.key] ?? field.defaultValue)}
-                            onChange={(v) => updateConfigField(field.key, v)}
-                            min={1}
-                            max={100}
-                            style={{ width: '100%' }}
-                          />
-                        )}
-                        {field.description && (
-                          <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>{field.description}</Text>
-                        )}
+                        <label className="text-sm font-medium text-zinc-950 dark:text-zinc-50 block mb-1.5">{field.label}</label>
+                        <Input
+                          type={field.type === 'number' ? 'number' : 'text'}
+                          value={String(configObj[field.key] ?? field.defaultValue)}
+                          onChange={(e) => updateConfigField(field.key, field.type === 'number' ? Number(e.target.value) : e.target.value)}
+                          placeholder={field.placeholder}
+                          className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md"
+                        />
+                        {field.description && <p className="text-xs text-zinc-500 mt-1">{field.description}</p>}
                       </>
                     )}
                   </div>
                 ))}
-              </div>
+              </CardContent>
             </Card>
           )}
 
-          <Card title="页面设置">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">页面设置</CardTitle></CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              <div className="flex justify-between items-center">
                 <div>
-                  <Text strong style={{ fontSize: 13 }}>显示在导航栏</Text>
-                  <Text type="tertiary" size="small" style={{ display: 'block' }}>前台顶部导航显示此页面</Text>
+                  <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">显示在导航栏</p>
+                  <p className="text-xs text-zinc-500">前台顶部导航显示此页面</p>
                 </div>
-                <Switch
-                  checked={form.showInNav}
-                  onChange={(v) => setForm((prev) => ({ ...prev, showInNav: v }))}
-                />
+                <Switch checked={form.showInNav} onCheckedChange={(v) => setForm((prev) => ({ ...prev, showInNav: v }))} />
               </div>
               <div>
-                <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>排序优先级</Text>
-                <InputNumber
-                  value={form.sortOrder}
-                  onChange={(v) => setForm((prev) => ({ ...prev, sortOrder: v as number }))}
-                  min={0}
-                  max={999}
-                  style={{ width: '100%' }}
-                />
-                <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>数值越小越靠前</Text>
+                <label className="text-sm font-medium text-zinc-950 dark:text-zinc-50 block mb-1.5">排序优先级</label>
+                <Input type="number" value={String(form.sortOrder)} onChange={(e) => setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))} min={0} max={999} className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+                <p className="text-xs text-zinc-500 mt-1">数值越小越靠前</p>
               </div>
-            </div>
+            </CardContent>
           </Card>
         </div>
       </div>
