@@ -13,6 +13,9 @@ import {
 import { Search, Plus, Trash2, Hash, List, X, FileText, Loader2 } from 'lucide-react'
 import { useTagList, useCreateTag, useDeleteTag } from '@/hooks/use-tags'
 import { cn } from '@/lib/utils'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as SearchBtn } from '@/components/search'
 
 /**
  * 标签管理页面 — 标签云 + 列表视图
@@ -55,7 +58,12 @@ export function TagsPage() {
   }
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <SearchBtn />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">标签管理</h1>
@@ -192,38 +200,38 @@ export function TagsPage() {
 
       {/* 列表视图 */}
       {tags && tags.length > 0 && viewMode === 'list' && (
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900">
+        <div className="overflow-hidden rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">标签名称</TableHead>
-                <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[160px]">Slug</TableHead>
-                <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[100px] text-center">文章数</TableHead>
-                <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[120px]">热度</TableHead>
-                <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[80px] text-center">操作</TableHead>
+              <TableRow>
+                <TableHead>标签名称</TableHead>
+                <TableHead className="w-[160px]">Slug</TableHead>
+                <TableHead className="w-[100px] text-center">文章数</TableHead>
+                <TableHead className="w-[120px]">热度</TableHead>
+                <TableHead className="w-[80px] text-center">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {tags.map((tag) => {
                 const pct = maxPostCount > 0 ? Math.round((tag.postCount / maxPostCount) * 100) : 0
                 return (
-                  <TableRow key={tag.id} className="border-b border-zinc-100 dark:border-zinc-800">
+                  <TableRow key={tag.id}>
                     <TableCell><Badge variant="secondary" className="text-xs"># {tag.name}</Badge></TableCell>
-                    <TableCell className="text-xs text-zinc-500 font-mono">{tag.slug}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-mono">{tag.slug}</TableCell>
                     <TableCell className="text-center">
-                      <span className="flex items-center justify-center gap-1 text-xs text-zinc-500"><FileText className="w-3 h-3" /> {tag.postCount}</span>
+                      <span className="flex items-center justify-center gap-1 text-xs text-muted-foreground"><FileText className="w-3 h-3" /> {tag.postCount}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-zinc-400 dark:bg-zinc-500 transition-all" style={{ width: `${pct}%` }} />
+                        <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-muted-foreground transition-all" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-zinc-500 w-8 text-right">{pct}%</span>
+                        <span className="text-xs text-muted-foreground w-8 text-right">{pct}%</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500 hover:text-red-600" onClick={() => handleDelete(tag.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <Button variant="ghost" size="icon" className="w-8 h-8 text-destructive hover:text-destructive" onClick={() => handleDelete(tag.id)}>
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -233,6 +241,7 @@ export function TagsPage() {
           </Table>
         </div>
       )}
-    </div>
+    </Main>
+    </>
   )
 }

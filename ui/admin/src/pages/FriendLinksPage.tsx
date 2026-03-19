@@ -6,6 +6,9 @@ import { Search, Plus, Trash2, ExternalLink, Globe, Link2, X, Loader2, ArrowUpCi
 import { useFriendLinks, useCreateFriendLink, useDeleteFriendLink, useToggleLinkStatus } from '@/hooks/use-friend-links'
 import type { LinkStatus } from '@/types/friend-link'
 import { cn } from '@/lib/utils'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as HeaderSearch } from '@/components/search'
 
 const statusConfig: Record<LinkStatus, { text: string }> = {
   active: { text: '正常' },
@@ -42,7 +45,12 @@ export function FriendLinksPage() {
   const activeCount = links?.filter((l) => l.status === 'active').length ?? 0
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <HeaderSearch />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">友链管理</h1>
@@ -124,6 +132,7 @@ export function FriendLinksPage() {
           })}
         </div>
       )}
-    </div>
+      </Main>
+    </>
   )
 }

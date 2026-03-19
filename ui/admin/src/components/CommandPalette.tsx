@@ -4,6 +4,7 @@ import {
   LayoutDashboard, FileText, Files, FolderOpen, Tags,
   MessageSquare, Link2, Settings, Search, PenLine,
 } from 'lucide-react'
+import { useSearch } from '@/context/search-provider'
 import '@/styles/command-palette.css'
 
 /** 命令项类型 */
@@ -20,7 +21,7 @@ interface CommandItem {
  * 全局命令面板（⌘K）
  */
 export function CommandPalette() {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useSearch()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -65,15 +66,11 @@ export function CommandPalette() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen(prev => !prev)
-      }
       if (e.key === 'Escape') setOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [setOpen])
 
   useEffect(() => {
     if (open) {

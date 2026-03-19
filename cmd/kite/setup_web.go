@@ -39,203 +39,95 @@ const installPageHTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kite — 安装引导</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root {
-      --c-bg: #f8fafc;
-      --c-surface: #ffffff;
-      --c-text: #0f172a;
-      --c-text-secondary: #64748b;
-      --c-accent: #2563eb;
-      --c-accent-hover: #1d4ed8;
-      --c-border: #e2e8f0;
-      --c-error: #ef4444;
-      --c-success: #22c55e;
-      --radius: 8px;
-      --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --c-bg: #0f172a;
-        --c-surface: #1e293b;
-        --c-text: #e2e8f0;
-        --c-text-secondary: #94a3b8;
-        --c-accent: #60a5fa;
-        --c-accent-hover: #93bbfc;
-        --c-border: #334155;
-      }
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: var(--font);
-      background: var(--c-bg);
-      color: var(--c-text);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .install-card {
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: 12px;
-      padding: 2.5rem;
-      width: 100%;
-      max-width: 440px;
-    }
-    .install-logo {
-      text-align: center;
-      margin-bottom: 0.5rem;
-    }
-    .install-logo h1 {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-    }
-    .install-logo h1 span { color: var(--c-accent); }
-    .install-desc {
-      text-align: center;
-      color: var(--c-text-secondary);
-      font-size: 0.875rem;
-      margin-bottom: 2rem;
-    }
-    .step-indicator {
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-    }
-    .step-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--c-border);
-      transition: all .2s;
-    }
-    .step-dot.active { background: var(--c-accent); width: 24px; border-radius: 4px; }
-    .step-dot.done { background: var(--c-success); }
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label {
-      display: block;
-      font-size: 0.8125rem;
-      font-weight: 600;
-      margin-bottom: 0.375rem;
-      color: var(--c-text);
-    }
-    .form-group input {
-      width: 100%;
-      padding: 0.625rem 0.875rem;
-      border: 1px solid var(--c-border);
-      border-radius: var(--radius);
-      font-size: 0.9375rem;
-      background: var(--c-bg);
-      color: var(--c-text);
-      outline: none;
-      transition: border-color .15s;
-    }
-    .form-group input:focus { border-color: var(--c-accent); }
-    .btn {
-      display: block;
-      width: 100%;
-      padding: 0.75rem;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 0.9375rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .15s;
-    }
-    .btn-primary { background: var(--c-accent); color: #fff; }
-    .btn-primary:hover { background: var(--c-accent-hover); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-row { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
-    .btn-secondary {
-      background: var(--c-bg);
-      color: var(--c-text);
-      border: 1px solid var(--c-border);
-      flex: 1;
-    }
-    .btn-row .btn-primary { flex: 2; }
-    .error-msg {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      color: var(--c-error);
-      padding: 0.625rem 0.875rem;
-      border-radius: var(--radius);
-      font-size: 0.8125rem;
-      margin-bottom: 1rem;
-      display: none;
-    }
-    @media (prefers-color-scheme: dark) {
-      .error-msg { background: #450a0a; border-color: #7f1d1d; }
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .step { display: none; }
     .step.active { display: block; }
-    .success-icon { text-align: center; font-size: 3rem; margin-bottom: 1rem; }
-    .success-text { text-align: center; margin-bottom: 1.5rem; }
-    .success-text h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
-    .success-text p { color: var(--c-text-secondary); font-size: 0.875rem; }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--c-border);
-      font-size: 0.875rem;
-    }
-    .info-row:last-child { border-bottom: none; }
-    .info-row .label { color: var(--c-text-secondary); }
   </style>
 </head>
-<body>
-  <div class="install-card">
-    <div class="install-logo"><h1>🪁 <span>Kite</span></h1></div>
-    <p class="install-desc">轻量级 AI 原生博客引擎 — 安装引导</p>
-
-    <div class="step-indicator">
-      <div class="step-dot active" id="dot1"></div>
-      <div class="step-dot" id="dot2"></div>
-      <div class="step-dot" id="dot3"></div>
+<body class="min-h-screen bg-zinc-50/50 flex flex-col items-center justify-center p-4">
+  
+  <div class="w-full max-w-md bg-white border border-zinc-200 rounded-xl shadow-sm text-zinc-950">
+    <div class="flex flex-col space-y-1.5 p-6 pb-4">
+      <div class="flex items-center justify-center space-x-2 mb-2">
+        <span class="text-3xl">🪁</span>
+        <h1 class="text-2xl font-bold tracking-tight">Kite</h1>
+      </div>
+      <p class="text-sm text-zinc-500 text-center text-balance">
+        轻量级 AI 原生博客引擎 — 安装引导
+      </p>
     </div>
 
-    <div id="error" class="error-msg"></div>
-
-    <div class="step active" id="step1">
-      <div class="form-group">
-        <label for="siteName">站点名称</label>
-        <input type="text" id="siteName" value="Kite" placeholder="给你的博客取个名字">
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="goStep(2)">下一步</button>
-      </div>
+    <!-- 进度条点缀 -->
+    <div class="flex justify-center items-center gap-2 mb-6 px-6">
+      <div id="dot1" class="h-2 w-2 rounded-full bg-zinc-900 transition-all duration-300"></div>
+      <div id="dot2" class="h-2 w-2 rounded-full bg-zinc-200 transition-all duration-300"></div>
+      <div id="dot3" class="h-2 w-2 rounded-full bg-zinc-200 transition-all duration-300"></div>
     </div>
 
-    <div class="step" id="step2">
-      <div class="form-group">
-        <label for="username">管理员用户名</label>
-        <input type="text" id="username" placeholder="用于登录后台" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label for="password">管理员密码</label>
-        <input type="password" id="password" placeholder="至少 6 位" autocomplete="new-password">
-      </div>
-      <div class="form-group">
-        <label for="passwordConfirm">确认密码</label>
-        <input type="password" id="passwordConfirm" placeholder="再输入一次密码" autocomplete="new-password">
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="goStep(1)">上一步</button>
-        <button class="btn btn-primary" id="submitBtn" onclick="submitInstall()">完成安装</button>
-      </div>
-    </div>
+    <div class="p-6 pt-0">
+      <div id="error" class="hidden mb-4 p-3 rounded-md bg-red-50 text-red-600 border border-red-200 text-sm font-medium"></div>
 
-    <div class="step" id="step3">
-      <div class="success-icon">🎉</div>
-      <div class="success-text">
-        <h2>安装完成！</h2>
-        <p>配置已写入数据库，请重启 Kite 以加载配置。</p>
+      <!-- Step 1 -->
+      <div class="step active space-y-4" id="step1">
+        <div class="space-y-2">
+          <label for="siteName" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">站点名称</label>
+          <input type="text" id="siteName" value="Kite" placeholder="给你的博客取个名字" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:cursor-not-allowed disabled:opacity-50">
+        </div>
+        <button onclick="goStep(2)" class="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50 bg-zinc-900 text-zinc-50 shadow hover:bg-zinc-900/90 h-9 px-4 py-2 mt-2">
+          下一步
+        </button>
       </div>
-      <div id="installInfo"></div>
+
+      <!-- Step 2 -->
+      <div class="step space-y-4" id="step2">
+        <div class="space-y-2">
+          <label for="username" class="text-sm font-medium leading-none">管理员用户名</label>
+          <input type="text" id="username" placeholder="用于登录后台" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+        </div>
+        <div class="space-y-2">
+          <label for="password" class="text-sm font-medium leading-none">管理员密码</label>
+          <input type="password" id="password" placeholder="至少 6 位" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+        </div>
+        <div class="space-y-2">
+          <label for="passwordConfirm" class="text-sm font-medium leading-none">确认密码</label>
+          <input type="password" id="passwordConfirm" placeholder="再输入一次密码" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button onclick="goStep(1)" class="inline-flex w-[100px] items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 bg-white border border-zinc-200 text-zinc-900 shadow-sm hover:bg-zinc-100 hover:text-zinc-900 h-9 px-4 py-2">
+            上一步
+          </button>
+          <button id="submitBtn" onclick="submitInstall()" class="inline-flex flex-1 items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50 bg-zinc-900 text-zinc-50 shadow hover:bg-zinc-900/90 h-9 px-4 py-2">
+            完成安装
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step" id="step3">
+        <div class="flex flex-col items-center justify-center space-y-3 py-4">
+          <div class="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <h2 class="text-xl font-semibold tracking-tight">安装完成！</h2>
+          <p class="text-sm text-zinc-500 text-center">
+            配置已写入数据库，请重启 Kite 以加载配置。
+          </p>
+        </div>
+        
+        <div id="installInfo" class="mt-4 rounded-md border border-zinc-200 divide-y divide-zinc-200">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
     </div>
   </div>
+
+  <p class="mt-8 text-center text-sm text-zinc-500">
+    &copy; 2026 Kite. Powered by AI.
+  </p>
 
   <script>
     function goStep(n) {
@@ -246,36 +138,67 @@ const installPageHTML = `<!DOCTYPE html>
       }
       document.querySelectorAll('.step').forEach(function(el) { el.classList.remove('active'); });
       document.getElementById('step' + n).classList.add('active');
-      document.querySelectorAll('.step-dot').forEach(function(dot, i) {
-        dot.classList.remove('active', 'done');
-        if (i + 1 < n) dot.classList.add('done');
-        if (i + 1 === n) dot.classList.add('active');
+      
+      const dots = [document.getElementById('dot1'), document.getElementById('dot2'), document.getElementById('dot3')];
+      dots.forEach((dot, i) => {
+        dot.className = 'h-2 w-2 rounded-full transition-all duration-300';
+        if (i + 1 < n) dot.classList.add('bg-zinc-900');
+        else if (i + 1 === n) dot.classList.add('bg-zinc-900', 'w-6');
+        else dot.classList.add('bg-zinc-200');
       });
     }
-    function showError(msg) { var e = document.getElementById('error'); e.textContent = msg; e.style.display = 'block'; }
-    function hideError() { document.getElementById('error').style.display = 'none'; }
+
+    function showError(msg) { 
+      var e = document.getElementById('error'); 
+      e.textContent = msg; 
+      e.classList.remove('hidden'); 
+    }
+    
+    function hideError() { 
+      document.getElementById('error').classList.add('hidden'); 
+    }
+
     function submitInstall() {
       hideError();
       var u = document.getElementById('username').value.trim();
       var p = document.getElementById('password').value;
       var pc = document.getElementById('passwordConfirm').value;
+      
       if (!u) { showError('请输入管理员用户名'); return; }
       if (p.length < 6) { showError('密码至少 6 位'); return; }
       if (p !== pc) { showError('两次输入的密码不一致'); return; }
+      
       var btn = document.getElementById('submitBtn');
-      btn.disabled = true; btn.textContent = '安装中…';
+      btn.disabled = true; 
+      btn.textContent = '安装中…';
+      
       fetch('/api/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ site_name: document.getElementById('siteName').value.trim(), username: u, password: p })
+        body: JSON.stringify({ 
+          site_name: document.getElementById('siteName').value.trim(), 
+          username: u, 
+          password: p 
+        })
       }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.code !== 200) { showError(d.msg || '安装失败'); btn.disabled = false; btn.textContent = '完成安装'; return; }
+        if (d.code !== 200) { 
+          showError(d.msg || '安装失败'); 
+          btn.disabled = false; 
+          btn.textContent = '完成安装'; 
+          return; 
+        }
+        
         document.getElementById('installInfo').innerHTML =
-          '<div class="info-row"><span class="label">站点名称</span><span>' + d.data.site_name + '</span></div>' +
-          '<div class="info-row"><span class="label">管理员</span><span>' + d.data.username + '</span></div>' +
-          '<div class="info-row"><span class="label">数据库</span><span>kite.db (SQLite)</span></div>';
+          '<div class="flex justify-between items-center p-3 text-sm"><span class="text-zinc-500">站点名称</span><span class="font-medium">' + d.data.site_name + '</span></div>' +
+          '<div class="flex justify-between items-center p-3 text-sm"><span class="text-zinc-500">管理员</span><span class="font-medium">' + d.data.username + '</span></div>' +
+          '<div class="flex justify-between items-center p-3 text-sm"><span class="text-zinc-500">数据库</span><span class="font-medium text-emerald-600">kite.db (SQLite)</span></div>';
+        
         goStep(3);
-      }).catch(function(e) { showError('网络错误: ' + e.message); btn.disabled = false; btn.textContent = '完成安装'; });
+      }).catch(function(e) { 
+        showError('网络错误: ' + e.message); 
+        btn.disabled = false; 
+        btn.textContent = '完成安装'; 
+      });
     }
   </script>
 </body>

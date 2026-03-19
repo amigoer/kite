@@ -2,10 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiPost, apiDelete } from '@/lib/api-client'
 import type { Tag } from '@/types/tag'
 
-/** 后端标签列表响应 */
-interface TagListResponse {
+export interface TagListResponse {
+  total: number
   items: Tag[]
-  pagination: { page: number; pageSize: number; total: number }
 }
 
 /**
@@ -14,12 +13,9 @@ interface TagListResponse {
 export function useTagList(keyword?: string) {
   return useQuery({
     queryKey: ['tagList', keyword],
-    queryFn: async () => {
-      const result = await apiGet<TagListResponse>('/admin/tags', {
-        pageSize: 100,
-        keyword,
-      })
-      return result.items
+    queryFn: () => {
+      const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+      return apiGet<TagListResponse>(`/admin/tags${params}`).then((res) => res.items || [])
     },
   })
 }

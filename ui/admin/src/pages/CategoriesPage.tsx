@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Search, Plus, Pencil, Trash2, FolderOpen, FileText, X, Loader2 } from 'lucide-react'
 import { useCategoryList, useCreateCategory, useDeleteCategory } from '@/hooks/use-categories'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as SearchBtn } from '@/components/search'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -36,7 +39,12 @@ export function CategoriesPage() {
   }
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <SearchBtn />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">分类管理</h1>
@@ -136,6 +144,7 @@ export function CategoriesPage() {
           <p className="text-xs text-zinc-500 mt-4">共 {categories.length} 个分类</p>
         </>
       )}
-    </div>
+    </Main>
+    </>
   )
 }

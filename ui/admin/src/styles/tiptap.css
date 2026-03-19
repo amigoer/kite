@@ -130,7 +130,7 @@
   gap: 2px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-fill-0);
+  background: transparent;
   align-items: center;
   overflow: visible;
 }

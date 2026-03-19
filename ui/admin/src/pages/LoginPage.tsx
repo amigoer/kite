@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import { Lock, User, ArrowRight } from 'lucide-react'
+import { Loader2, Command, Github, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/PasswordInput'
 import { useLogin } from '@/hooks/use-auth'
 import { toast } from 'sonner'
+import dashboardDark from '@/assets/dashboard-dark.png'
+import dashboardLight from '@/assets/dashboard-light.png'
+import { ThemeSwitch } from '@/components/theme-switch'
 
 function formatErrorMessage(msg: string): string {
   const map: Record<string, string> = {
@@ -15,7 +21,7 @@ function formatErrorMessage(msg: string): string {
 }
 
 /**
- * 登录页 — Vercel 风格：纯白 + border + shadow-sm
+ * 登录页 — 完全复刻 shadcn-admin 的 sign-in-2 模板
  */
 export function LoginPage() {
   const [username, setUsername] = useState('')
@@ -26,7 +32,8 @@ export function LoginPage() {
   const usernameEmpty = !username.trim()
   const passwordEmpty = !password
 
-  function handleSubmit() {
+  function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     setAttempted(true)
     if (usernameEmpty || passwordEmpty) return
     loginMutation.mutate({ username: username.trim(), password }, {
@@ -34,43 +41,152 @@ export function LoginPage() {
     })
   }
 
-  const inputCls = 'border-zinc-200 dark:border-zinc-700 bg-transparent rounded-md shadow-none focus-visible:ring-1 focus-visible:ring-zinc-400'
+  function handleMockSocialLogin(provider: string) {
+    toast.info(`暂不支持 ${provider} 登录`)
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] dark:bg-zinc-950 p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-10">
-          <div className="w-10 h-10 rounded-full bg-zinc-900 dark:bg-zinc-200 text-white dark:text-zinc-900 inline-flex items-center justify-center mb-4">
-            <span className="text-lg">🪁</span>
+    <div className='relative container grid h-svh flex-col items-center justify-center lg:max-w-none lg:grid-cols-2 lg:px-0'>
+      <ThemeSwitch className='absolute right-4 top-4 md:right-8 md:top-8 z-50 bg-background/50 backdrop-blur-sm' />
+      <div className='lg:p-8'>
+        <div className='mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-[480px] sm:p-8'>
+          <div className='mb-4 flex items-center justify-center gap-2'>
+            <Command className='h-6 w-6' />
+            <h1 className='text-xl font-medium'>Kite Admin</h1>
           </div>
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">Kite</h1>
-          <p className="text-sm text-zinc-500 mt-1">管理后台登录</p>
         </div>
+        <div className='mx-auto flex w-full max-w-sm flex-col justify-center space-y-2'>
+          <div className='grid gap-6 mt-4'>
+            <form onSubmit={handleSubmit}>
+              <div className='grid gap-4'>
+                <div className='grid gap-2'>
+                  <Label htmlFor='username'>用户名</Label>
+                  <Input
+                    id='username'
+                    placeholder='admin'
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoFocus
+                  />
+                  {attempted && usernameEmpty && (
+                    <p className='text-xs text-destructive'>请输入用户名</p>
+                  )}
+                </div>
+                <div className='grid gap-2'>
+                  <div className='flex items-center justify-between'>
+                    <Label htmlFor='password'>密码</Label>
+                    <a
+                      href='#'
+                      className='text-sm text-muted-foreground hover:text-primary'
+                      onClick={(e) => { e.preventDefault(); toast.info('请联系系统管理员重置密码') }}
+                    >
+                      忘记密码？
+                    </a>
+                  </div>
+                  <PasswordInput
+                    id='password'
+                    placeholder='********'
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  {attempted && passwordEmpty && (
+                    <p className='text-xs text-destructive'>请输入密码</p>
+                  )}
+                </div>
+                <Button type='submit' className='w-full h-11' disabled={loginMutation.isPending}>
+                  {loginMutation.isPending ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : <LogIn className='mr-2 h-4 w-4' />}
+                  登录
+                </Button>
+              </div>
+            </form>
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-8">
-          <div className="space-y-5">
-            <div>
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 block">用户名</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" className={`pl-9 h-10 ${inputCls} ${attempted && usernameEmpty ? 'border-red-400' : ''}`} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} autoFocus />
+            <div className='relative'>
+              <div className='absolute inset-0 flex items-center'>
+                <span className='w-full border-t' />
               </div>
-              {attempted && usernameEmpty && <p className="text-xs text-red-500 mt-1.5">请输入用户名</p>}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 block">密码</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className={`pl-9 h-10 ${inputCls} ${attempted && passwordEmpty ? 'border-red-400' : ''}`} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
+              <div className='relative flex justify-center text-xs uppercase'>
+                <span className='bg-background px-2 text-muted-foreground'>
+                  其他登录方式
+                </span>
               </div>
-              {attempted && passwordEmpty && <p className="text-xs text-red-500 mt-1.5">请输入密码</p>}
             </div>
-            <Button className="w-full h-10 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-sm hover:bg-zinc-800 dark:hover:bg-zinc-200 text-sm font-medium transition-colors" onClick={handleSubmit} disabled={loginMutation.isPending}>
-              {loginMutation.isPending ? '登录中…' : <><span>登录</span><ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>}
-            </Button>
+
+            <div className='grid grid-cols-2 gap-4'>
+              <Button
+                variant='outline'
+                type='button'
+                className='h-11'
+                onClick={() => handleMockSocialLogin('GitHub')}
+              >
+                <Github className='mr-2 h-4 w-4' />
+                GitHub
+              </Button>
+              <Button
+                variant='outline'
+                type='button'
+                className='h-11'
+                onClick={() => handleMockSocialLogin('Google')}
+              >
+                <svg
+                  className='mr-2 h-4 w-4'
+                  aria-hidden='true'
+                  focusable='false'
+                  data-prefix='fab'
+                  data-icon='google'
+                  role='img'
+                  xmlns='http://www.w3.org/2000/svg'
+                  viewBox='0 0 488 512'
+                >
+                  <path
+                    fill='currentColor'
+                    d='M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z'
+                  ></path>
+                </svg>
+                Google
+              </Button>
+            </div>
           </div>
+
+          <p className='px-8 text-center text-sm text-muted-foreground mt-4'>
+            登录即表示您同意我们的{' '}
+            <a
+              href='#'
+              className='underline underline-offset-4 hover:text-primary'
+            >
+              服务条款
+            </a>{' '}
+            和{' '}
+            <a
+              href='#'
+              className='underline underline-offset-4 hover:text-primary'
+            >
+              隐私政策
+            </a>
+            .
+          </p>
         </div>
-        <p className="text-center text-[11px] text-zinc-400 mt-8">Kite Blog — 轻量级博客引擎</p>
+      </div>
+
+      <div
+        className={cn(
+          'relative h-full overflow-hidden bg-muted max-lg:hidden',
+          '[&>img]:absolute [&>img]:top-[15%] [&>img]:left-20 [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>img]:object-top-left [&>img]:select-none'
+        )}
+      >
+        <img
+          src={dashboardLight}
+          className='dark:hidden'
+          width={1024}
+          height={1151}
+          alt='Kite-Admin'
+        />
+        <img
+          src={dashboardDark}
+          className='hidden dark:block'
+          width={1024}
+          height={1138}
+          alt='Kite-Admin'
+        />
       </div>
     </div>
   )

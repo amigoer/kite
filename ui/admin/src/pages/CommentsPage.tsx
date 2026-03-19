@@ -8,6 +8,9 @@ import { Search, Check, Trash2, Shield, Clock, FileText, MessageSquare, Loader2 
 import { useComments, useCommentStats, useModerateComment } from '@/hooks/use-comments'
 import type { CommentStatus } from '@/types/comment'
 import { cn } from '@/lib/utils'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as SearchBtn } from '@/components/search'
 
 const statusBadge: Record<CommentStatus, { text: string; variant: 'default' | 'secondary' | 'destructive' }> = {
   approved: { text: '已通过', variant: 'default' },
@@ -51,7 +54,12 @@ export function CommentsPage() {
   ]
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <SearchBtn />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">评论管理</h1>
         <p className="text-sm text-zinc-500 mt-1">审核和管理读者的评论</p>
@@ -177,6 +185,7 @@ export function CommentsPage() {
           })}
         </div>
       )}
-    </div>
+    </Main>
+    </>
   )
 }

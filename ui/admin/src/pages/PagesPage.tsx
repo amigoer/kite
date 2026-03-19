@@ -17,6 +17,9 @@ import {
 import { Search, Plus, Pencil, Trash2, ExternalLink, Files, Loader2 } from 'lucide-react'
 import { usePageList, useDeletePage } from '@/hooks/use-pages'
 import type { Page } from '@/types/page'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as HeaderSearch } from '@/components/search'
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '—'
@@ -38,7 +41,12 @@ export function PagesPage() {
   const navCount = pages?.filter((p) => p.showInNav).length ?? 0
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <HeaderSearch />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       {/* 标题区 */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -80,16 +88,16 @@ export function PagesPage() {
       </div>
 
       {/* 页面列表 */}
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900">
+      <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-transparent">
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider">页面标题</TableHead>
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[90px] text-center">状态</TableHead>
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[80px] text-center">排序</TableHead>
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[90px] text-center">导航栏</TableHead>
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[120px]">更新日期</TableHead>
-              <TableHead className="text-xs font-medium text-zinc-500 uppercase tracking-wider w-[100px] text-center">操作</TableHead>
+            <TableRow>
+              <TableHead>页面标题</TableHead>
+              <TableHead className="w-[90px] text-center">状态</TableHead>
+              <TableHead className="w-[80px] text-center">排序</TableHead>
+              <TableHead className="w-[90px] text-center">导航栏</TableHead>
+              <TableHead className="w-[120px]">更新日期</TableHead>
+              <TableHead className="w-[100px] text-center">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -99,14 +107,14 @@ export function PagesPage() {
               pages.map((p) => (
                 <TableRow
                   key={p.id}
-                  className="border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  className="cursor-pointer"
                   onDoubleClick={() => navigate(`/pages/${p.id}/edit`)}
                 >
                   <TableCell onClick={() => navigate(`/pages/${p.id}/edit`)}>
-                    <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{p.title}</p>
+                    <p className="font-medium text-foreground">{p.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-zinc-500">/{p.slug}</span>
-                      {p.showInNav && <Badge variant="outline" className="text-[10px] h-4 border-green-300 text-green-600 dark:border-green-700 dark:text-green-400">导航</Badge>}
+                      <span className="text-xs text-muted-foreground">/{p.slug}</span>
+                      {p.showInNav && <Badge variant="outline" className="text-[10px] h-4">导航</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -114,36 +122,36 @@ export function PagesPage() {
                       {p.status === 'published' ? '已发布' : '草稿'}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center text-xs text-zinc-500">{p.sortOrder}</TableCell>
-                  <TableCell className="text-center text-xs text-zinc-500">{p.showInNav ? '是' : '否'}</TableCell>
-                  <TableCell className="text-xs text-zinc-500">{formatDate(p.updatedAt)}</TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">{p.sortOrder}</TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">{p.showInNav ? '是' : '否'}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDate(p.updatedAt)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
                       {p.status === 'published' && (
                         <Tooltip delayDuration={0}>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => window.open(`/pages/${p.slug}`, '_blank')}>
-                              <ExternalLink className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => window.open(`/pages/${p.slug}`, '_blank')}>
+                              <ExternalLink className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">预览</TooltipContent>
+                          <TooltipContent side="top">预览</TooltipContent>
                         </Tooltip>
                       )}
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => navigate(`/pages/${p.id}/edit`)}>
-                            <Pencil className="w-3.5 h-3.5" />
+                          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(`/pages/${p.id}/edit`)}>
+                            <Pencil className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">编辑</TooltipContent>
+                        <TooltipContent side="top">编辑</TooltipContent>
                       </Tooltip>
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-7 h-7 text-red-500 hover:text-red-600" onClick={() => setDeleteTarget(p)}>
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <Button variant="ghost" size="icon" className="w-8 h-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(p)}>
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">删除</TooltipContent>
+                        <TooltipContent side="top">删除</TooltipContent>
                       </Tooltip>
                     </div>
                   </TableCell>
@@ -152,12 +160,14 @@ export function PagesPage() {
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-16">
-                  <Files className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">暂无独立页面</p>
-                  <p className="text-sm text-zinc-500 mt-1">点击上方按钮创建第一个页面</p>
-                  <Button variant="outline" size="sm" className="mt-3 shadow-none border-zinc-200 dark:border-zinc-800" onClick={() => navigate('/pages/new')}>
-                    新建页面
-                  </Button>
+                  <div className="flex flex-col items-center">
+                    <Files className="w-10 h-10 text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium text-foreground">暂无独立页面</p>
+                    <p className="text-sm text-muted-foreground mt-1">点击上方按钮创建第一个页面</p>
+                    <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/pages/new')}>
+                      新建页面
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -180,6 +190,7 @@ export function PagesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </Main>
+    </>
   )
 }

@@ -5,6 +5,16 @@ import {
   PenLine, ExternalLink, Settings, Loader2,
 } from 'lucide-react'
 import { useDashboardStats, useRecentPosts } from '@/hooks/use-dashboard'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search } from '@/components/search'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -26,43 +36,49 @@ export function DashboardPage() {
   ]
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">仪表盘</h1>
-        <p className="text-sm text-zinc-500 mt-1">站点概览</p>
-      </div>
+    <>
+      <Header fixed>
+        <Search />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
 
-      {/* 统计卡片 — 纯白 + border + shadow-sm，裸图标 */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         {statsCards.map((card) => {
           const Icon = card.icon
           return (
-            <div
+            <Card
               key={card.label}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5 cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate(card.path)}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{card.label}</p>
-                  {statsLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-zinc-300 mt-3" />
-                  ) : (
-                    <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mt-1 tabular-nums tracking-tight">{card.value}</p>
-                  )}
-                </div>
-                <Icon className="w-5 h-5 text-zinc-500" />
-              </div>
-            </div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {card.label}
+                </CardTitle>
+                <Icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-1" />
+                ) : (
+                  <div className="text-2xl font-bold">{card.value}</div>
+                )}
+              </CardContent>
+            </Card>
           )
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* 快捷操作 */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm p-5">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4 tracking-tight">快捷操作</h2>
-          <div className="grid grid-cols-2 gap-2">
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>快捷操作</CardTitle>
+            <CardDescription>管理您的博客内容和设置</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
             {[
               { icon: PenLine, label: '写文章', onClick: () => navigate('/posts/new') },
               { icon: FolderOpen, label: '管理分类', onClick: () => navigate('/categories') },
@@ -72,57 +88,63 @@ export function DashboardPage() {
               <Button
                 key={a.label}
                 variant="outline"
-                className="justify-start gap-2 h-8 text-[13px] shadow-sm bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-md"
+                className="justify-start gap-2 h-9 w-full"
                 onClick={a.onClick}
               >
-                <a.icon className="w-3.5 h-3.5 text-zinc-500" /> {a.label}
+                <a.icon className="w-4 h-4 text-muted-foreground" /> {a.label}
               </Button>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* 最近文章 */}
-        <div className="col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 tracking-tight">最近文章</h2>
-            <button className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors cursor-pointer" onClick={() => navigate('/posts')}>
-              查看全部 →
-            </button>
-          </div>
-          <div>
-            {postsLoading ? (
-              <div className="flex justify-center py-10"><Loader2 className="w-4 h-4 animate-spin text-zinc-300" /></div>
-            ) : recentPosts && recentPosts.length > 0 ? (
-              <div>
-                {recentPosts.map((post, i) => (
+        <Card className="col-span-1 md:col-span-2">
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div className="space-y-1">
+              <CardTitle>最近文章</CardTitle>
+              <CardDescription>您最近创建或修改的博客文章</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/posts')} className="hidden sm:flex">
+              查看全部
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {postsLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+              ) : recentPosts && recentPosts.length > 0 ? (
+                recentPosts.map((post) => (
                   <div
                     key={post.id}
-                    className={`flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${i < recentPosts.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+                    className="flex items-center justify-between rounded-md p-3 hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border"
                     onClick={() => navigate(`/posts/${post.id}/edit`)}
                   >
                     <div className="min-w-0 flex-1 pr-3">
-                      <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{post.title}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5 tabular-nums">{formatDate(post.createdAt)}</p>
+                      <p className="text-sm font-medium leading-none truncate">{post.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1.5 tabular-nums">{formatDate(post.createdAt)}</p>
                     </div>
-                    <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
-                      {post.status === 'published' ? '已发布' : '草稿'}
-                    </span>
+                    <div className="ml-auto font-medium pl-2 shrink-0">
+                      <span className="bg-secondary text-secondary-foreground rounded-full px-2.5 py-0.5 text-xs font-medium">
+                        {post.status === 'published' ? '已发布' : '草稿'}
+                      </span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center py-12 text-center">
-                <FileText className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mb-2" />
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">还没有文章</p>
-                <p className="text-xs text-zinc-500 mt-1">开始写第一篇吧</p>
-                <Button variant="outline" size="sm" className="mt-3 shadow-sm border-zinc-200 dark:border-zinc-800 bg-white text-sm rounded-md" onClick={() => navigate('/posts/new')}>
-                  <PenLine className="w-3.5 h-3.5 mr-1.5" /> 写文章
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center py-8 text-center border rounded-md border-dashed">
+                  <FileText className="w-8 h-8 text-muted-foreground mb-2 opacity-20" />
+                  <p className="text-sm text-foreground">还没有文章</p>
+                  <p className="text-xs text-muted-foreground mt-1">开始写第一篇吧</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/posts/new')}>
+                    <PenLine className="w-3.5 h-3.5 mr-1.5" /> 写文章
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+      </Main>
+    </>
   )
 }

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/context/theme-provider'
 import { AdminLayout } from '@/layouts/AdminLayout'
 import { useCurrentUser } from '@/hooks/use-auth'
 import { lazy, Suspense } from 'react'
@@ -33,8 +34,8 @@ const queryClient = new QueryClient({
 /** 页面加载 Loading */
 function PageLoader() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+    <div className='min-h-[60vh] flex items-center justify-center'>
+      <Loader2 className='w-6 h-6 animate-spin text-muted-foreground' />
     </div>
   )
 }
@@ -47,17 +48,17 @@ function ProtectedRoutes() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-6 h-6 animate-spin text-zinc-400 mx-auto" />
-          <p className="text-sm text-zinc-500 mt-4">正在验证身份…</p>
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='text-center'>
+          <Loader2 className='w-6 h-6 animate-spin text-muted-foreground mx-auto' />
+          <p className='text-sm text-muted-foreground mt-4'>正在验证身份…</p>
         </div>
       </div>
     )
   }
 
   if (isError || !currentUser || (currentUser.authEnabled && !currentUser.authenticated)) {
-    return <Navigate to="/login" replace />
+    return <Navigate to='/login' replace />
   }
 
   return (
@@ -65,17 +66,17 @@ function ProtectedRoutes() {
       <Routes>
         <Route element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="posts" element={<PostsPage />} />
-          <Route path="posts/new" element={<PostEditorPage />} />
-          <Route path="posts/:id/edit" element={<PostEditorPage />} />
-          <Route path="pages" element={<PagesPage />} />
-          <Route path="pages/new" element={<PageEditorPage />} />
-          <Route path="pages/:id/edit" element={<PageEditorPage />} />
-          <Route path="categories" element={<CategoriesPage />} />
-          <Route path="tags" element={<TagsPage />} />
-          <Route path="comments" element={<CommentsPage />} />
-          <Route path="links" element={<FriendLinksPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path='posts' element={<PostsPage />} />
+          <Route path='posts/new' element={<PostEditorPage />} />
+          <Route path='posts/:id/edit' element={<PostEditorPage />} />
+          <Route path='pages' element={<PagesPage />} />
+          <Route path='pages/new' element={<PageEditorPage />} />
+          <Route path='pages/:id/edit' element={<PageEditorPage />} />
+          <Route path='categories' element={<CategoriesPage />} />
+          <Route path='tags' element={<TagsPage />} />
+          <Route path='comments' element={<CommentsPage />} />
+          <Route path='links' element={<FriendLinksPage />} />
+          <Route path='settings' element={<SettingsPage />} />
         </Route>
       </Routes>
     </Suspense>
@@ -90,14 +91,14 @@ function LoginGuard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+      <div className='min-h-screen flex items-center justify-center'>
+        <Loader2 className='w-6 h-6 animate-spin text-muted-foreground' />
       </div>
     )
   }
 
   if (currentUser?.authenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to='/' replace />
   }
 
   return (
@@ -113,15 +114,17 @@ function LoginGuard() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Routes>
-            <Route path="/login" element={<LoginGuard />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
-          </Routes>
-        </BrowserRouter>
-        <Toaster />
-      </TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider>
+          <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Routes>
+              <Route path='/login' element={<LoginGuard />} />
+              <Route path='/*' element={<ProtectedRoutes />} />
+            </Routes>
+          </BrowserRouter>
+          <Toaster position="top-center" />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }

@@ -8,6 +8,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles } from 'lucide-react'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
 import { TiptapEditor } from '@/components/TiptapEditor'
 import { usePostDetail, useSavePost } from '@/hooks/use-posts'
 import { useCategoryList } from '@/hooks/use-categories'
@@ -86,26 +88,27 @@ export function PostEditorPage() {
   if (isEdit && isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-4 h-4 animate-spin text-zinc-400" /></div>
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <>
+      <Header fixed>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="w-8 h-8 rounded-md" onClick={() => navigate('/posts')}><ArrowLeft className="w-4 h-4" /></Button>
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">{isEdit ? '编辑文章' : '新建文章'}</h1>
-            <p className="text-sm text-zinc-500">{isEdit ? `正在编辑：${post?.title}` : '撰写新的博客文章'}</p>
+          <div className="hidden sm:block">
+            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">{isEdit ? '编辑文章' : '新建文章'}</h1>
+            <p className="text-xs text-zinc-500">{isEdit ? `正在编辑：${post?.title}` : '撰写新的博客文章'}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 ml-auto">
           <Button variant="outline" className="shadow-sm border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
-            {saved ? <><Check className="w-4 h-4 mr-1.5" /> 已保存</> : <><Save className="w-4 h-4 mr-1.5" /> 保存草稿</>}
+            {saved ? <><Check className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">已保存</span></> : <><Save className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">保存草稿</span></>}
           </Button>
           <Button className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-sm hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
-            <Send className="w-4 h-4 mr-1.5" /> 发布文章
+            <Send className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">发布文章</span>
           </Button>
         </div>
-      </div>
+      </Header>
 
-      <div className="flex gap-0">
+      <Main>
+      <div className="flex gap-0 relative">
         <div className="flex-1 flex flex-col gap-4 pr-6">
           {/* 沉浸式标题 — 原生 input，零 border */}
           <div className="mb-2">
@@ -114,7 +117,7 @@ export function PostEditorPage() {
               value={form.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               placeholder="输入文章标题..."
-              className="w-full bg-transparent text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-300 dark:placeholder:text-zinc-600 border-none outline-none focus:ring-0 focus-visible:ring-0 p-0 shadow-none"
+              className="w-full bg-white dark:bg-zinc-900 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-zinc-100/10 focus:border-zinc-300 dark:focus:border-zinc-600 px-4 py-3 shadow-sm transition-colors"
             />
           </div>
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm overflow-hidden">
@@ -180,6 +183,7 @@ export function PostEditorPage() {
 
         </aside>
       </div>
-    </div>
+      </Main>
+    </>
   )
 }

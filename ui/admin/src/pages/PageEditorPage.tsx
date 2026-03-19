@@ -8,6 +8,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Save, Send, Check, Loader2 } from 'lucide-react'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
 import { TiptapEditor } from '@/components/TiptapEditor'
 import { usePageDetail, useSavePage } from '@/hooks/use-pages'
 import type { PageFormData } from '@/types/page'
@@ -103,29 +105,29 @@ export function PageEditorPage() {
   }
 
   return (
-    <div>
-      {/* 顶部操作栏 */}
-      <div className="flex justify-between items-center mb-6">
+    <>
+      <Header fixed>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate('/pages')}>
+          <Button variant="ghost" size="icon" className="w-8 h-8 rounded-md" onClick={() => navigate('/pages')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">{isEdit ? '编辑页面' : '新建页面'}</h1>
-            <p className="text-sm text-zinc-500">{isEdit ? `正在编辑：${page?.title}` : '创建独立页面'}</p>
+          <div className="hidden sm:block">
+            <h1 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight">{isEdit ? '编辑页面' : '新建页面'}</h1>
+            <p className="text-xs text-zinc-500">{isEdit ? `正在编辑：${page?.title}` : '创建独立页面'}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="shadow-none border-zinc-200 dark:border-zinc-800" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
-            {saved ? <><Check className="w-4 h-4 mr-1.5" /> 已保存</> : <><Save className="w-4 h-4 mr-1.5" /> 保存草稿</>}
+        <div className="flex gap-2 ml-auto">
+          <Button variant="outline" className="shadow-none border-zinc-200 dark:border-zinc-800 rounded-md" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
+            {saved ? <><Check className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">已保存</span></> : <><Save className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">保存草稿</span></>}
           </Button>
-          <Button className="bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-none hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
-            <Send className="w-4 h-4 mr-1.5" /> 发布页面
+          <Button className="bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-none rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
+            <Send className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">发布页面</span>
           </Button>
         </div>
-      </div>
+      </Header>
 
-      <div className="flex gap-6">
+      <Main>
+      <div className="flex gap-6 relative">
         {/* 左侧编辑区 */}
         <div className="flex-1 flex flex-col gap-4">
           <Input value={form.title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="页面标题" className="text-lg font-medium border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md h-12" />
@@ -208,6 +210,7 @@ export function PageEditorPage() {
           </Card>
         </div>
       </div>
-    </div>
+      </Main>
+    </>
   )
 }

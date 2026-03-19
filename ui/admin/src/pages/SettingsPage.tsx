@@ -10,6 +10,9 @@ import { Save, Check, Globe, FileText, Server, Sparkles, Loader2 } from 'lucide-
 import { useSettings, useSaveSettings } from '@/hooks/use-settings'
 import type { AllSettings } from '@/types/settings'
 import { cn } from '@/lib/utils'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { Search as HeaderSearch } from '@/components/search'
 
 const tabs = [
   { key: 'site', label: '站点信息', icon: Globe },
@@ -61,7 +64,12 @@ export function SettingsPage() {
   }
 
   return (
-    <div>
+    <>
+      <Header fixed>
+        <HeaderSearch />
+        <div className='ml-auto' />
+      </Header>
+      <Main>
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">设置</h1>
@@ -159,7 +167,8 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
-    </div>
+      </Main>
+    </>
   )
 }
 

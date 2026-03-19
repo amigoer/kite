@@ -1,29 +1,33 @@
 import { Outlet } from 'react-router'
-import { Sidebar } from '@/components/sidebar'
-import { Header } from '@/components/header'
-import { CommandSearch } from '@/components/CommandSearch'
-import { useSidebarStore } from '@/stores/use-sidebar-store'
+import { getCookie } from '@/lib/cookies'
+import { cn } from '@/lib/utils'
+import { LayoutProvider } from '@/context/layout-provider'
+import { SearchProvider } from '@/context/search-provider'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/layout/app-sidebar'
 
 /**
- * 管理后台主布局 — Vercel 风格
- * 极浅灰底 + 纯白卡片的层级对比
+ * 管理后台主布局 — shadcn-admin 风格
+ * SidebarProvider + AppSidebar + SidebarInset
  */
 export function AdminLayout() {
-  const { isCollapsed } = useSidebarStore()
-
+  const defaultOpen = getCookie('sidebar_state') !== 'false'
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FAFAFA] dark:bg-zinc-950">
-      <Sidebar />
-      <div
-        className="flex flex-col flex-1 min-w-0 transition-all duration-200"
-        style={{ marginLeft: isCollapsed ? 64 : 224 }}
-      >
-        <Header />
-        <main className="flex-1 overflow-auto px-8 py-6">
-          <Outlet />
-        </main>
-      </div>
-      <CommandSearch />
-    </div>
+    <SearchProvider>
+      <LayoutProvider>
+        <SidebarProvider defaultOpen={defaultOpen}>
+          <AppSidebar />
+          <SidebarInset
+            className={cn(
+              '@container/content',
+              'has-data-[layout=fixed]:h-svh',
+              'peer-data-[variant=inset]:has-data-[layout=fixed]:h-[calc(100svh-(var(--spacing)*4))]'
+            )}
+          >
+            <Outlet />
+          </SidebarInset>
+        </SidebarProvider>
+      </LayoutProvider>
+    </SearchProvider>
   )
 }
