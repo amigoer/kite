@@ -175,6 +175,8 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.POST("/upload/image", uploadHandler.Image)
 	protectedAdminV1.POST("/ai/summary", aiHandler.Summary)
 	protectedAdminV1.POST("/ai/tags", aiHandler.Tags)
+	faviconHandler := NewFaviconHandler()
+	protectedAdminV1.POST("/utils/favicon", faviconHandler.Fetch)
 }
 
 func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS, db *gorm.DB) {

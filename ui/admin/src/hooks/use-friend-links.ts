@@ -1,11 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api-client'
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '@/lib/api-client'
 import type { FriendLink } from '@/types/friend-link'
 
 /** 后端友链列表响应 */
 interface FriendLinkListResponse {
   items: FriendLink[]
   pagination: { page: number; pageSize: number; total: number }
+}
+
+/** 创建/更新友链的表单数据 */
+export interface FriendLinkFormData {
+  name: string
+  url: string
+  description: string
+  logo: string
+  sort: number
+  status?: string
 }
 
 /**
@@ -30,8 +40,24 @@ export function useFriendLinks(keyword?: string) {
 export function useCreateFriendLink() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Pick<FriendLink, 'name' | 'url' | 'description'>) =>
+    mutationFn: (data: FriendLinkFormData) =>
       apiPost<FriendLink>('/admin/friend-links', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friendLinks'] })
+    },
+  })
+}
+
+/**
+ * 更新友链 Hook（PUT 全量更新）
+ */
+export function useUpdateFriendLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { id: string } & FriendLinkFormData) => {
+      const { id, ...body } = data
+      return apiPut<FriendLink>(`/admin/friend-links/${id}`, body)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friendLinks'] })
     },
