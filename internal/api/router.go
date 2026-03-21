@@ -97,6 +97,10 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	aiService := service.NewAIService(&cfg.AI)
 	aiHandler := NewAIHandler(aiService)
 	searchHandler := NewSearchHandler(postService)
+	notificationRepo := repo.NewNotificationRepository(db)
+	notificationService := service.NewNotificationService(notificationRepo)
+	notificationHandler := NewNotificationHandler(notificationService)
+	commentService.SetNotificationService(notificationService)
 
 	apiV1 := router.Group("/api/v1")
 	apiV1.GET("/health", healthHandler.Get)
@@ -177,6 +181,10 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.POST("/ai/tags", aiHandler.Tags)
 	faviconHandler := NewFaviconHandler()
 	protectedAdminV1.POST("/utils/favicon", faviconHandler.Fetch)
+	protectedAdminV1.GET("/notifications", notificationHandler.List)
+	protectedAdminV1.GET("/notifications/unread-count", notificationHandler.UnreadCount)
+	protectedAdminV1.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
+	protectedAdminV1.PATCH("/notifications/read-all", notificationHandler.MarkAllRead)
 }
 
 func registerPageRoutes(router *gin.Engine, cfg *config.Config, templateFS fs.FS, db *gorm.DB) {

@@ -51,12 +51,18 @@ type CommentStats struct {
 
 // CommentService 评论业务服务
 type CommentService struct {
-	commentRepo *repo.CommentRepository
-	postRepo    *repo.PostRepository
+	commentRepo         *repo.CommentRepository
+	postRepo            *repo.PostRepository
+	notificationService *NotificationService
 }
 
 func NewCommentService(commentRepo *repo.CommentRepository, postRepo *repo.PostRepository) *CommentService {
 	return &CommentService{commentRepo: commentRepo, postRepo: postRepo}
+}
+
+// SetNotificationService 注入通知服务（避免循环依赖）
+func (s *CommentService) SetNotificationService(ns *NotificationService) {
+	s.notificationService = ns
 }
 
 // List 管理端查询评论列表
@@ -127,13 +133,16 @@ func (s *CommentService) Create(postIDStr string, input CreateCommentInput, ip, 
 	}
 
 	// 验证文章是否存在
+	var postTitle string
 	if s.postRepo != nil {
-		if _, err := s.postRepo.GetPublicByID(postID); err != nil {
+		post, err := s.postRepo.GetPublicByID(postID)
+		if err != nil {
 			if errors.Is(err, repo.ErrPostNotFound) {
 				return nil, fmt.Errorf("%w: post not found", ErrInvalidCommentPayload)
 			}
 			return nil, err
 		}
+		postTitle = post.Title
 	}
 
 	author := strings.TrimSpace(input.Author)
@@ -162,6 +171,11 @@ func (s *CommentService) Create(postIDStr string, input CreateCommentInput, ip, 
 
 	if err := s.commentRepo.Create(comment); err != nil {
 		return nil, err
+	}
+
+	// 创建通知
+	if s.notificationService != nil {
+		_ = s.notificationService.CreateFromComment(comment, postTitle)
 	}
 
 	return comment, nil

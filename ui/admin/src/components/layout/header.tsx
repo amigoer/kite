@@ -7,6 +7,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { NotificationCenter } from '@/components/notification-center'
 
 type HeaderProps = React.HTMLAttributes<HTMLElement> & {
   fixed?: boolean
@@ -46,6 +47,7 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
         <SidebarTrigger variant='outline' className='max-md:scale-125' />
         <Separator orientation='vertical' className='h-6' />
         {children}
+        <NotificationCenter />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant='ghost' size='icon' className='rounded-md' onClick={() => navigate('/settings')}>

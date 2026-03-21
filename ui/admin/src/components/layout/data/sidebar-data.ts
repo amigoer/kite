@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Link2,
   Settings,
+  Bell,
 } from 'lucide-react'
 import { KiteIcon } from '@/components/KiteIcon'
 import { type SidebarData } from '../types'
@@ -70,6 +71,11 @@ export const sidebarData: SidebarData = {
           title: '友链',
           url: '/links',
           icon: Link2,
+        },
+        {
+          title: '通知',
+          url: '/notifications',
+          icon: Bell,
         },
       ],
     },
