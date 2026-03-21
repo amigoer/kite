@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   FileText, FolderOpen, Tags, MessageSquare, Eye,
   PenLine, ExternalLink, Settings, Loader2, ChevronRight,
-  Link2, User, Palette, Upload, FilePlus, Clock,
+  Link2, User, Palette, Upload, FilePlus,
   TrendingUp, BarChart3, CalendarDays, ArrowUpRight,
 } from 'lucide-react'
 import { useDashboardStats, useRecentPosts, useRecentComments } from '@/hooks/use-dashboard'

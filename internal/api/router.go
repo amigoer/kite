@@ -14,11 +14,12 @@ import (
 
 func NewRouter(cfg *config.Config, templateFS fs.FS, adminFS fs.FS, db *gorm.DB) *gin.Engine {
 	router := gin.New()
+	router.SetTrustedProxies(nil) // 单体部署，不信任任何代理
 	router.Use(gin.Logger(), gin.Recovery(), CORSMiddleware())
 
+	registerPageRoutes(router, cfg, templateFS, db)
 	registerAPIRoutes(router, cfg, db)
 	registerAdminSPA(router, adminFS)
-	registerPageRoutes(router, cfg, templateFS, db)
 
 	return router
 }

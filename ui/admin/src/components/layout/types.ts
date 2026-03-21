@@ -3,11 +3,7 @@
  * 适配 React Router（去除 TanStack Router 依赖）
  */
 
-type User = {
-  name: string
-  email: string
-  avatar: string
-}
+
 
 type Team = {
   name: string
