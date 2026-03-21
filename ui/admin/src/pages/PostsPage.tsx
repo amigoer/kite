@@ -117,6 +117,7 @@ export function PostsPage() {
               <SelectContent>
                 <SelectItem value="all">所有状态</SelectItem>
                 <SelectItem value="published">已发布</SelectItem>
+                <SelectItem value="scheduled">定时中</SelectItem>
                 <SelectItem value="draft">草稿</SelectItem>
                 <SelectItem value="archived">已归档</SelectItem>
               </SelectContent>
@@ -180,6 +181,8 @@ export function PostsPage() {
                   <TableCell>
                     {post.status === 'published' ? (
                       <Badge variant="outline" className="text-emerald-600 border-emerald-500/20 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-500/10 font-medium">已发布</Badge>
+                    ) : post.status === 'scheduled' ? (
+                      <Badge variant="outline" className="text-blue-600 border-blue-500/20 bg-blue-500/10 dark:text-blue-400 dark:bg-blue-500/10 font-medium">定时中</Badge>
                     ) : (
                       <Badge variant="outline" className="text-muted-foreground font-medium">草稿</Badge>
                     )}

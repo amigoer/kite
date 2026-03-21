@@ -3,6 +3,7 @@ package api
 import (
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/amigoer/kite-blog/internal/config"
 	"github.com/amigoer/kite-blog/internal/repo"
@@ -71,6 +72,10 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	postRepository := repo.NewPostRepository(db)
 	postService := service.NewPostService(postRepository, tagRepository, categoryRepository)
 	postHandler := NewPostHandler(postService)
+
+	// 启动定时发布调度器
+	scheduler := service.NewPostScheduler(postRepository, 30*time.Second)
+	scheduler.Start()
 	adminSessionRepository := repo.NewAdminSessionRepository(db)
 	adminAuthService := service.NewAdminAuthService(cfg, adminSessionRepository)
 	adminAuthHandler := NewAdminAuthHandler(adminAuthService)

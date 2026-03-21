@@ -51,10 +51,14 @@ export function useSavePost() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (data: PostFormData & { id?: string }) => {
-      if (data.id) {
-        return apiPut<Post>(`/admin/posts/${data.id}`, data)
+      const payload = {
+        ...data,
+        published_at: data.publishAt ? new Date(data.publishAt).toISOString() : undefined,
       }
-      return apiPost<Post>('/admin/posts', data)
+      if (data.id) {
+        return apiPut<Post>(`/admin/posts/${data.id}`, payload)
+      }
+      return apiPost<Post>('/admin/posts', payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })

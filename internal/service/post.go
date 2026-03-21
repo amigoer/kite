@@ -509,7 +509,7 @@ func normalizeStatus(status string) string {
 
 func isValidStatus(status string) bool {
 	switch status {
-	case model.PostStatusDraft, model.PostStatusPublished, model.PostStatusArchived:
+	case model.PostStatusDraft, model.PostStatusPublished, model.PostStatusScheduled, model.PostStatusArchived:
 		return true
 	default:
 		return false

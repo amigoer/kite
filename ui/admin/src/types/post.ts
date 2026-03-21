@@ -3,7 +3,7 @@
  */
 
 /** 文章状态枚举 */
-export type PostStatus = 'published' | 'draft' | 'archived'
+export type PostStatus = 'published' | 'draft' | 'scheduled' | 'archived'
 
 /** 文章数据结构（与后端对齐） */
 export interface Post {
@@ -63,4 +63,5 @@ export interface PostFormData {
   status: PostStatus
   coverImage: string
   password: string
+  publishAt?: string
 }

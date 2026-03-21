@@ -7,8 +7,12 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover'
 import { CategoryCascader, buildCascaderTree } from '@/components/category-cascader'
-import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles } from 'lucide-react'
+import { Calendar } from '@/components/ui/calendar'
+import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles, Clock } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { TiptapEditor } from '@/components/TiptapEditor'
@@ -60,12 +64,19 @@ export function PostEditorPage() {
   }
   function removeTag(tagId: string) { setForm((prev) => ({ ...prev, tagIds: prev.tagIds.filter((id) => id !== tagId) })) }
   function getTagName(tagId: string): string { return allTags?.find((t) => t.id === tagId)?.name || tagId }
-  function handleSave(publish = false) {
-    const data = { ...form, id }; if (publish) data.status = 'published'
+  function handleSave(publish = false, schedule = false) {
+    const data = { ...form, id }
+    if (schedule && form.publishAt) {
+      data.status = 'scheduled'
+    } else if (publish) {
+      data.status = 'published'
+    }
     saveMutation.mutate(data, {
       onSuccess: () => {
         setSaved(true); setTimeout(() => setSaved(false), 2000)
-        if (publish) {
+        if (schedule) {
+          toast.success('定时发布已设定', { description: `「${form.title}」将在指定时间自动发布` })
+        } else if (publish) {
           toast.success('文章已发布', { description: `「${form.title}」已成功发布` })
         } else {
           toast.success('草稿已保存')
@@ -102,6 +113,57 @@ export function PostEditorPage() {
           <Button variant="outline" className="shadow-sm border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50" onClick={() => handleSave(false)} disabled={saveMutation.isPending}>
             {saved ? <><Check className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">已保存</span></> : <><Save className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">保存草稿</span></>}
           </Button>
+          {/* 定时发布 */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="shadow-sm border-zinc-200 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50" disabled={saveMutation.isPending || !form.title.trim()}>
+                <Clock className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">定时发布</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <div className="p-3 space-y-3">
+                <p className="text-sm font-medium px-1">选择发布时间</p>
+                <Calendar
+                  mode="single"
+                  selected={form.publishAt ? new Date(form.publishAt) : undefined}
+                  onSelect={(date: Date | undefined) => {
+                    if (!date) return
+                    const prev = form.publishAt ? new Date(form.publishAt) : new Date()
+                    date.setHours(prev.getHours(), prev.getMinutes())
+                    setForm((p) => ({ ...p, publishAt: date.toISOString() }))
+                  }}
+                  disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                />
+                <div className="flex items-center gap-2 px-1">
+                  <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <Input
+                    type="time"
+                    value={form.publishAt ? `${String(new Date(form.publishAt).getHours()).padStart(2, '0')}:${String(new Date(form.publishAt).getMinutes()).padStart(2, '0')}` : ''}
+                    onChange={(e) => {
+                      const [h, m] = e.target.value.split(':').map(Number)
+                      const d = form.publishAt ? new Date(form.publishAt) : new Date()
+                      d.setHours(h, m)
+                      setForm((p) => ({ ...p, publishAt: d.toISOString() }))
+                    }}
+                    className="flex-1 border-zinc-200 dark:border-zinc-700 shadow-none rounded-md text-sm h-9"
+                  />
+                </div>
+                {form.publishAt && (
+                  <p className="text-xs text-muted-foreground px-1">
+                    文章将在 {new Date(form.publishAt).toLocaleString('zh-CN')} 自动发布
+                  </p>
+                )}
+                <Button
+                  className="w-full"
+                  disabled={!form.publishAt || saveMutation.isPending}
+                  onClick={() => handleSave(false, true)}
+                >
+                  <Clock className="w-4 h-4 mr-1.5" /> 设定定时发布
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-sm hover:bg-zinc-800 dark:hover:bg-zinc-200" onClick={() => handleSave(true)} disabled={saveMutation.isPending || !form.title.trim()}>
             <Send className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">发布文章</span>
           </Button>
@@ -149,7 +211,7 @@ export function PostEditorPage() {
           {/* 标签 */}
           <div className="flex flex-col gap-2 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">标签</label>
-            <Select value={undefined} onValueChange={(v) => { if (v && !form.tagIds.includes(v)) setForm((prev) => ({ ...prev, tagIds: [...prev.tagIds, v] })) }}><SelectTrigger className="shadow-none rounded-md border-zinc-200 dark:border-zinc-700"><SelectValue placeholder="选择标签…" /></SelectTrigger><SelectContent>{allTags?.filter((t) => !form.tagIds.includes(t.id)).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
+            <Select key={form.tagIds.length} value="" onValueChange={(v) => { if (v && !form.tagIds.includes(v)) setForm((prev) => ({ ...prev, tagIds: [...prev.tagIds, v] })) }}><SelectTrigger className="shadow-none rounded-md border-zinc-200 dark:border-zinc-700"><SelectValue placeholder="选择标签…" /></SelectTrigger><SelectContent>{allTags?.filter((t) => !form.tagIds.includes(t.id)).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
             {form.tagIds.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {form.tagIds.map((tagId) => <Badge key={tagId} variant="secondary" className="text-xs gap-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">{getTagName(tagId)}<button className="cursor-pointer" onClick={() => removeTag(tagId)}><X className="w-3 h-3" /></button></Badge>)}

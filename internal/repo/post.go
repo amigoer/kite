@@ -216,3 +216,14 @@ func applyPublicPostScope(query *gorm.DB, now time.Time) *gorm.DB {
 		now,
 	)
 }
+
+// FindScheduledBefore 查找所有 status=scheduled 且 published_at <= 指定时间的文章
+func (r *PostRepository) FindScheduledBefore(t time.Time) ([]model.Post, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("post repository is unavailable")
+	}
+	var posts []model.Post
+	err := r.db.Where("status = ? AND published_at IS NOT NULL AND published_at <= ?",
+		model.PostStatusScheduled, t).Find(&posts).Error
+	return posts, err
+}

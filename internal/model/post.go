@@ -9,6 +9,7 @@ import (
 const (
 	PostStatusDraft     = "draft"
 	PostStatusPublished = "published"
+	PostStatusScheduled = "scheduled"
 	PostStatusArchived  = "archived"
 )
 
