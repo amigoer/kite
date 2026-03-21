@@ -26,6 +26,14 @@ func (h *CategoryHandler) List(c *gin.Context) {
 		handleCategoryError(c, err)
 		return
 	}
+
+	// 支持 ?tree=true 返回嵌套树结构
+	if c.Query("tree") == "true" {
+		tree := service.BuildCategoryTree(result.Items)
+		Success(c, gin.H{"items": tree, "pagination": result.Pagination})
+		return
+	}
+
 	Success(c, result)
 }
 

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search as SearchBtn } from '@/components/search'
+import { useConfirm } from '@/hooks/use-confirm'
 
 /**
  * 标签管理页面 — 标签云 + 列表视图
@@ -29,6 +30,7 @@ export function TagsPage() {
   const { data: tags, isLoading } = useTagList(keyword)
   const createMutation = useCreateTag()
   const deleteMutation = useDeleteTag()
+  const { confirm, ConfirmDialog } = useConfirm()
 
   function handleNameChange(name: string) {
     setFormData({ name, slug: name.toLowerCase().replace(/[\s]+/g, '-').replace(/[^a-z0-9\u4e00-\u9fa5-]/g, '') })
@@ -39,8 +41,10 @@ export function TagsPage() {
     createMutation.mutate(formData, { onSuccess: () => { setFormData({ name: '', slug: '' }); setShowForm(false) } })
   }
 
-  function handleDelete(id: string) {
-    if (window.confirm('确定删除此标签吗？')) deleteMutation.mutate(id)
+  async function handleDelete(id: string) {
+    if (await confirm({ title: '删除标签', description: '确定删除此标签吗？此操作不可撤销。', confirmText: '删除', variant: 'destructive' })) {
+      deleteMutation.mutate(id)
+    }
   }
 
   const maxPostCount = tags ? Math.max(...tags.map((t) => t.postCount), 1) : 1
@@ -59,6 +63,7 @@ export function TagsPage() {
 
   return (
     <>
+      <ConfirmDialog />
       <Header fixed>
         <SearchBtn />
         <div className='ml-auto' />

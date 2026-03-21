@@ -30,7 +30,7 @@ export function useCategoryList(keyword?: string) {
 export function useCreateCategory() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Pick<Category, 'name' | 'slug' | 'description'>) =>
+    mutationFn: (data: Pick<Category, 'name' | 'slug' | 'description'> & { parent_id?: string }) =>
       apiPost<Category>('/admin/categories', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categoryList'] })

@@ -22,18 +22,21 @@ type CategoryListParams struct {
 }
 
 type CreateCategoryInput struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name     string  `json:"name"`
+	Slug     string  `json:"slug"`
+	ParentID *string `json:"parent_id"`
 }
 
 type UpdateCategoryInput struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name     string  `json:"name"`
+	Slug     string  `json:"slug"`
+	ParentID *string `json:"parent_id"`
 }
 
 type PatchCategoryInput struct {
-	Name *string `json:"name"`
-	Slug *string `json:"slug"`
+	Name     *string `json:"name"`
+	Slug     *string `json:"slug"`
+	ParentID *string `json:"parent_id"`
 }
 
 type CategoryListResult struct {
@@ -84,7 +87,15 @@ func (s *CategoryService) GetByID(id string) (*model.Category, error) {
 }
 
 func (s *CategoryService) Create(input CreateCategoryInput) (*model.Category, error) {
-	item := &model.Category{Name: strings.TrimSpace(input.Name), Slug: strings.TrimSpace(input.Slug)}
+	parentID, err := parseOptionalCategoryUUID(input.ParentID)
+	if err != nil {
+		return nil, err
+	}
+	item := &model.Category{
+		Name:     strings.TrimSpace(input.Name),
+		Slug:     strings.TrimSpace(input.Slug),
+		ParentID: parentID,
+	}
 	if err := validateCategory(item); err != nil {
 		return nil, err
 	}
@@ -106,8 +117,13 @@ func (s *CategoryService) Update(id string, input UpdateCategoryInput) (*model.C
 	if err != nil {
 		return nil, err
 	}
+	parentID, err := parseOptionalCategoryUUID(input.ParentID)
+	if err != nil {
+		return nil, err
+	}
 	item.Name = strings.TrimSpace(input.Name)
 	item.Slug = strings.TrimSpace(input.Slug)
+	item.ParentID = parentID
 	if err := validateCategory(item); err != nil {
 		return nil, err
 	}
@@ -134,6 +150,13 @@ func (s *CategoryService) Patch(id string, input PatchCategoryInput) (*model.Cat
 	}
 	if input.Slug != nil {
 		item.Slug = strings.TrimSpace(*input.Slug)
+	}
+	if input.ParentID != nil {
+		parentID, err := parseOptionalCategoryUUID(input.ParentID)
+		if err != nil {
+			return nil, err
+		}
+		item.ParentID = parentID
 	}
 	if err := validateCategory(item); err != nil {
 		return nil, err
@@ -177,4 +200,43 @@ func ensureCategorySlugAvailable(categoryRepo *repo.CategoryRepository, slug str
 		return err
 	}
 	return nil
+}
+
+// parseOptionalCategoryUUID 解析可选的 UUID 字符串指针
+func parseOptionalCategoryUUID(input *string) (*uuid.UUID, error) {
+	if input == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(*input)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsedID, err := uuid.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid parent_id", ErrInvalidCategoryPayload)
+	}
+	return &parsedID, nil
+}
+
+// BuildCategoryTree 将扁平分类列表构建为嵌套树（最多 2 级）
+func BuildCategoryTree(flat []model.Category) []model.Category {
+	childrenMap := make(map[uuid.UUID][]model.Category)
+	var roots []model.Category
+
+	for _, cat := range flat {
+		cat.Children = nil // 清空避免残留
+		if cat.ParentID != nil {
+			childrenMap[*cat.ParentID] = append(childrenMap[*cat.ParentID], cat)
+		} else {
+			roots = append(roots, cat)
+		}
+	}
+
+	for i := range roots {
+		if children, ok := childrenMap[roots[i].ID]; ok {
+			roots[i].Children = children
+		}
+	}
+
+	return roots
 }

@@ -106,7 +106,7 @@ func (r *CategoryRepository) Update(item *model.Category) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("category repository is unavailable")
 	}
-	result := r.db.Model(item).Select("name", "slug").Updates(item)
+	result := r.db.Model(item).Select("name", "slug", "description", "parent_id").Updates(item)
 	if result.Error != nil {
 		return fmt.Errorf("update category: %w", result.Error)
 	}

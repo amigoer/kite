@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type HeaderProps = React.HTMLAttributes<HTMLElement> & {
   fixed?: boolean
@@ -11,6 +15,7 @@ type HeaderProps = React.HTMLAttributes<HTMLElement> & {
 
 export function Header({ className, fixed, children, ...props }: HeaderProps) {
   const [offset, setOffset] = useState(0)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const onScroll = () => {
@@ -41,6 +46,14 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
         <SidebarTrigger variant='outline' className='max-md:scale-125' />
         <Separator orientation='vertical' className='h-6' />
         {children}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant='ghost' size='icon' className='rounded-md' onClick={() => navigate('/settings')}>
+              <Settings className='w-4 h-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='bottom' className='text-xs'>系统设置</TooltipContent>
+        </Tooltip>
         <ThemeSwitch />
       </div>
     </header>

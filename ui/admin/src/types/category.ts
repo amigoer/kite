@@ -8,7 +8,9 @@ export interface Category {
   name: string
   slug: string
   description: string
+  parentId: string | null
   postCount: number
+  children?: Category[]
   createdAt: string
   updatedAt: string
 }

@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CategoryCascader, buildCascaderTree } from '@/components/category-cascader'
 import {
   Table,
   TableBody,
@@ -121,17 +122,14 @@ export function PostsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={categoryId || 'all'} onValueChange={(v) => { setCategoryId(v === 'all' ? '' : v); setPage(1) }}>
-              <SelectTrigger className="h-8 w-[150px] border-dashed">
-                <SelectValue placeholder="全部分类" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部分类</SelectItem>
-                {categories?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CategoryCascader
+              options={buildCascaderTree(categories || [])}
+              value={categoryId || null}
+              onChange={(id) => { setCategoryId(id || ''); setPage(1) }}
+              placeholder="全部分类"
+              allowSelectParent
+              className="h-8 w-[180px] border-dashed"
+            />
           </div>
           {(keyword || status !== 'all' || categoryId) && (
             <Button

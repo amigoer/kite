@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search as SearchBtn } from '@/components/search'
+import { useConfirm } from '@/hooks/use-confirm'
 
 const statusBadge: Record<CommentStatus, { text: string; variant: 'default' | 'secondary' | 'destructive' }> = {
   approved: { text: '已通过', variant: 'default' },
@@ -40,9 +41,12 @@ export function CommentsPage() {
   const { data: comments, isLoading } = useComments({ status: statusFilter, keyword })
   const { data: stats } = useCommentStats()
   const moderateMutation = useModerateComment()
+  const { confirm, ConfirmDialog } = useConfirm()
 
-  function handleModerate(id: string, action: 'approve' | 'spam' | 'delete') {
-    if (action === 'delete' && !window.confirm('确定删除此评论？此操作不可撤销。')) return
+  async function handleModerate(id: string, action: 'approve' | 'spam' | 'delete') {
+    if (action === 'delete') {
+      if (!(await confirm({ title: '删除评论', description: '确定删除此评论？此操作不可撤销。', confirmText: '删除', variant: 'destructive' }))) return
+    }
     moderateMutation.mutate({ id, action })
   }
 
@@ -55,6 +59,7 @@ export function CommentsPage() {
 
   return (
     <>
+      <ConfirmDialog />
       <Header fixed>
         <SearchBtn />
         <div className='ml-auto' />

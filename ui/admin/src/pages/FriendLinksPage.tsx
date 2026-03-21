@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search as HeaderSearch } from '@/components/search'
+import { useConfirm } from '@/hooks/use-confirm'
 
 const statusConfig: Record<LinkStatus, { text: string }> = {
   active: { text: '正常' },
@@ -34,18 +35,24 @@ export function FriendLinksPage() {
   const createMutation = useCreateFriendLink()
   const deleteMutation = useDeleteFriendLink()
   const toggleMutation = useToggleLinkStatus()
+  const { confirm, ConfirmDialog } = useConfirm()
 
   function handleCreate() {
     if (!formData.name.trim() || !formData.url.trim()) return
     createMutation.mutate(formData, { onSuccess: () => { setFormData({ name: '', url: '', description: '' }); setShowForm(false) } })
   }
-  function handleDelete(id: string, name: string) { if (window.confirm(`确定删除友链「${name}」吗？`)) deleteMutation.mutate(id) }
+  async function handleDelete(id: string, name: string) {
+    if (await confirm({ title: '删除友链', description: `确定删除友链「${name}」吗？`, confirmText: '删除', variant: 'destructive' })) {
+      deleteMutation.mutate(id)
+    }
+  }
   function handleToggle(id: string, currentStatus: LinkStatus) { toggleMutation.mutate({ id, status: currentStatus === 'active' ? 'down' : 'active' }) }
 
   const activeCount = links?.filter((l) => l.status === 'active').length ?? 0
 
   return (
     <>
+      <ConfirmDialog />
       <Header fixed>
         <HeaderSearch />
         <div className='ml-auto' />

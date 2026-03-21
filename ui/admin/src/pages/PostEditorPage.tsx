@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { CategoryCascader, buildCascaderTree } from '@/components/category-cascader'
 import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -137,7 +138,12 @@ export function PostEditorPage() {
           {/* 分类 */}
           <div className="flex flex-col gap-2 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">分类</label>
-            <Select value={form.categoryId || undefined} onValueChange={(v) => setForm((prev) => ({ ...prev, categoryId: v }))}><SelectTrigger className="shadow-none rounded-md border-zinc-200 dark:border-zinc-700"><SelectValue placeholder="选择分类" /></SelectTrigger><SelectContent>{categories?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
+            <CategoryCascader
+              options={buildCascaderTree(categories || [])}
+              value={form.categoryId || null}
+              onChange={(id) => setForm((prev) => ({ ...prev, categoryId: id || '' }))}
+              allowSelectParent
+            />
           </div>
 
           {/* 标签 */}
