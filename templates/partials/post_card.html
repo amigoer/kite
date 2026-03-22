@@ -1,13 +1,18 @@
 {{ define "post_card" }}
 <article class="post-card">
+  {{ if .CoverImage }}
+    <a href="/posts/{{ .Slug }}">
+      <img src="{{ .CoverImage }}" alt="{{ .Title }}" class="post-card-cover" loading="lazy">
+    </a>
+  {{ end }}
   <h2 class="post-card-title">
     <a href="/posts/{{ .Slug }}">{{ .Title }}</a>
   </h2>
   <div class="post-card-meta">
     {{ if .PublishedAt }}
-      <time>📅 {{ formatDate .PublishedAt }}</time>
+      <time>{{ formatDate .PublishedAt }}</time>
     {{ else }}
-      <time>📅 {{ formatDate .CreatedAt }}</time>
+      <time>{{ formatDate .CreatedAt }}</time>
     {{ end }}
     {{ if .Category }}
       <a class="category-badge" href="/categories/{{ .Category.Slug }}">{{ .Category.Name }}</a>

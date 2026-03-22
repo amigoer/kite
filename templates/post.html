@@ -12,9 +12,9 @@
           <h1 class="post-title">{{ .Post.Title }}</h1>
           <div class="post-meta">
             {{ if .Post.PublishedAt }}
-              <time>📅 {{ formatDate .Post.PublishedAt }}</time>
+              <time>{{ formatDate .Post.PublishedAt }}</time>
             {{ else }}
-              <time>📅 {{ formatDate .Post.CreatedAt }}</time>
+              <time>{{ formatDate .Post.CreatedAt }}</time>
             {{ end }}
             {{ if .Post.Category }}
               <a class="category-badge" href="/categories/{{ .Post.Category.Slug }}">{{ .Post.Category.Name }}</a>
@@ -30,11 +30,11 @@
         </header>
 
         {{ if .Post.CoverImage }}
-        <img src="{{ .Post.CoverImage }}" alt="{{ .Post.Title }}" style="width:100%;border-radius:var(--radius);margin-bottom:var(--gap);">
+        <img src="{{ .Post.CoverImage }}" alt="{{ .Post.Title }}" class="post-cover">
         {{ end }}
 
         {{ if .NeedPassword }}
-        <!-- 密码保护：需要输入密码才能查看全文 -->
+        <!-- 密码保护 -->
         <div class="kite-password-form" id="password-form">
           <div class="kite-lock-icon">🔒</div>
           <p class="kite-lock-hint">本文已加密，请输入密码查看全文</p>
@@ -65,12 +65,12 @@
               var contentEl = document.getElementById('post-content');
               contentEl.innerHTML = data.content_html;
               contentEl.style.display = 'block';
+              addCopyButtons();
             })
             .catch(function() {
               errorEl.style.display = 'block';
             });
           }
-          // 回车键提交
           document.getElementById('post-password').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') verifyPassword();
           });
@@ -85,6 +85,32 @@
   </main>
 
   {{ template "footer" . }}
+
+  <!-- 代码块复制按钮 -->
+  <script>
+    function addCopyButtons() {
+      document.querySelectorAll('.post-content pre').forEach(function(pre) {
+        if (pre.querySelector('.code-copy-btn')) return;
+        var btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.textContent = '复制';
+        btn.addEventListener('click', function() {
+          var code = pre.querySelector('code');
+          var text = code ? code.textContent : pre.textContent;
+          navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = '已复制';
+            btn.classList.add('copied');
+            setTimeout(function() {
+              btn.textContent = '复制';
+              btn.classList.remove('copied');
+            }, 2000);
+          });
+        });
+        pre.appendChild(btn);
+      });
+    }
+    addCopyButtons();
+  </script>
 </body>
 </html>
 {{ end }}
