@@ -8,6 +8,7 @@ import { PasswordInput } from '@/components/PasswordInput'
 import { useLogin } from '@/hooks/use-auth'
 import { toast } from 'sonner'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 function formatErrorMessage(msg: string): string {
   const map: Record<string, string> = {
@@ -42,59 +43,63 @@ export function LoginPage() {
   return (
     <div className='relative flex h-svh w-full items-center justify-center px-4'>
       <ThemeSwitch className='absolute right-4 top-4 md:right-8 md:top-8 z-50 bg-background/50 backdrop-blur-sm' />
-      <div className='w-full'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-[480px] sm:p-8'>
-          <div className='mb-4 flex items-center justify-center gap-2'>
-            <KiteIcon className='h-8 w-8 text-primary' />
-            <h1 className='text-xl font-medium'>Kite Admin</h1>
-          </div>
-        </div>
-        <div className='mx-auto flex w-full max-w-sm flex-col justify-center space-y-2'>
-          <div className='grid gap-6 mt-4'>
-            <form onSubmit={handleSubmit}>
-              <div className='grid gap-4'>
-                <div className='grid gap-2'>
-                  <Label htmlFor='username'>用户名</Label>
-                  <Input
-                    id='username'
-                    placeholder='admin'
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    autoFocus
-                  />
-                  {attempted && usernameEmpty && (
-                    <p className='text-xs text-destructive'>请输入用户名</p>
-                  )}
-                </div>
-                <div className='grid gap-2'>
-                  <div className='flex items-center justify-between'>
-                    <Label htmlFor='password'>密码</Label>
-                    <a
-                      href='#'
-                      className='text-sm text-muted-foreground hover:text-primary'
-                      onClick={(e) => { e.preventDefault(); toast.info('请联系系统管理员重置密码') }}
-                    >
-                      忘记密码？
-                    </a>
-                  </div>
-                  <PasswordInput
-                    id='password'
-                    placeholder='********'
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  {attempted && passwordEmpty && (
-                    <p className='text-xs text-destructive'>请输入密码</p>
-                  )}
-                </div>
-                <Button type='submit' className='w-full h-11' disabled={loginMutation.isPending}>
-                  {loginMutation.isPending ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : <LogIn className='mr-2 h-4 w-4' />}
-                  登录
-                </Button>
+      
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <Card className="w-full shadow-md border-zinc-200 dark:border-zinc-800">
+          <CardHeader className="space-y-3 text-center pt-8 pb-6">
+            <div className="flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-950 dark:bg-zinc-100 shadow-sm">
+                <KiteIcon className="h-7 w-7 text-white dark:text-zinc-950" />
               </div>
+            </div>
+            <CardTitle className="text-2xl font-bold tracking-tight mt-2">Kite Admin</CardTitle>
+            <CardDescription className="text-sm">登录以管理您的博客内容</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2 text-left">
+                <Label htmlFor="username" className="text-sm font-medium">用户名</Label>
+                <Input
+                  id="username"
+                  placeholder="admin"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="shadow-sm"
+                  autoFocus
+                />
+                {attempted && usernameEmpty && (
+                  <p className="text-xs text-destructive">请输入用户名</p>
+                )}
+              </div>
+              <div className="space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">密码</Label>
+                  <a
+                    href="#"
+                    className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors duration-200"
+                    onClick={(e) => { e.preventDefault(); toast.info('请联系系统管理员重设密码') }}
+                  >
+                    忘记密码？
+                  </a>
+                </div>
+                <PasswordInput
+                  id="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="shadow-sm"
+                />
+                {attempted && passwordEmpty && (
+                  <p className="text-xs text-destructive">请输入密码</p>
+                )}
+              </div>
+              <Button type="submit" className="w-full h-11 text-sm font-medium shadow-sm active:scale-[0.98] transition-all" disabled={loginMutation.isPending}>
+                {loginMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                登录
+              </Button>
             </form>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
       <p className='absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground'>
         © {new Date().getFullYear()}{' '}

@@ -108,9 +108,9 @@ export function PagesPage() {
                 <TableRow
                   key={p.id}
                   className="cursor-pointer"
-                  onDoubleClick={() => navigate(`/pages/${p.id}/edit`)}
+                  onDoubleClick={() => navigate(`/pages/${p.slug || p.id}/edit`)}
                 >
-                  <TableCell onClick={() => navigate(`/pages/${p.id}/edit`)}>
+                  <TableCell onClick={() => navigate(`/pages/${p.slug || p.id}/edit`)}>
                     <p className="font-medium text-foreground">{p.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-muted-foreground">/{p.slug}</span>
@@ -139,7 +139,7 @@ export function PagesPage() {
                       )}
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(`/pages/${p.id}/edit`)}>
+                          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(`/pages/${p.slug || p.id}/edit`)}>
                             <Pencil className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>

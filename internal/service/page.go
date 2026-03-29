@@ -131,11 +131,10 @@ func (s *PageService) ListPublic() (*PageListResult, error) {
 // GetByID 管理端获取页面详情
 func (s *PageService) GetByID(idStr string) (*model.Page, error) {
 	id, err := uuid.Parse(strings.TrimSpace(idStr))
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid page id", ErrInvalidPagePayload)
+	if err == nil {
+		return s.pageRepo.GetByID(id)
 	}
-
-	return s.pageRepo.GetByID(id)
+	return s.pageRepo.GetBySlug(strings.TrimSpace(idStr))
 }
 
 // GetPublicBySlug 前台根据 slug 获取已发布页面
@@ -180,12 +179,13 @@ func (s *PageService) Create(input CreatePageInput) (*model.Page, error) {
 
 // Update 全量更新页面
 func (s *PageService) Update(idStr string, input UpdatePageInput) (*model.Page, error) {
+	var existing *model.Page
 	id, err := uuid.Parse(strings.TrimSpace(idStr))
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid page id", ErrInvalidPagePayload)
+	if err == nil {
+		existing, err = s.pageRepo.GetByID(id)
+	} else {
+		existing, err = s.pageRepo.GetBySlug(strings.TrimSpace(idStr))
 	}
-
-	existing, err := s.pageRepo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -217,12 +217,13 @@ func (s *PageService) Update(idStr string, input UpdatePageInput) (*model.Page, 
 
 // Patch 局部更新页面
 func (s *PageService) Patch(idStr string, input PatchPageInput) (*model.Page, error) {
+	var existing *model.Page
 	id, err := uuid.Parse(strings.TrimSpace(idStr))
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid page id", ErrInvalidPagePayload)
+	if err == nil {
+		existing, err = s.pageRepo.GetByID(id)
+	} else {
+		existing, err = s.pageRepo.GetBySlug(strings.TrimSpace(idStr))
 	}
-
-	existing, err := s.pageRepo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +273,11 @@ func (s *PageService) Patch(idStr string, input PatchPageInput) (*model.Page, er
 func (s *PageService) Delete(idStr string) error {
 	id, err := uuid.Parse(strings.TrimSpace(idStr))
 	if err != nil {
-		return fmt.Errorf("%w: invalid page id", ErrInvalidPagePayload)
+		existing, err2 := s.pageRepo.GetBySlug(strings.TrimSpace(idStr))
+		if err2 != nil {
+			return err2
+		}
+		id = existing.ID
 	}
 
 	return s.pageRepo.Delete(id)

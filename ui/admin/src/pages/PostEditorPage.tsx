@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/popover'
 import { CategoryCascader, buildCascaderTree } from '@/components/category-cascader'
 import { Calendar } from '@/components/ui/calendar'
-import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles, Clock, Search, Tags, Plus } from 'lucide-react'
+import { ArrowLeft, Save, Send, Check, X, Loader2, Sparkles, Clock, Search, Tags, Plus, ExternalLink } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { TiptapEditor } from '@/components/TiptapEditor'
@@ -87,7 +87,7 @@ export function PostEditorPage() {
       data.status = 'published'
     }
     saveMutation.mutate(data, {
-      onSuccess: () => {
+      onSuccess: (savedPost) => {
         setSaved(true); setTimeout(() => setSaved(false), 2000)
         if (schedule) {
           toast.success('定时发布已设定', { description: `「${form.title}」将在指定时间自动发布` })
@@ -96,7 +96,11 @@ export function PostEditorPage() {
         } else {
           toast.success('草稿已保存')
         }
-        if (!isEdit) navigate('/posts')
+        if (!isEdit) {
+          navigate('/posts')
+        } else if (savedPost?.slug && savedPost.slug !== id) {
+          navigate(`/posts/${savedPost.slug}/edit`, { replace: true })
+        }
       },
       onError: (err) => {
         toast.error(publish ? '发布失败' : '保存失败', { description: err.message || '请稍后重试' })
@@ -186,30 +190,37 @@ export function PostEditorPage() {
       </Header>
 
       <Main>
-      <div className="flex gap-0 relative">
-        <div className="flex-1 flex flex-col gap-4 pr-6">
-          {/* 沉浸式标题 — 原生 input，零 border */}
+      <div className="flex gap-6 relative">
+        <div className="flex-1 flex flex-col gap-4">
+          {/* 沉浸式标题 */}
           <div className="mb-2">
             <input
               type="text"
               value={form.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               placeholder="输入文章标题..."
-              className="w-full bg-white dark:bg-zinc-900 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-zinc-100/10 focus:border-zinc-300 dark:focus:border-zinc-600 px-4 py-3 shadow-sm transition-colors"
+              className="w-full bg-card text-card-foreground text-2xl font-bold tracking-tight placeholder:text-muted-foreground border border-border rounded-lg outline-none focus:ring-2 focus:ring-ring focus:border-ring px-4 py-3 shadow-sm transition-colors"
             />
           </div>
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm overflow-hidden">
-            <TiptapEditor key={post?.id || 'new'} content={post ? (post.contentHtml || post.contentMarkdown || '') : ''} onChange={(html, markdown) => setForm((prev) => ({ ...prev, contentHtml: html, contentMarkdown: markdown }))} placeholder="开始写作…" />
-          </div>
+          <TiptapEditor key={post?.id || 'new'} content={post ? (post.contentHtml || post.contentMarkdown || '') : ''} onChange={(html, markdown) => setForm((prev) => ({ ...prev, contentHtml: html, contentMarkdown: markdown }))} placeholder="开始写作…" />
         </div>
 
-        {/* 右侧属性面板：无外边框，纯白底色 + border-l 分割 */}
-        <aside className="w-80 shrink-0 bg-white dark:bg-zinc-900 flex flex-col gap-6 p-6 border-l border-zinc-100 dark:border-zinc-800">
+        {/* 右侧属性面板：卡片化 */}
+        <aside className="w-80 shrink-0 bg-card text-card-foreground flex flex-col gap-6 p-6 border border-border rounded-lg shadow-sm h-fit">
 
           {/* URL Slug */}
-          <div className="flex flex-col gap-2 pb-6 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="flex flex-col gap-2 pb-6 border-b border-border">
             <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">URL Slug</label>
-            <Input value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} placeholder="article-slug" className="shadow-none rounded-md border-zinc-200 dark:border-zinc-700" />
+            <Input value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} placeholder="article-slug" />
+            <a
+              href={`/posts/${form.slug || 'article-slug'}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-muted-foreground hover:text-primary mt-0.5 inline-flex items-center gap-1 w-fit transition-colors"
+            >
+              访问页面：{window.location.origin}/posts/{form.slug || 'article-slug'}
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
 
           {/* 分类 */}

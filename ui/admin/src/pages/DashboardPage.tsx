@@ -211,7 +211,7 @@ export function DashboardPage() {
                     {idx > 0 && <div className="h-px bg-zinc-50 dark:bg-zinc-800 mx-4" />}
                     <div
                       className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group"
-                      onClick={() => navigate(`/posts/${post.id}/edit`)}
+                      onClick={() => navigate(`/posts/${post.slug || post.id}/edit`)}
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate leading-relaxed group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{post.title}</p>

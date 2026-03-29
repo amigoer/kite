@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Save, Send, Check, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Send, Check, Loader2, ExternalLink } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { TiptapEditor } from '@/components/TiptapEditor'
@@ -96,7 +96,14 @@ export function PageEditorPage() {
     const data = { ...form, id }
     if (publish) data.status = 'published'
     saveMutation.mutate(data, {
-      onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); if (!isEdit) navigate('/pages') },
+      onSuccess: (savedPage) => { 
+        setSaved(true); setTimeout(() => setSaved(false), 2000)
+        if (!isEdit) {
+          navigate('/pages')
+        } else if (savedPage?.slug && savedPage.slug !== id) {
+          navigate(`/pages/${savedPage.slug}/edit`, { replace: true })
+        }
+      },
     })
   }
 
@@ -130,26 +137,34 @@ export function PageEditorPage() {
       <div className="flex gap-6 relative">
         {/* 左侧编辑区 */}
         <div className="flex-1 flex flex-col gap-4">
-          <Input value={form.title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="页面标题" className="text-lg font-medium border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md h-12" />
+          <Input value={form.title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="页面标题" className="text-xl font-bold border-border bg-card shadow-sm rounded-lg h-14" />
           <TiptapEditor content={form.contentMarkdown} onChange={(html) => setForm((prev) => ({ ...prev, contentMarkdown: html }))} placeholder="开始编写页面内容…" />
         </div>
 
         {/* 右侧元数据面板 */}
         <div className="w-72 flex flex-col gap-4 shrink-0">
-          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+          <Card className="shadow-sm">
             <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">URL Slug</CardTitle></CardHeader>
             <CardContent className="pt-0">
-              <Input value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} placeholder="page-slug" className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
-              <p className="text-xs text-zinc-500 mt-1.5">访问地址：/{form.slug || 'page-slug'}</p>
+              <Input value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} placeholder="page-slug" />
+              <a
+                href={`/pages/${form.slug || 'page-slug'}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-muted-foreground hover:text-primary mt-1.5 inline-flex items-center gap-1 w-fit transition-colors"
+              >
+                访问页面：{window.location.origin}/pages/{form.slug || 'page-slug'}
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </CardContent>
           </Card>
 
-          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+          <Card className="shadow-sm">
             <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">页面模板</CardTitle></CardHeader>
             <CardContent className="pt-0">
               <Select value={form.template} onValueChange={handleTemplateChange}>
-                <SelectTrigger className="border-zinc-200 dark:border-zinc-800 shadow-none"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="shadow-sm">
                   {PAGE_TEMPLATES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -159,7 +174,7 @@ export function PageEditorPage() {
 
           {/* 模板参数 */}
           {currentFields.length > 0 && (
-            <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+            <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">模板参数</CardTitle></CardHeader>
               <CardContent className="pt-0 space-y-4">
                 {currentFields.map((field) => (
@@ -180,7 +195,7 @@ export function PageEditorPage() {
                           value={String(configObj[field.key] ?? field.defaultValue)}
                           onChange={(e) => updateConfigField(field.key, field.type === 'number' ? Number(e.target.value) : e.target.value)}
                           placeholder={field.placeholder}
-                          className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md"
+                          className="bg-card"
                         />
                         {field.description && <p className="text-xs text-zinc-500 mt-1">{field.description}</p>}
                       </>
@@ -191,7 +206,7 @@ export function PageEditorPage() {
             </Card>
           )}
 
-          <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-none rounded-md">
+          <Card className="shadow-sm">
             <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-zinc-500 uppercase">页面设置</CardTitle></CardHeader>
             <CardContent className="pt-0 space-y-4">
               <div className="flex justify-between items-center">
@@ -203,7 +218,7 @@ export function PageEditorPage() {
               </div>
               <div>
                 <label className="text-sm font-medium text-zinc-950 dark:text-zinc-50 block mb-1.5">排序优先级</label>
-                <Input type="number" value={String(form.sortOrder)} onChange={(e) => setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))} min={0} max={999} className="border-zinc-200 dark:border-zinc-800 bg-transparent shadow-none rounded-md" />
+                <Input type="number" value={String(form.sortOrder)} onChange={(e) => setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))} min={0} max={999} />
                 <p className="text-xs text-zinc-500 mt-1">数值越小越靠前</p>
               </div>
             </CardContent>

@@ -54,6 +54,7 @@ export function useDashboardStats() {
 export interface RecentPost {
   id: string
   title: string
+  slug: string
   status: string
   createdAt: string
   viewCount: number

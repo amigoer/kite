@@ -25,8 +25,8 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
           asChild
         >
           <a href='https://www.kite.plus' target='_blank' rel='noopener noreferrer'>
-          <div className='flex aspect-square size-12 items-center justify-center'>
-            <activeTeam.logo className='size-12' />
+          <div className='flex aspect-square size-8 items-center justify-center'>
+            <activeTeam.logo className='size-8 text-primary group-hover:text-sidebar-accent-foreground transition-colors' />
           </div>
           <div className='grid flex-1 text-start leading-tight'>
             <span className='truncate text-lg font-bold tracking-tight'>

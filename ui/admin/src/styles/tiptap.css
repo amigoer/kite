@@ -115,11 +115,15 @@
 .tiptap-wrapper {
   display: flex;
   flex-direction: column;
-  /* 固定高度，确保富文本和源码模式一致 */
+  /* 默认高度，允许用户垂直拖拽改变高度 */
   height: calc(100vh - 260px);
   min-height: 400px;
   border: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-0);
+  resize: vertical;
+  overflow: hidden;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
 }
 
 /* 工具栏 */

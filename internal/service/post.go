@@ -147,19 +147,19 @@ func (s *PostService) list(params PostListParams, publicOnly bool) (*PostListRes
 }
 
 func (s *PostService) GetByID(id string) (*model.Post, error) {
-	parsedID, err := parseUUID(id)
-	if err != nil {
-		return nil, err
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
+	if err == nil {
+		return s.postRepo.GetByID(parsedID)
 	}
-	return s.postRepo.GetByID(parsedID)
+	return s.postRepo.GetBySlug(strings.TrimSpace(id))
 }
 
 func (s *PostService) GetPublicByID(id string) (*model.Post, error) {
-	parsedID, err := parseUUID(id)
-	if err != nil {
-		return nil, err
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
+	if err == nil {
+		return s.postRepo.GetPublicByID(parsedID)
 	}
-	return s.postRepo.GetPublicByID(parsedID)
+	return s.postRepo.GetPublicBySlug(strings.TrimSpace(id))
 }
 
 func (s *PostService) GetBySlug(slug string) (*model.Post, error) {
@@ -215,12 +215,13 @@ func (s *PostService) Create(input CreatePostInput) (*model.Post, error) {
 }
 
 func (s *PostService) Update(id string, input UpdatePostInput) (*model.Post, error) {
-	parsedID, err := parseUUID(id)
-	if err != nil {
-		return nil, err
+	var existing *model.Post
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
+	if err == nil {
+		existing, err = s.postRepo.GetByID(parsedID)
+	} else {
+		existing, err = s.postRepo.GetBySlug(strings.TrimSpace(id))
 	}
-
-	existing, err := s.postRepo.GetByID(parsedID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,12 +262,13 @@ func (s *PostService) Update(id string, input UpdatePostInput) (*model.Post, err
 }
 
 func (s *PostService) Patch(id string, input PatchPostInput) (*model.Post, error) {
-	parsedID, err := parseUUID(id)
-	if err != nil {
-		return nil, err
+	var existing *model.Post
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
+	if err == nil {
+		existing, err = s.postRepo.GetByID(parsedID)
+	} else {
+		existing, err = s.postRepo.GetBySlug(strings.TrimSpace(id))
 	}
-
-	existing, err := s.postRepo.GetByID(parsedID)
 	if err != nil {
 		return nil, err
 	}
@@ -332,9 +334,13 @@ func (s *PostService) Patch(id string, input PatchPostInput) (*model.Post, error
 }
 
 func (s *PostService) Delete(id string) error {
-	parsedID, err := parseUUID(id)
+	parsedID, err := uuid.Parse(strings.TrimSpace(id))
 	if err != nil {
-		return err
+		existing, err2 := s.postRepo.GetBySlug(strings.TrimSpace(id))
+		if err2 != nil {
+			return err2
+		}
+		parsedID = existing.ID
 	}
 	return s.postRepo.Delete(parsedID)
 }

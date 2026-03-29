@@ -6,47 +6,28 @@
 
 /* Semi Design CSS 变量兼容层（TiptapEditor 使用） */
 :root {
-  --semi-color-bg-0: #ffffff;
-  --semi-color-bg-1: #fafafa;
-  --semi-color-fill-0: #f4f4f5;
-  --semi-color-fill-1: #e4e4e7;
-  --semi-color-border: #e4e4e7;
-  --semi-color-text-0: #09090b;
-  --semi-color-text-1: #3f3f46;
-  --semi-color-text-2: #71717a;
-  --semi-color-text-3: #a1a1aa;
-  --semi-color-primary: #18181b;
-  --semi-color-primary-hover: #27272a;
-  --semi-color-primary-light-default: #f4f4f5;
-  --semi-color-primary-light-hover: #e4e4e7;
-  --semi-color-danger: #ef4444;
+  --semi-color-bg-0: var(--card);
+  --semi-color-bg-1: var(--muted);
+  --semi-color-fill-0: var(--muted);
+  --semi-color-fill-1: var(--accent);
+  --semi-color-border: var(--border);
+  --semi-color-text-0: var(--foreground);
+  --semi-color-text-1: var(--muted-foreground);
+  --semi-color-text-2: var(--muted-foreground);
+  --semi-color-text-3: var(--muted-foreground);
+  --semi-color-primary: var(--primary);
+  --semi-color-primary-hover: var(--primary);
+  --semi-color-primary-light-default: var(--accent);
+  --semi-color-primary-light-hover: var(--accent);
+  --semi-color-danger: var(--destructive);
   --semi-color-warning: #f59e0b;
   --semi-color-warning-light-default: #fef3c7;
 }
 
-.dark {
-  --semi-color-bg-0: #09090b;
-  --semi-color-bg-1: #18181b;
-  --semi-color-fill-0: #27272a;
-  --semi-color-fill-1: #3f3f46;
-  --semi-color-border: #27272a;
-  --semi-color-text-0: #fafafa;
-  --semi-color-text-1: #d4d4d8;
-  --semi-color-text-2: #a1a1aa;
-  --semi-color-text-3: #71717a;
-  --semi-color-primary: #fafafa;
-  --semi-color-primary-hover: #e4e4e7;
-  --semi-color-primary-light-default: #27272a;
-  --semi-color-primary-light-hover: #3f3f46;
-  --semi-color-danger: #f87171;
-  --semi-color-warning: #fbbf24;
-  --semi-color-warning-light-default: #451a03;
-}
-
 /* shadcn-admin 主题色 */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --radius: 0.5rem;
+  --background: oklch(0.97 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
@@ -61,7 +42,7 @@
   --accent: oklch(0.968 0.007 247.896);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
+  --border: oklch(0.94 0 0);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -69,7 +50,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: var(--background);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -103,6 +84,14 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
@@ -111,6 +100,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.04), 0 2px 4px -2px rgb(0 0 0 / 0.04);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

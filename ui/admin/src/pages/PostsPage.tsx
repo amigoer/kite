@@ -176,7 +176,7 @@ export function PostsPage() {
                 <TableRow
                   key={post.id}
                   className="cursor-pointer"
-                  onDoubleClick={() => navigate(`/posts/${post.id}/edit`)}
+                  onDoubleClick={() => navigate(`/posts/${post.slug || post.id}/edit`)}
                 >
                   <TableCell>
                     {post.status === 'published' ? (
@@ -194,7 +194,7 @@ export function PostsPage() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell onClick={() => navigate(`/posts/${post.id}/edit`)}>
+                  <TableCell onClick={() => navigate(`/posts/${post.slug || post.id}/edit`)}>
                     <p className="text-sm font-medium text-foreground">{post.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[400px] leading-relaxed">{post.summary}</p>
                   </TableCell>
@@ -219,7 +219,7 @@ export function PostsPage() {
                       )}
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(`/posts/${post.id}/edit`)}>
+                          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(`/posts/${post.slug || post.id}/edit`)}>
                             <Pencil className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
