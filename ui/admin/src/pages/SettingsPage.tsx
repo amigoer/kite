@@ -8,11 +8,13 @@ import {
 } from '@/components/ui/select'
 import { Save, Check, Globe, FileText, Server, Sparkles, Loader2 } from 'lucide-react'
 import { useSettings, useSaveSettings } from '@/hooks/use-settings'
+import { useAiTags } from '@/hooks/use-ai'
 import type { AllSettings } from '@/types/settings'
 import { cn } from '@/lib/utils'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search as HeaderSearch } from '@/components/search'
+import { toast } from 'sonner'
 
 const tabs = [
   { key: 'site', label: '站点信息', icon: Globe },
@@ -30,11 +32,14 @@ export function SettingsPage() {
   const [form, setForm] = useState<AllSettings | null>(null)
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState('site')
-  const [aiKeywordsLoading, setAiKeywordsLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
 
   const { data: settings, isLoading } = useSettings()
   const saveMutation = useSaveSettings()
+  const aiTagsMutation = useAiTags()
+
+  // AI 是否启用（从已保存的设置中读取，而非当前表单值）
+  const aiEnabled = settings?.ai?.enabled ?? false
 
   useEffect(() => {
     if (settings && !form) setForm(structuredClone(settings))
@@ -46,12 +51,15 @@ export function SettingsPage() {
   }
 
   function handleAiKeywords() {
-    setAiKeywordsLoading(true)
+    if (!form) return
     setAiSuggestions([])
-    setTimeout(() => {
-      setAiSuggestions(['博客', '技术', 'Go', 'React', '静态网站', '极简风'])
-      setAiKeywordsLoading(false)
-    }, 800)
+    aiTagsMutation.mutate(
+      { title: form.site.siteName, content: form.site.description || form.site.keywords || '' },
+      {
+        onSuccess: (data) => { setAiSuggestions(data.tags || []) },
+        onError: (err) => { toast.error('AI 生成失败', { description: err.message }) },
+      }
+    )
   }
 
   function applyAiSuggestions() {
@@ -113,9 +121,11 @@ export function SettingsPage() {
                   <div>
                     <div className="flex gap-2 items-center">
                       <Input value={form.site.keywords} onChange={(e) => updateField(setForm, 'site', 'keywords', e.target.value)} placeholder="博客,技术,Go,React" className={cn(inputCls, 'max-w-[240px]')} />
-                      <Button variant="outline" className="rounded-md shadow-sm border-zinc-200 dark:border-zinc-700 text-sm h-9 gap-1.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 shrink-0" onClick={handleAiKeywords} disabled={aiKeywordsLoading}>
-                        <Sparkles className="w-3.5 h-3.5" /> {aiKeywordsLoading ? '生成中…' : 'AI 生成建议'}
-                      </Button>
+                      {aiEnabled && (
+                        <Button variant="outline" className="rounded-md shadow-sm border-zinc-200 dark:border-zinc-700 text-sm h-9 gap-1.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 shrink-0" onClick={handleAiKeywords} disabled={aiTagsMutation.isPending}>
+                          <Sparkles className="w-3.5 h-3.5" /> {aiTagsMutation.isPending ? '生成中…' : 'AI 生成建议'}
+                        </Button>
+                      )}
                     </div>
                     {aiSuggestions.length > 0 && (
                       <div className="mt-2 flex items-center gap-2">

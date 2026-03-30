@@ -33,7 +33,7 @@ export interface RenderSettings {
 /** AI 集成设置 */
 export interface AiSettings {
   enabled: boolean
-  provider: 'deepseek' | 'openai' | ''
+  provider: string
   apiKey: string
   model: string
   autoSummary: boolean

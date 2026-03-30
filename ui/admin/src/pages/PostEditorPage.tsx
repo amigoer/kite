@@ -15,6 +15,7 @@ import { TiptapEditor } from '@/components/TiptapEditor'
 import { usePostDetail, useSavePost } from '@/hooks/use-posts'
 import { useCategoryList } from '@/hooks/use-categories'
 import { useTagList, useCreateTag } from '@/hooks/use-tags'
+import { useAiEnabled, useAiSummary, useAiTags } from '@/hooks/use-ai'
 import { ImageUploader } from '@/components/ImageUploader'
 import type { PostFormData } from '@/types/post'
 import { toast } from 'sonner'
@@ -30,9 +31,7 @@ export function PostEditorPage() {
   const [saved, setSaved] = useState(false)
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
   const [tagSearch, setTagSearch] = useState('')
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [aiSummary, setAiSummary] = useState('')
-  const [aiKeywordsLoading, setAiKeywordsLoading] = useState(false)
   const [aiKeywords, setAiKeywords] = useState<string[]>([])
 
   const [form, setForm] = useState<PostFormData>({
@@ -45,6 +44,9 @@ export function PostEditorPage() {
   const { data: allTags } = useTagList()
   const saveMutation = useSavePost()
   const createTagMutation = useCreateTag()
+  const aiEnabled = useAiEnabled()
+  const aiSummaryMutation = useAiSummary()
+  const aiTagsMutation = useAiTags()
 
   /** 快速创建标签并自动选中 */
   function handleQuickCreateTag() {
@@ -108,12 +110,24 @@ export function PostEditorPage() {
     })
   }
   function handleAiSummary() {
-    setAiSummaryLoading(true); setAiSummary('')
-    setTimeout(() => { setAiSummary('Kite 是一个轻量级 Go 博客引擎，内置 AI 写作助手、富文本编辑器和 CSR 主题，提供极致极简的写作体验…'); setAiSummaryLoading(false) }, 800)
+    setAiSummary('')
+    aiSummaryMutation.mutate(
+      { content: form.contentHtml || form.contentMarkdown || '', length: 200 },
+      {
+        onSuccess: (data) => { setAiSummary(data.summary || '') },
+        onError: (err) => { toast.error('AI 摘要生成失败', { description: err.message }) },
+      }
+    )
   }
   function handleAiKeywords() {
-    setAiKeywordsLoading(true); setAiKeywords([])
-    setTimeout(() => { setAiKeywords(['博客', '技术', 'Go', 'React', '静态网站', '极简风']); setAiKeywordsLoading(false) }, 800)
+    setAiKeywords([])
+    aiTagsMutation.mutate(
+      { title: form.title, content: form.contentHtml || form.contentMarkdown || '' },
+      {
+        onSuccess: (data) => { setAiKeywords(data.tags || []) },
+        onError: (err) => { toast.error('AI 关键词生成失败', { description: err.message }) },
+      }
+    )
   }
 
   if (isEdit && isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-4 h-4 animate-spin text-zinc-400" /></div>
@@ -319,11 +333,13 @@ export function PostEditorPage() {
             </Popover>
           </div>
 
-          {/* 摘要 + AI */}
+           {/* 摘要 + AI */}
           <div className="flex flex-col gap-2 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex justify-between items-center">
               <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">摘要</label>
-              <button className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 flex items-center gap-1 cursor-pointer transition-colors" onClick={handleAiSummary} disabled={aiSummaryLoading}><Sparkles className="w-3 h-3" /> {aiSummaryLoading ? '…' : 'AI 生成'}</button>
+              {aiEnabled && (
+                <button className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 flex items-center gap-1 cursor-pointer transition-colors" onClick={handleAiSummary} disabled={aiSummaryMutation.isPending}><Sparkles className="w-3 h-3" /> {aiSummaryMutation.isPending ? '…' : 'AI 生成'}</button>
+              )}
             </div>
             <Textarea value={form.summary} onChange={(e) => setForm((prev) => ({ ...prev, summary: e.target.value }))} placeholder="文章摘要…" rows={3} className="shadow-none rounded-md border-zinc-200 dark:border-zinc-700 resize-none" />
             {aiSummary && (<div className="mt-1"><p className="text-xs text-zinc-500 leading-relaxed">{aiSummary}</p><button className="text-xs text-zinc-900 dark:text-zinc-100 underline underline-offset-2 cursor-pointer mt-1 hover:no-underline" onClick={() => { setForm((prev) => ({ ...prev, summary: aiSummary })); setAiSummary('') }}>应用此摘要</button></div>)}
@@ -332,7 +348,7 @@ export function PostEditorPage() {
           {/* SEO 关键词 */}
           <div className="flex flex-col gap-2 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">SEO 关键词</label>
-            <div className="flex gap-2"><Input value={(form as unknown as { keywords?: string }).keywords || ''} onChange={(e) => setForm((prev) => ({ ...prev, keywords: e.target.value } as unknown as PostFormData))} placeholder="博客,技术,Go" className="flex-1 shadow-none rounded-md border-zinc-200 dark:border-zinc-700" /><Button variant="outline" size="sm" className="rounded-md shadow-none border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 shrink-0 gap-1 text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-800" onClick={handleAiKeywords} disabled={aiKeywordsLoading}><Sparkles className="w-3 h-3" /> {aiKeywordsLoading ? '…' : 'AI'}</Button></div>
+            <div className="flex gap-2"><Input value={(form as unknown as { keywords?: string }).keywords || ''} onChange={(e) => setForm((prev) => ({ ...prev, keywords: e.target.value } as unknown as PostFormData))} placeholder="博客,技术,Go" className="flex-1 shadow-none rounded-md border-zinc-200 dark:border-zinc-700" />{aiEnabled && <Button variant="outline" size="sm" className="rounded-md shadow-none border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 shrink-0 gap-1 text-xs h-9 hover:bg-zinc-50 dark:hover:bg-zinc-800" onClick={handleAiKeywords} disabled={aiTagsMutation.isPending}><Sparkles className="w-3 h-3" /> {aiTagsMutation.isPending ? '…' : 'AI'}</Button>}</div>
             {aiKeywords.length > 0 && <p className="text-xs text-zinc-500 mt-1">建议：<span className="text-zinc-700 dark:text-zinc-300">{aiKeywords.join(', ')}</span></p>}
           </div>
 
