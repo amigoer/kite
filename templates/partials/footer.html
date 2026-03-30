@@ -1,8 +1,15 @@
 {{ define "footer" }}
 <footer class="footer">
-  <div class="container">
-    <p>{{ if .Footer }}{{ .Footer }}{{ else }}&copy; {{ currentYear }} {{ .SiteName }}. Powered by <a href="https://www.kite.plus" target="_blank">Kite</a>{{ end }}</p>
-    {{ if .ICP }}<p class="icp"><a href="https://beian.miit.gov.cn/" target="_blank" rel="nofollow">{{ .ICP }}</a></p>{{ end }}
-  </div>
+    {{ if .Footer }}
+    <span>{{ safeHTML .Footer }}</span>
+    {{ else }}
+    <span>&copy; {{ currentYear }} <a href="/">{{ .SiteName }}</a></span>
+    <span>&middot;</span>
+    <span>Powered by <a href="https://github.com/amigoer/kite-blog" rel="noopener" target="_blank">Kite</a></span>
+    {{ end }}
+    {{ if .ICP }}
+    <br>
+    <span><a href="https://beian.miit.gov.cn/" target="_blank" rel="nofollow">{{ .ICP }}</a></span>
+    {{ end }}
 </footer>
 {{ end }}

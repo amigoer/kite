@@ -2,107 +2,135 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 {{ template "head" . }}
-<body>
+<body class="single">
   {{ template "header" . }}
 
-  <main>
-    <div class="container">
-      <article>
-        <header class="post-header">
-          <h1 class="post-title">{{ .Post.Title }}</h1>
-          <div class="post-meta">
-            {{ if .Post.PublishedAt }}
-              <time>{{ formatDate .Post.PublishedAt }}</time>
-            {{ else }}
-              <time>{{ formatDate .Post.CreatedAt }}</time>
-            {{ end }}
-            {{ if .Post.Category }}
-              <a class="category-badge" href="/categories/{{ .Post.Category.Slug }}">{{ .Post.Category.Name }}</a>
-            {{ end }}
-          </div>
-          {{ if .Post.Tags }}
-          <div class="post-card-tags" style="margin-top: 0.75rem;">
-            {{ range .Post.Tags }}
-              <a class="tag" href="/tags/{{ .Slug }}">{{ .Name }}</a>
-            {{ end }}
-          </div>
+  <main class="main">
+    <article class="post-single">
+      <header class="post-header">
+        <h1 class="post-title">{{ .Post.Title }}</h1>
+        <div class="post-meta">
+          {{ if .Post.PublishedAt }}
+            <span>{{ formatDate .Post.PublishedAt }}</span>
+          {{ else }}
+            <span>{{ formatDate .Post.CreatedAt }}</span>
           {{ end }}
-        </header>
+          {{ if .Post.Category }}
+            <span>&middot;</span>
+            <a href="/categories/{{ .Post.Category.Slug }}" style="color:var(--secondary)">{{ .Post.Category.Name }}</a>
+          {{ end }}
+          <span>&middot;</span>
+          <span>{{ .Post.ViewCount }} views</span>
+        </div>
+      </header>
 
-        {{ if .Post.CoverImage }}
+      {{ if .Post.CoverImage }}
+      <figure class="entry-cover">
         <img src="{{ .Post.CoverImage }}" alt="{{ .Post.Title }}" class="post-cover">
+      </figure>
+      {{ end }}
+
+      {{ if .NeedPassword }}
+      <!-- Password Protection -->
+      <div class="kite-password-form" id="password-form" style="background:var(--tertiary); padding: 40px; text-align:center; border-radius: var(--radius); margin: 30px 0;">
+        <div style="font-size:32px; margin-bottom:10px;">🔒</div>
+        <p style="color:var(--secondary); margin-bottom:20px;">本文已加密，请输入密码查看全文</p>
+        <div style="display:flex; justify-content:center; gap:10px; max-width: 400px; margin: 0 auto;">
+          <input type="password" id="post-password" placeholder="请输入密码" style="flex:1; padding:10px; border-radius:var(--radius); border:1px solid var(--border); background:var(--theme); color:var(--content);" />
+          <button onclick="verifyPassword()" style="padding:10px 20px; border-radius:var(--radius); border:none; background:var(--primary); color:var(--theme); cursor:pointer; font-weight:600;">解锁</button>
+        </div>
+        <p id="password-error" style="display:none; color: #ef4444; margin-top:10px;">密码错误，请重试</p>
+      </div>
+      <div class="post-content" id="post-content" style="display:none;"></div>
+      <script>
+        function verifyPassword() {
+          var pwd = document.getElementById('post-password').value;
+          var errorEl = document.getElementById('password-error');
+          errorEl.style.display = 'none';
+          fetch('/api/v1/posts/{{ .Post.ID }}/verify-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd })
+          })
+          .then(function(resp) {
+             if (!resp.ok) throw new Error('密码错误');
+             return resp.json();
+          })
+          .then(function(json) {
+             var data = json.data || json;
+             document.getElementById('password-form').style.display = 'none';
+             var contentEl = document.getElementById('post-content');
+             contentEl.innerHTML = data.content_html;
+             contentEl.style.display = 'block';
+             addCopyButtons();
+          })
+          .catch(function() {
+             errorEl.style.display = 'block';
+          });
+        }
+        document.getElementById('post-password').addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') verifyPassword();
+        });
+      </script>
+      {{ else }}
+      <div class="post-content">
+        {{ .Post.ContentHTML | safeHTML }}
+      </div>
+      {{ end }}
+
+      <footer class="post-footer">
+        {{ if .Post.Tags }}
+        <ul class="post-tags">
+          {{ range .Post.Tags }}
+            <li><a href="/tags/{{ .Slug }}">{{ .Name }}</a></li>
+          {{ end }}
+        </ul>
         {{ end }}
 
-        {{ if .NeedPassword }}
-        <!-- 密码保护 -->
-        <div class="kite-password-form" id="password-form">
-          <div class="kite-lock-icon">🔒</div>
-          <p class="kite-lock-hint">本文已加密，请输入密码查看全文</p>
-          <div class="kite-password-input-group">
-            <input type="password" id="post-password" placeholder="请输入密码" class="kite-password-input" />
-            <button onclick="verifyPassword()" class="kite-password-btn">解锁</button>
-          </div>
-          <p id="password-error" class="kite-password-error" style="display:none;">密码错误，请重试</p>
-        </div>
-        <div class="post-content" id="post-content" style="display:none;"></div>
-        <script>
-          function verifyPassword() {
-            var pwd = document.getElementById('post-password').value;
-            var errorEl = document.getElementById('password-error');
-            errorEl.style.display = 'none';
-            fetch('/api/v1/posts/{{ .Post.ID }}/verify-password', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ password: pwd })
-            })
-            .then(function(resp) {
-              if (!resp.ok) throw new Error('密码错误');
-              return resp.json();
-            })
-            .then(function(json) {
-              var data = json.data || json;
-              document.getElementById('password-form').style.display = 'none';
-              var contentEl = document.getElementById('post-content');
-              contentEl.innerHTML = data.content_html;
-              contentEl.style.display = 'block';
-              addCopyButtons();
-            })
-            .catch(function() {
-              errorEl.style.display = 'block';
-            });
-          }
-          document.getElementById('post-password').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') verifyPassword();
-          });
-        </script>
-        {{ else }}
-        <div class="post-content">
-          {{ .Post.ContentHTML | safeHTML }}
-        </div>
-        {{ end }}
-      </article>
-    </div>
+        <nav class="post-nav">
+          <a class="prev" href="/">
+            <span class="title">« Prev Page</span>
+            <span class="label">Home</span>
+          </a>
+        </nav>
+      </footer>
+    </article>
   </main>
 
   {{ template "footer" . }}
 
-  <!-- 代码块复制按钮 -->
+  <!-- Copy Code Button Script -->
   <script>
     function addCopyButtons() {
       document.querySelectorAll('.post-content pre').forEach(function(pre) {
         if (pre.querySelector('.code-copy-btn')) return;
         var btn = document.createElement('button');
         btn.className = 'code-copy-btn';
-        btn.textContent = '复制';
+        btn.textContent = 'copy';
+        btn.style.position = 'absolute';
+        btn.style.right = '8px';
+        btn.style.top = '8px';
+        btn.style.padding = '4px 8px';
+        btn.style.fontSize = '12px';
+        btn.style.color = 'var(--secondary)';
+        btn.style.background = 'var(--theme)';
+        btn.style.border = '1px solid var(--border)';
+        btn.style.borderRadius = '4px';
+        btn.style.cursor = 'pointer';
+        btn.style.opacity = '0';
+        btn.style.transition = 'opacity 0.2s';
+        
+        pre.style.position = 'relative';
+        pre.addEventListener('mouseenter', () => btn.style.opacity = '1');
+        pre.addEventListener('mouseleave', () => btn.style.opacity = '0');
+
         btn.addEventListener('click', function() {
           var code = pre.querySelector('code');
           var text = code ? code.textContent : pre.textContent;
           navigator.clipboard.writeText(text).then(function() {
-            btn.textContent = '已复制';
-            btn.classList.add('copied');
+            btn.textContent = 'copied!';
             setTimeout(function() {
-              btn.textContent = '复制';
-              btn.classList.remove('copied');
+              btn.textContent = 'copy';
             }, 2000);
           });
         });

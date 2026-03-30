@@ -1,39 +1,71 @@
 {{ define "header" }}
 <header class="header">
-  <div class="container" style="max-width:var(--nav-width);">
-    <a href="/" class="site-logo">
-      <span class="logo-emoji">🪁</span>
-      {{ .SiteName }}
-    </a>
-    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('active')" aria-label="菜单">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </button>
-    <nav>
-      <ul class="nav-links">
-        {{ if .NavMenus }}
-          {{ range .NavMenus }}
-            {{ if .Children }}
-              <li class="nav-dropdown">
-                <a href="{{ .URL }}"{{ if .OpenInNewTab }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ if .Icon }}<iconify-icon icon="{{ .Icon }}" class="nav-icon"></iconify-icon>{{ end }}{{ .Title }} <span class="nav-arrow">▾</span></a>
-                <ul class="nav-sub">
-                  {{ range .Children }}
-                    <li><a href="{{ .URL }}"{{ if .OpenInNewTab }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ if .Icon }}<iconify-icon icon="{{ .Icon }}" class="nav-icon"></iconify-icon>{{ end }}{{ .Title }}</a></li>
-                  {{ end }}
-                </ul>
-              </li>
+    <nav class="nav">
+        <div class="logo">
+            <a href="/" accesskey="h" title="{{ .SiteName }} (Alt + H)">
+                {{ .SiteName }}
+            </a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu" class="menu">
+            {{ if .NavMenus }}
+              {{ range .NavMenus }}
+                <li>
+                  <a href="{{ .URL }}" title="{{ .Title }}"><span>{{ .Title }}</span></a>
+                </li>
+              {{ end }}
             {{ else }}
-              <li><a href="{{ .URL }}"{{ if .OpenInNewTab }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ if .Icon }}<iconify-icon icon="{{ .Icon }}" class="nav-icon"></iconify-icon>{{ end }}{{ .Title }}</a></li>
+                <li><a href="/" title="Home"><span>Home</span></a></li>
+                {{ range .NavPages }}
+                  <li><a href="/pages/{{ .Slug }}" title="{{ .Title }}"><span>{{ .Title }}</span></a></li>
+                {{ end }}
+                <li><a href="/friends" title="Friends"><span>Friends</span></a></li>
             {{ end }}
-          {{ end }}
-        {{ else }}
-          <li><a href="/">首页</a></li>
-          {{ range .NavPages }}
-            <li><a href="/pages/{{ .Slug }}">{{ .Title }}</a></li>
-          {{ end }}
-          <li><a href="/friends">友链</a></li>
-        {{ end }}
-      </ul>
+        </ul>
     </nav>
-  </div>
 </header>
+<script>
+    const themeToggle = document.getElementById("theme-toggle");
+    const moon = document.getElementById("moon");
+    const sun = document.getElementById("sun");
+    
+    if (document.body.classList.contains("dark")) {
+        sun.style.display = "block";
+    } else {
+        moon.style.display = "block";
+    }
+
+    themeToggle.addEventListener("click", () => {
+        if (document.body.classList.contains("dark")) {
+            document.body.classList.remove("dark");
+            document.documentElement.classList.remove("dark");
+            localStorage.setItem("pref-theme", "light");
+            sun.style.display = "none";
+            moon.style.display = "block";
+        } else {
+            document.body.classList.add("dark");
+            document.documentElement.classList.add("dark");
+            localStorage.setItem("pref-theme", "dark");
+            moon.style.display = "none";
+            sun.style.display = "block";
+        }
+    });
+</script>
 {{ end }}

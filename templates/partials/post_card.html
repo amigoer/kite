@@ -1,32 +1,34 @@
 {{ define "post_card" }}
-<article class="post-card">
-  {{ if .CoverImage }}
-    <a href="/posts/{{ .Slug }}">
-      <img src="{{ .CoverImage }}" alt="{{ .Title }}" class="post-card-cover" loading="lazy">
-    </a>
+<article class="post-entry">
+  <header class="entry-header">
+    <h2>
+      {{ .Title }}
+    </h2>
+  </header>
+  {{ if .Summary }}
+  <div class="entry-content">
+    <p>{{ .Summary }}...</p>
+  </div>
   {{ end }}
-  <h2 class="post-card-title">
-    <a href="/posts/{{ .Slug }}">{{ .Title }}</a>
-  </h2>
-  <div class="post-card-meta">
+  <footer class="entry-footer">
     {{ if .PublishedAt }}
-      <time>{{ formatDate .PublishedAt }}</time>
+      <span>{{ formatDate .PublishedAt }}</span>
     {{ else }}
-      <time>{{ formatDate .CreatedAt }}</time>
+      <span>{{ formatDate .CreatedAt }}</span>
     {{ end }}
     {{ if .Category }}
-      <a class="category-badge" href="/categories/{{ .Category.Slug }}">{{ .Category.Name }}</a>
+      <span>&middot;</span>
+      <span>{{ .Category.Name }}</span>
     {{ end }}
-  </div>
-  {{ if .Summary }}
-    <p class="post-card-summary">{{ .Summary }}</p>
-  {{ end }}
-  {{ if .Tags }}
-    <div class="post-card-tags">
-      {{ range .Tags }}
-        <a class="tag" href="/tags/{{ .Slug }}">{{ .Name }}</a>
+    {{ if .Tags }}
+      <span>&middot;</span>
+      <span>
+      {{ range $index, $element := .Tags }}
+        {{ if $index }}, {{ end }}{{ .Name }}
       {{ end }}
-    </div>
-  {{ end }}
+      </span>
+    {{ end }}
+  </footer>
+  <a class="entry-link" aria-label="post link to {{ .Title }}" href="/posts/{{ .Slug }}"></a>
 </article>
 {{ end }}

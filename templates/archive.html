@@ -2,27 +2,25 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 {{ template "head" . }}
-<body>
+<body class="list">
   {{ template "header" . }}
 
-  <main>
-    <div class="container">
-      <div class="archive-header">
-        <h1>{{ .ArchiveType }}：{{ .ArchiveName }}</h1>
-        <p class="archive-desc">共 {{ .Pagination.Total }} 篇文章</p>
-      </div>
+  <main class="main">
+    <header class="page-header">
+      <h1>{{ .ArchiveType }}：{{ .ArchiveName }}</h1>
+      <div class="archive-desc" style="color:var(--secondary); font-size:15px; margin-top:8px;">共 {{ .Pagination.Total }} 篇文章</div>
+    </header>
 
-      {{ if .Posts }}
-        <div class="post-list">
-          {{ range .Posts }}
-            {{ template "post_card" . }}
-          {{ end }}
-        </div>
-        {{ template "pagination" .Pagination }}
-      {{ else }}
-        <div class="empty-state">该{{ .ArchiveType }}下暂无文章</div>
+    {{ if .Posts }}
+      {{ range .Posts }}
+        {{ template "post_card" . }}
       {{ end }}
-    </div>
+      {{ template "pagination" .Pagination }}
+    {{ else }}
+      <div style="text-align:center; margin-top: 50px; color: var(--secondary)">
+          该{{ .ArchiveType }}下暂无文章
+      </div>
+    {{ end }}
   </main>
 
   {{ template "footer" . }}

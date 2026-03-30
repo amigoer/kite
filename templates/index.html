@@ -2,27 +2,25 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 {{ template "head" . }}
-<body>
+<body class="list">
   {{ template "header" . }}
 
-  <main>
-    <div class="container">
-      <div class="home-profile">
-        <h1>{{ .SiteName }}</h1>
-        {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
-      </div>
-
-      {{ if .Posts }}
-        <div class="post-list">
-          {{ range .Posts }}
-            {{ template "post_card" . }}
-          {{ end }}
-        </div>
-        {{ template "pagination" .Pagination }}
-      {{ else }}
-        <div class="empty-state">✍️ 暂无文章，快去写一篇吧~</div>
-      {{ end }}
+  <main class="main">
+    <div class="profile">
+      <h1>{{ .SiteName }}</h1>
+      {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
     </div>
+
+    {{ if .Posts }}
+      {{ range .Posts }}
+        {{ template "post_card" . }}
+      {{ end }}
+      {{ template "pagination" .Pagination }}
+    {{ else }}
+      <div style="text-align:center; margin-top: 50px; color: var(--secondary)">
+          ✍️ 暂无文章，快去写一篇吧~
+      </div>
+    {{ end }}
   </main>
 
   {{ template "footer" . }}

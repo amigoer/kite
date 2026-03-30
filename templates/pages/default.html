@@ -2,16 +2,18 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 {{ template "head" . }}
-<body>
+<body class="single">
   {{ template "header" . }}
 
-  <main>
-    <div class="container">
-      <h1 class="page-title">{{ .Page.Title }}</h1>
+  <main class="main">
+    <article class="post-single">
+      <header class="post-header">
+        <h1 class="post-title">{{ .Page.Title }}</h1>
+      </header>
       <div class="post-content">
         {{ .Page.ContentHTML | safeHTML }}
       </div>
-    </div>
+    </article>
   </main>
 
   {{ template "footer" . }}
