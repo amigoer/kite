@@ -187,6 +187,8 @@ func registerAPIRoutes(router *gin.Engine, cfg *config.Config, db *gorm.DB) {
 	protectedAdminV1.GET("/settings/nav-menus", settingsHandler.GetNavMenus)
 	protectedAdminV1.PUT("/settings/nav-menus", settingsHandler.SaveNavMenus)
 	protectedAdminV1.POST("/upload/image", uploadHandler.Image)
+	protectedAdminV1.GET("/upload/images", uploadHandler.ListImages)
+	protectedAdminV1.POST("/upload/images/delete", uploadHandler.DeleteImage)
 	protectedAdminV1.POST("/ai/summary", aiHandler.Summary)
 	protectedAdminV1.POST("/ai/tags", aiHandler.Tags)
 	faviconHandler := NewFaviconHandler()
