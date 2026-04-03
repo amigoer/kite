@@ -23,6 +23,7 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ defa
 const ProfilePage = lazy(() => import('@/pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
 const MenusPage = lazy(() => import('@/pages/MenusPage').then(m => ({ default: m.MenusPage })))
+const MediaPage = lazy(() => import('@/pages/MediaPage').then(m => ({ default: m.MediaPage })))
 
 /** TanStack Query 客户端 */
 const queryClient = new QueryClient({
@@ -78,6 +79,7 @@ function ProtectedRoutes() {
           <Route path='categories' element={<CategoriesPage />} />
           <Route path='tags' element={<TagsPage />} />
           <Route path='comments' element={<CommentsPage />} />
+          <Route path='media' element={<MediaPage />} />
           <Route path='links' element={<FriendLinksPage />} />
           <Route path='settings' element={<SettingsPage />} />
           <Route path='menus' element={<MenusPage />} />

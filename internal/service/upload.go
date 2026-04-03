@@ -9,8 +9,26 @@ import (
 	"strings"
 	"time"
 
+	"sort"
+
 	"github.com/google/uuid"
 )
+
+// ImageInfo 图片信息
+type ImageInfo struct {
+	URL       string    `json:"url"`
+	Filename  string    `json:"filename"`
+	Size      int64     `json:"size"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ImageListResult 图片列表结果
+type ImageListResult struct {
+	Items      []ImageInfo `json:"items"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	PageSize   int         `json:"page_size"`
+}
 
 const (
 	// 默认上传目录
@@ -97,4 +115,87 @@ func (s *UploadService) SaveImage(file *multipart.FileHeader) (*UploadResult, er
 		Filename: newFilename,
 		Size:     written,
 	}, nil
+}
+
+// ListImages 列出上传目录中的所有图片
+func (s *UploadService) ListImages(page, pageSize int) (*ImageListResult, error) {
+	var images []ImageInfo
+
+	err := filepath.Walk(s.uploadDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // 跳过无法访问的文件
+		}
+		if info.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(info.Name()))
+		if !allowedImageExts[ext] {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(s.uploadDir, path)
+		url := "/uploads/" + strings.ReplaceAll(relPath, string(os.PathSeparator), "/")
+
+		images = append(images, ImageInfo{
+			URL:       url,
+			Filename:  strings.ReplaceAll(relPath, string(os.PathSeparator), "/"),
+			Size:      info.Size(),
+			UpdatedAt: info.ModTime(),
+		})
+		return nil
+	})
+	if err != nil {
+		return &ImageListResult{Items: []ImageInfo{}, Total: 0, Page: page, PageSize: pageSize}, nil
+	}
+
+	// 按时间倒序
+	sort.Slice(images, func(i, j int) bool {
+		return images[i].UpdatedAt.After(images[j].UpdatedAt)
+	})
+
+	total := len(images)
+
+	// 分页
+	start := (page - 1) * pageSize
+	if start >= total {
+		return &ImageListResult{Items: []ImageInfo{}, Total: total, Page: page, PageSize: pageSize}, nil
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+
+	return &ImageListResult{
+		Items:    images[start:end],
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+// DeleteImage 删除指定图片
+func (s *UploadService) DeleteImage(relPath string) error {
+	// 防止路径穿越
+	clean := filepath.Clean(relPath)
+	if strings.Contains(clean, "..") {
+		return fmt.Errorf("invalid file path")
+	}
+
+	fullPath := filepath.Join(s.uploadDir, clean)
+
+	// 确保在 uploads 目录内
+	abs, err := filepath.Abs(fullPath)
+	if err != nil {
+		return fmt.Errorf("invalid file path")
+	}
+	baseAbs, _ := filepath.Abs(s.uploadDir)
+	if !strings.HasPrefix(abs, baseAbs) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found")
+	}
+
+	return os.Remove(fullPath)
 }
