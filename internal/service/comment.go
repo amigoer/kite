@@ -54,10 +54,15 @@ type CommentService struct {
 	commentRepo         *repo.CommentRepository
 	postRepo            *repo.PostRepository
 	notificationService *NotificationService
+	spamChecker         *SpamChecker
 }
 
 func NewCommentService(commentRepo *repo.CommentRepository, postRepo *repo.PostRepository) *CommentService {
-	return &CommentService{commentRepo: commentRepo, postRepo: postRepo}
+	return &CommentService{
+		commentRepo: commentRepo,
+		postRepo:    postRepo,
+		spamChecker: NewSpamChecker(),
+	}
 }
 
 // SetNotificationService 注入通知服务（避免循环依赖）
@@ -159,12 +164,18 @@ func (s *CommentService) Create(postIDStr string, input CreateCommentInput, ip, 
 		return nil, fmt.Errorf("%w: content is required", ErrInvalidCommentPayload)
 	}
 
+	// 垃圾评论检查：命中则自动标记为 spam
+	status := model.CommentStatusPending
+	if s.spamChecker != nil && s.spamChecker.IsSpam(content) {
+		status = model.CommentStatusSpam
+	}
+
 	comment := &model.Comment{
 		PostID:    postID,
 		Author:    author,
 		Email:     email,
 		Content:   content,
-		Status:    model.CommentStatusPending,
+		Status:    status,
 		IP:        ip,
 		UserAgent: userAgent,
 	}
