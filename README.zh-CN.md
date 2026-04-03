@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.icons8.com/color/96/kite.png" width="80" alt="Kite Logo" />
+  <img src="ui/admin/public/favicon.svg" width="80" alt="Kite Logo" />
 </p>
 
 <h1 align="center">Kite Blog</h1>
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" />
+  <img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
   <img src="https://img.shields.io/badge/SQLite-embedded-003B57?logo=sqlite&logoColor=white" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
@@ -26,12 +26,25 @@
 - 🚀 **单二进制部署** — 前后端编译为一个可执行文件，扔到服务器就能跑
 - 📦 **零配置** — 内嵌 SQLite，所有设置存数据库，备份只需复制 `kite.db`
 - 🌐 **Web 安装引导** — 首次运行浏览器交互式设置，无需任何配置文件
-- 🎨 **双渲染模式** — Classic（Go Template SSR）/ Headless（纯 JSON API）
+- 🎨 **三模态渲染** — Classic SSR / Headless API / Static 静态编译
 - 🤖 **AI 原生** — 一键接入 OpenAI / DeepSeek 等大模型，自动摘要 & 标签推荐
 - ✍️ **Tiptap 富文本编辑器** — Markdown / 所见即所得双模式、代码高亮、表格、Callout、拖拽上传图片
-- 🖼️ **图片管理** — 封面图上传、编辑器内拖拽 / 粘贴自动上传
-- 📡 **RSS & Sitemap** — 自动生成，SEO 友好
+- 🖼️ **媒体管理** — 封面图上传、编辑器内拖拽 / 粘贴自动上传、媒体库批量管理
+- 💬 **评论系统** — 嵌套回复、防垃圾（IP 限流 + 关键词过滤）、审核管理
+- 🔒 **安全** — CSRF 防护、文章密码保护、内容加密
+- 🗄️ **多数据库** — SQLite（默认）+ PostgreSQL
+- 📡 **RSS & Sitemap** — 自动生成，SEO 友好（OpenGraph、Twitter Card、JSON-LD）
+- 🔗 **Slug 历史** — 修改 slug 后旧链接自动 301 跳转
+- 📦 **数据导出** — 一键导出全站 JSON 备份
 - 🎭 **主题系统** — 支持自定义 Go Template 主题
+
+### 渲染模式
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| **Classic** | Go Template SSR，服务端渲染 | 传统博客，SEO 友好 |
+| **Headless** | 纯 JSON API，不捆绑前端 | 自定义前端（Next.js、Nuxt 等） |
+| **Static** | `kite build` 编译为纯静态 HTML | 部署到 CDN / GitHub Pages |
 
 ## 🏗️ 架构
 
@@ -55,9 +68,13 @@ graph TB
         subgraph Theme["Classic 主题（SSR）"]
             GoTmpl["Go html/template"]
         end
+
+        subgraph Static["静态编译"]
+            StaticBuilder["kite build → HTML"]
+        end
     end
 
-    SQLite[("SQLite · kite.db\n一个文件搞定一切")]
+    SQLite[("SQLite / PostgreSQL")]
 
     React --> Gin
     Gin --> Service
@@ -65,6 +82,7 @@ graph TB
     GORM --> SQLite
     GoTmpl --> Service
     Template --> GoTmpl
+    StaticBuilder --> Service
 ```
 
 ## 🚀 快速开始
@@ -224,7 +242,7 @@ cp kite.db.bak kite.db
 ## 🐳 Docker（示例）
 
 ```dockerfile
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN apk add --no-cache nodejs npm
@@ -248,9 +266,9 @@ docker run -d -p 8080:8080 -v kite-data:/app/data kite
 
 | 层 | 技术 |
 |----|------|
-| 后端框架 | Go 1.22+, Gin |
+| 后端框架 | Go 1.25+, Gin |
 | ORM | GORM |
-| 数据库 | SQLite (glebarez/sqlite, 纯 Go) |
+| 数据库 | SQLite (glebarez/sqlite) / PostgreSQL |
 | 前端框架 | React 19, TypeScript, Vite |
 | UI 组件库 | shadcn/ui + Tailwind CSS |
 | 富文本编辑器 | Tiptap (ProseMirror) |

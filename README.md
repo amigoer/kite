@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.icons8.com/color/96/kite.png" width="80" alt="Kite Logo" />
+  <img src="ui/admin/public/favicon.svg" width="80" alt="Kite Logo" />
 </p>
 
 <h1 align="center">Kite Blog</h1>
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" />
+  <img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
   <img src="https://img.shields.io/badge/SQLite-embedded-003B57?logo=sqlite&logoColor=white" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
@@ -26,12 +26,25 @@
 - 🚀 **Single binary** — Frontend & backend compiled into one executable, just drop it on a server
 - 📦 **Zero config** — Embedded SQLite, all settings stored in DB, backup = copy one `kite.db` file
 - 🌐 **Web installer** — Browser-based interactive setup on first run, no config files needed
-- 🎨 **Dual render modes** — Classic (Go Template SSR) / Headless (pure JSON API)
+- 🎨 **Tri-mode rendering** — Classic SSR / Headless API / Static build
 - 🤖 **AI native** — One-click integration with OpenAI / DeepSeek / Ollama, auto summary & tag suggestions
 - ✍️ **Tiptap editor** — Markdown / WYSIWYG dual mode, syntax highlighting, tables, callouts, drag-and-drop image upload
-- 🖼️ **Image management** — Cover image upload, in-editor drag & paste auto-upload
-- 📡 **RSS & Sitemap** — Auto-generated, SEO friendly
+- 🖼️ **Media management** — Cover image upload, in-editor drag & paste, media library with bulk management
+- 💬 **Comments** — Nested/threaded replies, anti-spam (rate limiting + keyword filter), moderation
+- 🔒 **Security** — CSRF protection, password-protected posts, content encryption
+- 🗄️ **Multi-database** — SQLite (default) + PostgreSQL
+- 📡 **RSS & Sitemap** — Auto-generated, SEO friendly (OpenGraph, Twitter Card, JSON-LD)
+- 🔗 **Slug history** — Old URLs auto-redirect (301) after slug changes
+- 📦 **Data export** — Full-site JSON backup with one click
 - 🎭 **Theme system** — Custom Go Template themes
+
+### Rendering Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Classic** | Go Template SSR, server-side rendering | Traditional blog with SEO |
+| **Headless** | Pure JSON API, no frontend bundled | Custom frontend (Next.js, Nuxt, etc.) |
+| **Static** | `kite build` compiles to static HTML | Deploy to CDN / GitHub Pages |
 
 ## 🏗️ Architecture
 
@@ -55,9 +68,13 @@ graph TB
         subgraph Theme["Classic Theme (SSR)"]
             GoTmpl["Go html/template"]
         end
+
+        subgraph Static["Static Builder"]
+            StaticBuilder["kite build → HTML"]
+        end
     end
 
-    SQLite[("SQLite · kite.db")]
+    SQLite[("SQLite / PostgreSQL")]
 
     React --> Gin
     Gin --> Service
@@ -65,6 +82,7 @@ graph TB
     GORM --> SQLite
     GoTmpl --> Service
     Template --> GoTmpl
+    StaticBuilder --> Service
 ```
 
 ## 🚀 Quick Start
@@ -224,7 +242,7 @@ cp kite.db.bak kite.db
 ## 🐳 Docker
 
 ```dockerfile
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN apk add --no-cache nodejs npm
@@ -248,9 +266,9 @@ docker run -d -p 8080:8080 -v kite-data:/app/data kite
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Go 1.22+, Gin |
+| Backend | Go 1.25+, Gin |
 | ORM | GORM |
-| Database | SQLite (glebarez/sqlite, pure Go) |
+| Database | SQLite (glebarez/sqlite) / PostgreSQL |
 | Frontend | React 19, TypeScript, Vite |
 | UI Library | shadcn/ui + Tailwind CSS |
 | Rich Editor | Tiptap (ProseMirror) |
