@@ -1,6 +1,6 @@
 <div align="center">
-  <h1>Kite Image Hosting</h1>
-  <p>A lightweight, fast, and modern image hosting system.</p>
+  <h1>Kite Static Asset Hosting</h1>
+  <p>A lightweight, fast, and modern static asset hosting platform.</p>
   <p>
     <a href="README.zh-CN.md">简体中文</a> | English
   </p>
@@ -8,13 +8,14 @@
 
 ## 🪁 Introduction
 
-Kite is a lightweight, fast, and modern picture hosting system. Just like a kite soaring in the sky, Kite aims to provide a seamless and effortless experience for managing and serving your images.
+Kite is a lightweight, fast, and modern static asset hosting platform. Much more than just an image host, Kite is designed to handle images, audio, video, and general static files. Just like a kite soaring in the sky, Kite aims to provide a seamless and effortless experience for managing and serving all your media assets.
 
 ## ✨ Features
 
-- **Lightweight & Fast**: Built with modern web technologies for optimal performance.
-- **Easy to Use**: A clean and intuitive user interface for uploading, managing, and viewing images.
-- **Secure**: Robust security measures to keep your data safe.
+- **Comprehensive Support**: Host and serve images, audio, video, and standard static files with ease.
+- **Lightweight & Fast**: Built with modern web technologies for optimal performance and rapid delivery.
+- **Easy to Use**: A clean and intuitive user interface for uploading, managing, and viewing your files.
+- **Secure**: Robust security measures to keep your data and assets safe.
 - **Open Source**: Free to use and modify.
 
 ## 🚀 Getting Started
