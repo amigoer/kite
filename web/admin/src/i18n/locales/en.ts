@@ -111,6 +111,13 @@ const en = {
     audio: "Audio",
     otherFiles: "Files",
     deleteConfirm: "Are you sure you want to delete this file?",
+    supportedTypes: "Images, videos, audio, and documents",
+    completed: "completed",
+    clearDone: "Clear done",
+    failed: "Failed",
+    dimensions: "Dimensions",
+    linkFormats: "Link Formats",
+    openOriginal: "Open",
   },
 
   albums: {

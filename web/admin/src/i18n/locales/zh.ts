@@ -113,6 +113,13 @@ const zh: Translations = {
     audio: "音频",
     otherFiles: "文件",
     deleteConfirm: "确定要删除此文件吗？",
+    supportedTypes: "支持图片、视频、音频和文档",
+    completed: "已完成",
+    clearDone: "清除已完成",
+    failed: "失败",
+    dimensions: "尺寸",
+    linkFormats: "链接格式",
+    openOriginal: "打开",
   },
 
   albums: {

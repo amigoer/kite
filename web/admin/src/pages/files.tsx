@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Upload,
@@ -9,6 +9,9 @@ import {
   Music,
   FileText,
   Search,
+  Check,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { fileApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
@@ -39,6 +42,26 @@ function formatBytes(bytes: number) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+interface FileItem {
+  id: string;
+  original_name: string;
+  file_type: string;
+  mime_type: string;
+  size_bytes: number;
+  url: string;
+  thumb_url?: string;
+  created_at: string;
+  width?: number;
+  height?: number;
+}
+
+interface UploadTask {
+  id: string;
+  file: File;
+  progress: number;
+  status: "uploading" | "done" | "error";
+}
+
 export default function FilesPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
@@ -46,6 +69,10 @@ export default function FilesPage() {
   const [keyword, setKeyword] = useState("");
   const [fileType, setFileType] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [detailFile, setDetailFile] = useState<FileItem | null>(null);
+  const [uploads, setUploads] = useState<UploadTask[]>([]);
+  const [copied, setCopied] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["files", page, keyword, fileType],
@@ -60,31 +87,78 @@ export default function FilesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["files"] }),
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => fileApi.upload(file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["files"] });
-      setUploadOpen(false);
+  const uploadFiles = useCallback(
+    (files: FileList | File[]) => {
+      const newTasks: UploadTask[] = Array.from(files).map((file) => ({
+        id: Math.random().toString(36).slice(2, 10),
+        file,
+        progress: 0,
+        status: "uploading" as const,
+      }));
+      setUploads((prev) => [...prev, ...newTasks]);
+
+      newTasks.forEach((task) => {
+        const formData = new FormData();
+        formData.append("file", task.file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/v1/upload");
+        const token = localStorage.getItem("access_token");
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            setUploads((prev) =>
+              prev.map((u) => (u.id === task.id ? { ...u, progress: pct } : u))
+            );
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            setUploads((prev) =>
+              prev.map((u) => (u.id === task.id ? { ...u, status: "done", progress: 100 } : u))
+            );
+            queryClient.invalidateQueries({ queryKey: ["files"] });
+          } else {
+            setUploads((prev) =>
+              prev.map((u) => (u.id === task.id ? { ...u, status: "error" } : u))
+            );
+          }
+        };
+        xhr.onerror = () => {
+          setUploads((prev) =>
+            prev.map((u) => (u.id === task.id ? { ...u, status: "error" } : u))
+          );
+        };
+        xhr.send(formData);
+      });
     },
-  });
+    [queryClient]
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) uploadMutation.mutate(files[0]);
+      if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
     },
-    [uploadMutation]
+    [uploadFiles]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) uploadMutation.mutate(files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      uploadFiles(e.target.files);
+      e.target.value = "";
+    }
   };
 
-  const copyUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
+  const copyUrl = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1500);
   };
+
+  const clearDone = () => setUploads((prev) => prev.filter((u) => u.status === "uploading"));
 
   const types = [
     { value: "", labelKey: "common.all" },
@@ -96,12 +170,10 @@ export default function FilesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("files.title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("files.description")}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("files.description")}</p>
         </div>
         <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
           <DialogTrigger asChild>
@@ -117,51 +189,84 @@ export default function FilesPage() {
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
-              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition-colors hover:border-primary/50"
+              onClick={() => fileInputRef.current?.click()}
+              className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-center cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/30"
             >
               <Upload className="mb-3 size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                {t("files.dragOrClick")}
-              </p>
+              <p className="text-sm font-medium">{t("files.dragOrClick")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("files.supportedTypes")}</p>
               <input
+                ref={fileInputRef}
                 type="file"
-                className="absolute inset-0 cursor-pointer opacity-0"
+                multiple
+                className="hidden"
                 onChange={handleFileSelect}
               />
             </div>
-            {uploadMutation.isPending && (
-              <p className="text-center text-sm text-muted-foreground">
-                {t("files.uploading")}
-              </p>
+
+            {/* Upload progress list */}
+            {uploads.length > 0 && (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {uploads.filter((u) => u.status === "done").length}/{uploads.length} {t("files.completed")}
+                  </span>
+                  {uploads.some((u) => u.status !== "uploading") && (
+                    <button onClick={clearDone} className="text-xs text-muted-foreground hover:text-foreground">
+                      {t("files.clearDone")}
+                    </button>
+                  )}
+                </div>
+                {uploads.map((task) => (
+                  <div key={task.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{task.file.name}</p>
+                      <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            task.status === "error"
+                              ? "bg-destructive"
+                              : task.status === "done"
+                              ? "bg-green-500"
+                              : "bg-primary"
+                          }`}
+                          style={{ width: `${task.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {task.status === "error"
+                        ? t("files.failed")
+                        : task.status === "done"
+                        ? <Check className="size-3.5 text-green-500" />
+                        : `${task.progress}%`}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </DialogContent>
         </Dialog>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
+        <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
             placeholder={t("files.searchFiles")}
             value={keyword}
-            onChange={(e) => {
-              setKeyword(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
             className="pl-9"
           />
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {types.map((tp) => (
             <Button
               key={tp.value}
               variant={fileType === tp.value ? "default" : "outline"}
               size="sm"
-              onClick={() => {
-                setFileType(tp.value);
-                setPage(1);
-              }}
+              onClick={() => { setFileType(tp.value); setPage(1); }}
             >
               {t(tp.labelKey)}
             </Button>
@@ -169,82 +274,62 @@ export default function FilesPage() {
         </div>
       </div>
 
-      {/* File List */}
+      {/* File Grid */}
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
             <Skeleton key={i} className="h-48 rounded-lg" />
           ))}
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data?.items?.map(
-              (file: {
-                id: string;
-                original_name: string;
-                file_type: string;
-                mime_type: string;
-                size_bytes: number;
-                url: string;
-                thumb_url?: string;
-                created_at: string;
-              }) => {
-                const Icon = typeIcons[file.file_type] ?? FileText;
-                return (
-                  <div
-                    key={file.id}
-                    className="group relative overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md"
-                  >
-                    {/* Preview area */}
-                    <div className="flex h-32 items-center justify-center bg-muted/30">
-                      {file.file_type === "image" && file.thumb_url ? (
-                        <img
-                          src={file.thumb_url}
-                          alt={file.original_name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Icon className="size-10 text-muted-foreground/50" />
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-3">
-                      <p className="truncate text-sm font-medium">
-                        {file.original_name}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {file.file_type}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatBytes(file.size_bytes)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Actions overlay */}
-                    <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button
-                        size="icon-xs"
-                        variant="secondary"
-                        onClick={() => copyUrl(file.url)}
-                      >
-                        <Copy />
-                      </Button>
-                      <Button
-                        size="icon-xs"
-                        variant="destructive"
-                        onClick={() => deleteMutation.mutate(file.id)}
-                      >
-                        <Trash2 />
-                      </Button>
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {data?.items?.map((file: FileItem) => {
+              const Icon = typeIcons[file.file_type] ?? FileText;
+              return (
+                <div
+                  key={file.id}
+                  className="group relative overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md cursor-pointer"
+                  onClick={() => setDetailFile(file)}
+                >
+                  <div className="flex h-32 items-center justify-center bg-muted/30">
+                    {file.file_type === "image" && file.thumb_url ? (
+                      <img
+                        src={file.thumb_url}
+                        alt={file.original_name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Icon className="size-10 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="truncate text-sm font-medium">{file.original_name}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{file.file_type}</Badge>
+                      <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
                     </div>
                   </div>
-                );
-              }
-            )}
+                  {/* Quick actions */}
+                  <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button
+                      size="icon-xs"
+                      variant="secondary"
+                      onClick={(e) => { e.stopPropagation(); copyUrl(file.url, file.id); }}
+                    >
+                      {copied === file.id ? <Check className="size-3" /> : <Copy className="size-3" />}
+                    </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="destructive"
+                      onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(file.id); }}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {data?.items?.length === 0 && (
@@ -254,32 +339,115 @@ export default function FilesPage() {
             </div>
           )}
 
-          {/* Pagination */}
           {data && data.total > 20 && (
             <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 {t("common.previous")}
               </Button>
               <span className="text-sm text-muted-foreground">
                 {t("common.page")} {page} {t("common.of")} {Math.ceil(data.total / 20)}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= Math.ceil(data.total / 20)}
-                onClick={() => setPage((p) => p + 1)}
-              >
+              <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / 20)} onClick={() => setPage((p) => p + 1)}>
                 {t("common.next")}
               </Button>
             </div>
           )}
         </>
       )}
+
+      {/* File Detail Dialog */}
+      <Dialog open={!!detailFile} onOpenChange={(open) => !open && setDetailFile(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-8">{detailFile?.original_name}</DialogTitle>
+          </DialogHeader>
+          {detailFile && (
+            <div className="space-y-4">
+              {/* Preview */}
+              {detailFile.file_type === "image" && (
+                <div className="rounded-lg border overflow-hidden bg-muted/30">
+                  <img
+                    src={detailFile.url}
+                    alt={detailFile.original_name}
+                    className="w-full max-h-64 object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Meta info */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-xs text-muted-foreground">{t("common.type")}</span>
+                  <p className="font-medium">{detailFile.mime_type}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">{t("common.size")}</span>
+                  <p className="font-medium">{formatBytes(detailFile.size_bytes)}</p>
+                </div>
+                {detailFile.width && detailFile.height && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">{t("files.dimensions")}</span>
+                    <p className="font-medium">{detailFile.width} x {detailFile.height}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="text-xs text-muted-foreground">{t("common.date")}</span>
+                  <p className="font-medium">{new Date(detailFile.created_at).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Link formats */}
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-muted-foreground">{t("files.linkFormats")}</span>
+                {[
+                  { label: "URL", value: detailFile.url },
+                  { label: "Markdown", value: `![${detailFile.original_name}](${detailFile.url})` },
+                  { label: "HTML", value: `<img src="${detailFile.url}" alt="${detailFile.original_name}">` },
+                  { label: "BBCode", value: `[img]${detailFile.url}[/img]` },
+                ].map((link) => (
+                  <div key={link.label} className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+                    <span className="text-xs text-muted-foreground w-16 shrink-0">{link.label}</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={link.value}
+                      className="flex-1 bg-transparent text-xs outline-none truncate"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => copyUrl(link.value, link.label)}
+                    >
+                      {copied === link.label ? <Check className="size-3" /> : <Copy className="size-3" />}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" asChild>
+                  <a href={detailFile.url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="size-3.5" />
+                    {t("files.openOriginal")}
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    deleteMutation.mutate(detailFile.id);
+                    setDetailFile(null);
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                  {t("common.delete")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
