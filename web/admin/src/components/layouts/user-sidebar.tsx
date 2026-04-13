@@ -6,6 +6,7 @@ import {
   KeyRound,
   LogOut,
   User,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,20 +20,32 @@ const navItems = [
   { to: "/tokens", icon: KeyRound, labelKey: "nav.tokens" },
 ];
 
-export function UserSidebar() {
+interface UserSidebarProps {
+  onClose?: () => void;
+}
+
+export function UserSidebar({ onClose }: UserSidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
 
   return (
     <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Brand */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
         <Link to="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <span className="text-sm font-bold">K</span>
           </div>
           <span className="text-base font-bold tracking-tight">Kite</span>
         </Link>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -41,6 +54,7 @@ export function UserSidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
@@ -74,6 +88,7 @@ export function UserSidebar() {
             {user?.role === "admin" && (
               <Link
                 to="/admin"
+                onClick={onClose}
                 className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 title={t("nav.admin")}
               >

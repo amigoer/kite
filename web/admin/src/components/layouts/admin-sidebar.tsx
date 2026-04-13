@@ -6,6 +6,7 @@ import {
   Settings,
   LogOut,
   ArrowLeft,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,7 +20,11 @@ const adminNavItems = [
   { to: "/admin/settings", icon: Settings, labelKey: "nav.settings" },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onClose?: () => void;
+}
+
+export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
 
@@ -36,12 +41,21 @@ export function AdminSidebar() {
             <span className="text-[10px] text-muted-foreground">{t("nav.adminPanel")}</span>
           </div>
         </Link>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Back to user center */}
       <div className="border-b border-sidebar-border px-3 py-2">
         <Link
           to="/dashboard"
+          onClick={onClose}
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <ArrowLeft size={14} />
@@ -59,6 +73,7 @@ export function AdminSidebar() {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
