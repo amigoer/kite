@@ -11,7 +11,6 @@ import {
   Search,
   Check,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { fileApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
