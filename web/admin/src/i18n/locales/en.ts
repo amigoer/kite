@@ -162,6 +162,12 @@ const en = {
     role: "Role",
     storageCol: "Storage",
     noUsers: "No users",
+    addUser: "Add User",
+    editUser: "Edit User",
+    status: "Status",
+    storageLimit: "Storage Limit",
+    unlimited: "Unlimited",
+    leaveBlank: "leave blank to keep unchanged",
   },
 
   settings: {

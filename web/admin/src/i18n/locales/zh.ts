@@ -164,6 +164,12 @@ const zh: Translations = {
     role: "角色",
     storageCol: "存储",
     noUsers: "暂无用户",
+    addUser: "添加用户",
+    editUser: "编辑用户",
+    status: "状态",
+    storageLimit: "存储配额",
+    unlimited: "不限",
+    leaveBlank: "留空则不修改",
   },
 
   settings: {
