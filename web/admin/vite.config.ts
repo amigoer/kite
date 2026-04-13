@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 export default defineConfig({
+  base: '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -13,11 +14,11 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:8080",
-      "/i": "http://localhost:8080",
-      "/v": "http://localhost:8080",
-      "/a": "http://localhost:8080",
-      "/f": "http://localhost:8080",
-      "/t": "http://localhost:8080",
+      "/i/": "http://localhost:8080",
+      "/v/": "http://localhost:8080",
+      "/a/": "http://localhost:8080",
+      "/f/": "http://localhost:8080",
+      "/t/": "http://localhost:8080",
     },
   },
 });

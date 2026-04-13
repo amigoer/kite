@@ -82,10 +82,14 @@ func main() {
 	imageSvc := service.NewImageService(cfg.Upload.ThumbWidth, cfg.Upload.ThumbQuality)
 	fileSvc := service.NewFileService(fileRepo, userRepo, storageMgr, imageSvc, cfg.Upload, cfg.Site.URL)
 
-	// 加载内嵌前端资产
+	// 加载内嵌资产
 	var adminFS fs.FS
 	if sub, err := fs.Sub(kite.AdminFS, "web/admin/dist"); err == nil {
 		adminFS = sub
+	}
+	var templateFS fs.FS
+	if sub, err := fs.Sub(kite.AdminFS, "web/template"); err == nil {
+		templateFS = sub
 	}
 
 	// 设置路由
@@ -95,6 +99,7 @@ func main() {
 		AuthSvc:    authSvc,
 		FileSvc:    fileSvc,
 		AdminFS:    adminFS,
+		TemplateFS: templateFS,
 	})
 
 	// 启动 HTTP 服务

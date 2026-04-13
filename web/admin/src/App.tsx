@@ -1,15 +1,26 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthContext, useAuthProvider } from "@/hooks/use-auth";
 import { I18nContext, useI18nProvider } from "@/i18n";
-import { AppLayout, AuthLayout } from "@/components/layout";
+import { ThemeProvider } from "@/components/theme-provider";
 
+// Layouts
+import { UserLayout } from "@/components/layouts/user-layout";
+import { AdminLayout } from "@/components/layouts/admin-layout";
+import { AuthLayout } from "@/components/layout";
+
+// Auth pages
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
-import DashboardPage from "@/pages/dashboard";
+
+// User pages
+import UserDashboard from "@/pages/user/dashboard";
 import FilesPage from "@/pages/files";
 import AlbumsPage from "@/pages/albums";
 import TokensPage from "@/pages/tokens";
+
+// Admin pages
+import AdminDashboard from "@/pages/dashboard";
 import StoragePage from "@/pages/admin/storage";
 import UsersPage from "@/pages/admin/users";
 import SettingsPage from "@/pages/admin/settings";
@@ -26,19 +37,31 @@ function AppRoutes() {
   return (
     <AuthContext.Provider value={auth}>
       <Routes>
+        {/* ── Auth (centered card) ── */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardPage />} />
+
+        {/* ── User center (user sidebar) ── */}
+        <Route element={<UserLayout />}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/albums" element={<AlbumsPage />} />
           <Route path="/tokens" element={<TokensPage />} />
+        </Route>
+
+        {/* ── Admin panel (admin sidebar, admin-only) ── */}
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/storage" element={<StoragePage />} />
           <Route path="/admin/users" element={<UsersPage />} />
           <Route path="/admin/settings" element={<SettingsPage />} />
         </Route>
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AuthContext.Provider>
   );
@@ -48,12 +71,14 @@ export default function App() {
   const i18n = useI18nProvider();
 
   return (
-    <I18nContext.Provider value={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </I18nContext.Provider>
+    <ThemeProvider>
+      <I18nContext.Provider value={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </I18nContext.Provider>
+    </ThemeProvider>
   );
 }

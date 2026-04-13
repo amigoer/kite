@@ -1,8 +1,10 @@
 package api
 
 import (
+	"html/template"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/amigoer/kite/internal/api/middleware"
@@ -19,7 +21,8 @@ type RouterConfig struct {
 	StorageMgr *storage.Manager
 	AuthSvc    *service.AuthService
 	FileSvc    *service.FileService
-	AdminFS    fs.FS // 内嵌的前端资产，nil 时不提供前端服务
+	AdminFS    fs.FS // 内嵌的 SPA 资产（web/admin/dist）
+	TemplateFS fs.FS // 内嵌的 Go 模板（web/template）
 }
 
 // SetupRouter 注册所有路由并返回 gin.Engine 实例。
@@ -124,20 +127,39 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		}
 	}
 
-	// 前端静态资源服务（生产模式，前端内嵌到二进制中）
+	// Go 模板落地页（从内嵌 FS 加载，支持单文件部署）
+	if cfg.TemplateFS != nil {
+		tmpl, err := template.ParseFS(cfg.TemplateFS, "layouts/*.html", "pages/*.html")
+		if err == nil {
+			r.SetHTMLTemplate(tmpl)
+		}
+	}
+	r.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "base.html", gin.H{})
+	})
+
+	// 前端 SPA 静态资源服务（用户中心 + 管理后台）
 	if cfg.AdminFS != nil {
-		// SPA: 所有未匹配的路由返回 index.html
 		r.NoRoute(func(c *gin.Context) {
-			// 先尝试提供静态文件
-			path := c.Request.URL.Path
-			f, err := cfg.AdminFS.Open(path[1:]) // 去掉开头的 /
-			if err == nil {
-				f.Close()
-				c.FileFromFS(path, http.FS(cfg.AdminFS))
-				return
+			urlPath := c.Request.URL.Path
+			fsPath := strings.TrimPrefix(urlPath, "/")
+
+			// 尝试匹配静态文件（JS、CSS、图片等）
+			if fsPath != "" {
+				if f, err := cfg.AdminFS.Open(fsPath); err == nil {
+					f.Close()
+					c.FileFromFS(fsPath, http.FS(cfg.AdminFS))
+					return
+				}
 			}
-			// 回退到 index.html（SPA 路由）
-			c.FileFromFS("index.html", http.FS(cfg.AdminFS))
+
+			// 找不到具体文件则回退到 index.html（SPA 路由）
+			data, err := fs.ReadFile(cfg.AdminFS, "index.html")
+			if err == nil {
+				c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+			} else {
+				c.String(http.StatusNotFound, "frontend not built")
+			}
 		})
 	}
 

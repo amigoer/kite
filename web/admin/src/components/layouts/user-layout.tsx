@@ -1,7 +1,8 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { UserSidebar } from "./user-sidebar";
 
-export function AuthLayout() {
+export function UserLayout() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -12,13 +13,16 @@ export function AuthLayout() {
     );
   }
 
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Outlet />
+    <div className="flex h-screen overflow-hidden">
+      <UserSidebar />
+      <main className="flex-1 overflow-y-auto bg-muted/20 p-6 lg:p-8">
+        <Outlet />
+      </main>
     </div>
   );
 }
