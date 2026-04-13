@@ -15,13 +15,13 @@ import (
 	"syscall"
 	"time"
 
-	kite "github.com/amigoer/kite"
 	"github.com/amigoer/kite/internal/api"
 	"github.com/amigoer/kite/internal/config"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/amigoer/kite/internal/storage"
+	"github.com/amigoer/kite/web"
 	"gorm.io/gorm"
 )
 
@@ -84,11 +84,11 @@ func main() {
 
 	// 加载内嵌资产
 	var adminFS fs.FS
-	if sub, err := fs.Sub(kite.AdminFS, "web/admin/dist"); err == nil {
+	if sub, err := fs.Sub(web.AdminFS, "admin/dist"); err == nil {
 		adminFS = sub
 	}
 	var templateFS fs.FS
-	if sub, err := fs.Sub(kite.AdminFS, "web/template"); err == nil {
+	if sub, err := fs.Sub(web.AdminFS, "template"); err == nil {
 		templateFS = sub
 	}
 
