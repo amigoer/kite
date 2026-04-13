@@ -104,6 +104,13 @@ export const settingsApi = {
     api.put("/settings", { settings }),
 };
 
+// Admin Files
+export const adminFileApi = {
+  list: (params: Record<string, string | number>) =>
+    api.get("/admin/files", { params }),
+  delete: (id: string) => api.delete(`/admin/files/${id}`),
+};
+
 // Users (admin)
 export const userApi = {
   list: (params: Record<string, string | number>) =>

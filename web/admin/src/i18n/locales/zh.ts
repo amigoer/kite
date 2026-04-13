@@ -48,6 +48,7 @@ const zh: Translations = {
     roleAdmin: "管理员",
     roleUser: "用户",
     adminPanel: "管理后台",
+    adminFiles: "文件管理",
     backToUser: "返回用户中心",
   },
 
@@ -120,6 +121,11 @@ const zh: Translations = {
     dimensions: "尺寸",
     linkFormats: "链接格式",
     openOriginal: "打开",
+    adminTitle: "全站文件",
+    adminDescription: "管理系统中所有用户的文件",
+    fileName: "文件名",
+    uploader: "上传者",
+    guest: "游客",
   },
 
   albums: {

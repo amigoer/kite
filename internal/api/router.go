@@ -191,6 +191,10 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 			admin.GET("/settings", settingsHandler.Get)
 			admin.PUT("/settings", settingsHandler.Update)
 
+			// 文件管理（全站）
+			admin.GET("/admin/files", fileHandler.AdminList)
+			admin.DELETE("/admin/files/:id", fileHandler.AdminDelete)
+
 			// 用户管理
 			admin.GET("/admin/users", userHandler.List)
 			admin.POST("/admin/users", userHandler.Create)

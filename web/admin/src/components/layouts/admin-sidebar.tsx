@@ -4,6 +4,7 @@ import {
   HardDrive,
   Users,
   Settings,
+  FileText,
   LogOut,
   ArrowLeft,
   X,
@@ -15,6 +16,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const adminNavItems = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "nav.dashboard", end: true },
+  { to: "/admin/files", icon: FileText, labelKey: "nav.adminFiles" },
   { to: "/admin/storage", icon: HardDrive, labelKey: "nav.storage" },
   { to: "/admin/users", icon: Users, labelKey: "nav.users" },
   { to: "/admin/settings", icon: Settings, labelKey: "nav.settings" },

@@ -155,6 +155,53 @@ func (h *FileHandler) List(c *gin.Context) {
 	paged(c, files, total, page, size)
 }
 
+// AdminList 管理员查看全站文件列表（不限制用户）。
+func (h *FileHandler) AdminList(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 100 {
+		size = 20
+	}
+
+	params := repo.FileListParams{
+		UserID:   c.Query("user_id"), // 可选按用户筛选
+		FileType: c.Query("file_type"),
+		Keyword:  c.Query("keyword"),
+		Page:     page,
+		PageSize: size,
+		OrderBy:  c.DefaultQuery("order_by", "created_at"),
+		Order:    c.DefaultQuery("order", "DESC"),
+	}
+
+	files, total, err := h.fileSvc.ListFiles(c.Request.Context(), params)
+	if err != nil {
+		serverError(c, "failed to list files")
+		return
+	}
+
+	paged(c, files, total, page, size)
+}
+
+// AdminDelete 管理员删除任意文件（不检查所属用户）。
+func (h *FileHandler) AdminDelete(c *gin.Context) {
+	id := c.Param("id")
+	file, err := h.fileSvc.GetFile(c.Request.Context(), id)
+	if err != nil {
+		notFound(c, "file not found")
+		return
+	}
+
+	if err := h.fileSvc.DeleteFile(c.Request.Context(), file.ID, file.UserID, "admin"); err != nil {
+		serverError(c, "failed to delete file")
+		return
+	}
+
+	success(c, nil)
+}
+
 // Detail 获取文件详情。
 func (h *FileHandler) Detail(c *gin.Context) {
 	id := c.Param("id")

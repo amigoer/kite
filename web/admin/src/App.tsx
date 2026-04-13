@@ -21,6 +21,7 @@ import TokensPage from "@/pages/tokens";
 
 // Admin pages
 import AdminDashboard from "@/pages/dashboard";
+import AdminFilesPage from "@/pages/admin/files";
 import StoragePage from "@/pages/admin/storage";
 import UsersPage from "@/pages/admin/users";
 import SettingsPage from "@/pages/admin/settings";
@@ -55,6 +56,7 @@ function AppRoutes() {
         {/* ── Admin panel (admin sidebar, admin-only) ── */}
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/files" element={<AdminFilesPage />} />
           <Route path="/admin/storage" element={<StoragePage />} />
           <Route path="/admin/users" element={<UsersPage />} />
           <Route path="/admin/settings" element={<SettingsPage />} />

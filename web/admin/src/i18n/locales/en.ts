@@ -46,6 +46,7 @@ const en = {
     roleAdmin: "Administrator",
     roleUser: "User",
     adminPanel: "Admin Panel",
+    adminFiles: "Files",
     backToUser: "Back to User Center",
   },
 
@@ -118,6 +119,11 @@ const en = {
     dimensions: "Dimensions",
     linkFormats: "Link Formats",
     openOriginal: "Open",
+    adminTitle: "All Files",
+    adminDescription: "Manage all files across the system",
+    fileName: "File Name",
+    uploader: "Uploader",
+    guest: "Guest",
   },
 
   albums: {
