@@ -28,7 +28,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -198,12 +197,12 @@ function AppLayout({ context }: { context: "user" | "admin" }) {
           <div className="flex-1 md:hidden" />
 
           {/* Right actions */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {/* Theme toggle */}
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-muted-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
               <Sun size={16} className="dark:hidden" />
@@ -213,9 +212,9 @@ function AppLayout({ context }: { context: "user" | "admin" }) {
             {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 gap-2 px-2">
+                <Button variant="ghost" className="h-8 gap-2 rounded-full px-1.5 pr-3">
                   <Avatar className="size-6">
-                    <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                    <AvatarFallback className="bg-primary text-[10px] font-bold text-primary-foreground">
                       {user.username?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -224,39 +223,52 @@ function AppLayout({ context }: { context: "user" | "admin" }) {
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm font-medium">{user.username}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {user.role === "admin" ? t("nav.roleAdmin") : t("nav.roleUser")}
-                    </span>
+              <DropdownMenuContent align="end" sideOffset={8} className="w-56 p-1.5">
+                {/* User info header */}
+                <div className="mb-1 rounded-md bg-muted/50 px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar className="size-8">
+                      <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">
+                        {user.username?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{user.username}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user.role === "admin" ? t("nav.roleAdmin") : t("nav.roleUser")}
+                      </p>
+                    </div>
                   </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                </div>
 
                 {context === "user" && user.role === "admin" && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate("/admin")}>
-                      <Shield size={14} />
-                      {t("nav.adminPanel")}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem
+                    className="gap-2.5 rounded-md px-3 py-2"
+                    onClick={() => navigate("/admin")}
+                  >
+                    <Shield size={15} className="text-muted-foreground" />
+                    <span className="text-[13px]">{t("nav.adminPanel")}</span>
+                  </DropdownMenuItem>
                 )}
                 {context === "admin" && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate("/dashboard")}>
-                      <ArrowLeft size={14} />
-                      {t("nav.backToUser")}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem
+                    className="gap-2.5 rounded-md px-3 py-2"
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <ArrowLeft size={15} className="text-muted-foreground" />
+                    <span className="text-[13px]">{t("nav.backToUser")}</span>
+                  </DropdownMenuItem>
                 )}
 
-                <DropdownMenuItem variant="destructive" onClick={logout}>
-                  <LogOut size={14} />
-                  {t("auth.logout")}
+                <DropdownMenuSeparator className="my-1.5" />
+
+                <DropdownMenuItem
+                  variant="destructive"
+                  className="gap-2.5 rounded-md px-3 py-2"
+                  onClick={logout}
+                >
+                  <LogOut size={15} />
+                  <span className="text-[13px]">{t("auth.logout")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
