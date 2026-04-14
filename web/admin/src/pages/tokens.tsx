@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Key, Copy, Check } from "lucide-react";
+
 import { tokenApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 export default function TokensPage() {
   const { t } = useI18n();
@@ -37,22 +38,29 @@ export default function TokensPage() {
       setNewToken(res.data.data.token);
       setName("");
       queryClient.invalidateQueries({ queryKey: ["tokens"] });
+      toast.success("API Token 创建成功");
     },
+    onError: () => toast.error("创建失败"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => tokenApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tokens"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tokens"] });
+      toast.success("删除成功");
+    },
+    onError: () => toast.error("删除失败"),
   });
 
   const copyToken = () => {
     navigator.clipboard.writeText(newToken);
+    toast.success("已复制到剪贴板！请妥善保存该 Token");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("tokens.title")}</h1>
@@ -115,8 +123,6 @@ export default function TokensPage() {
         </Dialog>
       </div>
 
-      <Separator />
-
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -136,9 +142,7 @@ export default function TokensPage() {
               <Card key={token.id} className="gap-0 py-0">
                 <CardContent className="flex items-center justify-between gap-3 p-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                      <Key className="size-4 text-muted-foreground" />
-                    </div>
+                    <Key className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{token.name}</p>
                       <p className="text-xs text-muted-foreground truncate">
@@ -164,10 +168,10 @@ export default function TokensPage() {
 
           {data?.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
-              <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
-                <Key className="size-5 text-muted-foreground" />
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                <Key className="size-6 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground">{t("tokens.noTokens")}</p>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">{t("tokens.noTokens")}</p>
             </div>
           )}
         </div>

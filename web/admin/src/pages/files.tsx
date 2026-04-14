@@ -11,13 +11,16 @@ import {
   Search,
   Check,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import { toast } from "sonner";
+
 import { fileApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 
 const typeIcons: Record<string, typeof FileText> = {
   image: Image,
@@ -84,7 +88,11 @@ export default function FilesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => fileApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["files"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+      toast.success("文件删除成功");
+    },
+    onError: () => toast.error("文件删除失败"),
   });
 
   const uploadFiles = useCallback(
@@ -120,10 +128,12 @@ export default function FilesPage() {
               prev.map((u) => (u.id === task.id ? { ...u, status: "done", progress: 100 } : u))
             );
             queryClient.invalidateQueries({ queryKey: ["files"] });
+            toast.success(`${task.file.name} 上传成功`);
           } else {
             setUploads((prev) =>
               prev.map((u) => (u.id === task.id ? { ...u, status: "error" } : u))
             );
+            toast.error(`${task.file.name} 上传失败`);
           }
         };
         xhr.onerror = () => {
@@ -154,6 +164,7 @@ export default function FilesPage() {
 
   const copyUrl = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
+    toast.success("链接已复制");
     setCopied(key);
     setTimeout(() => setCopied(""), 1500);
   };
@@ -169,7 +180,7 @@ export default function FilesPage() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("files.title")}</h1>
@@ -218,28 +229,29 @@ export default function FilesPage() {
                   )}
                 </div>
                 {uploads.map((task) => (
-                  <div key={task.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{task.file.name}</p>
-                      <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            task.status === "error"
-                              ? "bg-destructive"
-                              : task.status === "done"
-                              ? "bg-green-500"
-                              : "bg-primary"
-                          }`}
-                          style={{ width: `${task.progress}%` }}
-                        />
-                      </div>
+                  <div key={task.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{task.file.name}</p>
+                      <Progress
+                        className="mt-1.5 h-1"
+                        value={task.progress}
+                        indicatorClassName={
+                          task.status === "error"
+                            ? "bg-destructive"
+                            : task.status === "done"
+                            ? "bg-emerald-500"
+                            : undefined
+                        }
+                      />
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
-                      {task.status === "error"
-                        ? t("files.failed")
-                        : task.status === "done"
-                        ? <Check className="size-3.5 text-green-500" />
-                        : `${task.progress}%`}
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {task.status === "error" ? (
+                        t("files.failed")
+                      ) : task.status === "done" ? (
+                        <Check className="size-3.5 text-emerald-500" />
+                      ) : (
+                        `${task.progress}%`
+                      )}
                     </span>
                   </div>
                 ))}
@@ -248,8 +260,6 @@ export default function FilesPage() {
           </DialogContent>
         </Dialog>
       </div>
-
-      <Separator />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -291,7 +301,7 @@ export default function FilesPage() {
               return (
                 <div
                   key={file.id}
-                  className="group relative overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md cursor-pointer"
+                  className="group relative overflow-hidden rounded-lg border bg-card cursor-pointer"
                   onClick={() => setDetailFile(file)}
                 >
                   <div className="flex h-32 items-center justify-center bg-muted/30">
@@ -336,23 +346,33 @@ export default function FilesPage() {
 
           {data?.items?.length === 0 && (
             <div className="flex flex-col items-center py-20 text-center">
-              <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-muted">
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
                 <FileText className="size-6 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">{t("files.noFiles")}</p>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">{t("files.noFiles")}</p>
             </div>
           )}
 
           {data && data.total > 20 && (
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                {t("common.previous")}
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft className="size-4" />
               </Button>
-              <span className="text-sm text-muted-foreground">
-                {t("common.page")} {page} {t("common.of")} {Math.ceil(data.total / 20)}
+              <span className="min-w-[60px] text-center text-sm text-muted-foreground">
+                {page} / {Math.ceil(data.total / 20)}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / 20)} onClick={() => setPage((p) => p + 1)}>
-                {t("common.next")}
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={page >= Math.ceil(data.total / 20)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="size-4" />
               </Button>
             </div>
           )}

@@ -1,12 +1,65 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>admin</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Kite Admin</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --splash-bg: #ffffff;
+        --splash-fg: #0a0a0a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --splash-bg: #0a0a0a;
+          --splash-fg: #fafafa;
+        }
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--splash-bg);
+        color: var(--splash-fg);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--splash-bg);
+        z-index: 9999;
+        pointer-events: none;
+        transition: opacity 220ms ease-out, visibility 0s linear 220ms;
+      }
+      #splash.ready {
+        opacity: 0;
+        visibility: hidden;
+      }
+      #splash svg {
+        width: 32px;
+        height: 32px;
+        color: var(--splash-fg);
+        animation: splash-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes splash-pulse {
+        0%, 100% { opacity: 0.35; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.08); }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="currentColor">
+        <path d="M16 3L28 15L16 27L4 15L16 3Z" />
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Plus, Pencil } from "lucide-react";
+import {
+  Users,
+  Trash2,
+  Plus,
+  Pencil,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react";
+
 import { userApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -8,6 +17,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface UserItem {
   id: string;
@@ -40,7 +66,14 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
-  const [form, setForm] = useState({ username: "", email: "", password: "", role: "user", storage_limit: "10737418240", is_active: true });
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    role: "user",
+    storage_limit: "10737418240",
+    is_active: true,
+  });
   const [error, setError] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -49,19 +82,24 @@ export default function UsersPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => userApi.create({
-      username: form.username,
-      email: form.email,
-      password: form.password,
-      role: form.role,
-      storage_limit: parseInt(form.storage_limit),
-    }),
+    mutationFn: () =>
+      userApi.create({
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        storage_limit: parseInt(form.storage_limit),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       closeDialog();
+      toast.success("用户创建成功");
     },
     onError: (err: unknown) => {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed");
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Failed";
+      setError(msg);
     },
   });
 
@@ -79,20 +117,35 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       closeDialog();
+      toast.success("用户更新成功");
     },
     onError: (err: unknown) => {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed");
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Failed";
+      setError(msg);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => userApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("用户删除成功");
+    },
+    onError: () => toast.error("用户删除失败"),
   });
 
   const openCreate = () => {
     setEditingUser(null);
-    setForm({ username: "", email: "", password: "", role: "user", storage_limit: "10737418240", is_active: true });
+    setForm({
+      username: "",
+      email: "",
+      password: "",
+      role: "user",
+      storage_limit: "10737418240",
+      is_active: true,
+    });
     setError("");
     setDialogOpen(true);
   };
@@ -126,13 +179,14 @@ export default function UsersPage() {
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const totalPages = Math.ceil((data?.total ?? 0) / 20);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("users.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("users.description")}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("users.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("users.description")}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
@@ -141,84 +195,118 @@ export default function UsersPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
+            <Skeleton key={i} className="h-12 rounded-lg" />
           ))}
         </div>
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block rounded-lg border">
-            <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 border-b px-4 py-2 text-xs font-medium text-muted-foreground">
-              <span>{t("users.username")}</span>
-              <span>{t("users.email")}</span>
-              <span>{t("users.role")}</span>
-              <span>{t("users.storageCol")}</span>
-              <span />
-            </div>
-            {data?.items?.map((user: UserItem) => (
-              <div
-                key={user.id}
-                className="grid grid-cols-[1fr_1fr_auto_auto_auto] items-center gap-4 border-b px-4 py-3 text-sm last:border-0"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{user.username}</span>
-                  {!user.is_active && (
-                    <Badge variant="outline" className="text-[10px]">{t("common.disabled")}</Badge>
-                  )}
-                </div>
-                <span className="text-muted-foreground truncate">{user.email}</span>
-                <Badge
-                  variant={user.role === "admin" ? "default" : "secondary"}
-                  className="text-[10px]"
-                >
-                  {user.role}
-                </Badge>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatBytes(user.storage_used)}
-                  {user.storage_limit > 0 && ` / ${formatBytes(user.storage_limit)}`}
-                </span>
-                <div className="flex gap-1">
-                  <Button size="icon-xs" variant="ghost" onClick={() => openEdit(user)}>
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => deleteMutation.mutate(user.id)}
-                  >
-                    <Trash2 className="size-3.5 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+          <div className="hidden overflow-hidden rounded-xl border sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead>{t("users.username")}</TableHead>
+                  <TableHead>{t("users.email")}</TableHead>
+                  <TableHead>{t("users.role")}</TableHead>
+                  <TableHead>{t("users.storageCol")}</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.items?.map((user: UserItem) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {user.username}
+                        {!user.is_active && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {t("common.disabled")}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.email}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={user.role === "admin" ? "default" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatBytes(user.storage_used)}
+                      {user.storage_limit > 0 &&
+                        ` / ${formatBytes(user.storage_limit)}`}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => openEdit(user)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => deleteMutation.mutate(user.id)}
+                        >
+                          <Trash2 className="size-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
 
           {/* Mobile cards */}
-          <div className="sm:hidden space-y-3">
+          <div className="space-y-3 sm:hidden">
             {data?.items?.map((user: UserItem) => (
-              <div key={user.id} className="rounded-lg border bg-card p-4">
+              <div key={user.id} className="rounded-xl border bg-card p-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{user.username}</span>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"} className="text-[10px]">
+                      <span className="text-sm font-medium">{user.username}</span>
+                      <Badge
+                        variant={user.role === "admin" ? "default" : "secondary"}
+                        className="text-[10px]"
+                      >
                         {user.role}
                       </Badge>
-                      {!user.is_active && <Badge variant="outline" className="text-[10px]">{t("common.disabled")}</Badge>}
+                      {!user.is_active && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {t("common.disabled")}
+                        </Badge>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{user.email}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="mt-1 text-xs text-muted-foreground">{user.email}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {formatBytes(user.storage_used)}
-                      {user.storage_limit > 0 && ` / ${formatBytes(user.storage_limit)}`}
+                      {user.storage_limit > 0 &&
+                        ` / ${formatBytes(user.storage_limit)}`}
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button size="icon-xs" variant="ghost" onClick={() => openEdit(user)}>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => openEdit(user)}
+                    >
                       <Pencil className="size-3.5" />
                     </Button>
-                    <Button size="icon-xs" variant="ghost" onClick={() => deleteMutation.mutate(user.id)}>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => deleteMutation.mutate(user.id)}
+                    >
                       <Trash2 className="size-3.5 text-destructive" />
                     </Button>
                   </div>
@@ -229,21 +317,35 @@ export default function UsersPage() {
 
           {data?.items?.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
-              <Users className="mb-3 size-12 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">{t("users.noUsers")}</p>
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                <Users className="size-6 text-muted-foreground" />
+              </div>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">
+                {t("users.noUsers")}
+              </p>
             </div>
           )}
 
           {data && data.total > 20 && (
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                {t("common.previous")}
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft className="size-4" />
               </Button>
-              <span className="text-sm text-muted-foreground">
-                {t("common.page")} {page} {t("common.of")} {Math.ceil(data.total / 20)}
+              <span className="min-w-[60px] text-center text-sm text-muted-foreground">
+                {page} / {totalPages}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / 20)} onClick={() => setPage((p) => p + 1)}>
-                {t("common.next")}
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="size-4" />
               </Button>
             </div>
           )}
@@ -260,13 +362,18 @@ export default function UsersPage() {
           </DialogHeader>
           <div className="space-y-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
             <div className="space-y-2">
               <Label>{t("users.username")}</Label>
               <Input
                 value={form.username}
-                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, username: e.target.value }))
+                }
                 disabled={!!editingUser}
                 placeholder={t("auth.chooseUsername")}
               />
@@ -276,20 +383,30 @@ export default function UsersPage() {
               <Input
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
                 placeholder={t("auth.emailPlaceholder")}
               />
             </div>
             <div className="space-y-2">
               <Label>
                 {t("auth.password")}
-                {editingUser && <span className="text-xs text-muted-foreground ml-1">({t("users.leaveBlank")})</span>}
+                {editingUser && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    ({t("users.leaveBlank")})
+                  </span>
+                )}
               </Label>
               <Input
                 type="password"
                 value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder={editingUser ? t("users.leaveBlank") : t("auth.passwordHint")}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, password: e.target.value }))
+                }
+                placeholder={
+                  editingUser ? t("users.leaveBlank") : t("auth.passwordHint")
+                }
               />
             </div>
             <div className="flex gap-4">
@@ -335,30 +452,37 @@ export default function UsersPage() {
             </div>
             <div className="space-y-2">
               <Label>{t("users.storageLimit")}</Label>
-              <div className="flex gap-2">
-                {[
-                  { label: "1 GB", value: "1073741824" },
-                  { label: "5 GB", value: "5368709120" },
-                  { label: "10 GB", value: "10737418240" },
-                  { label: "50 GB", value: "53687091200" },
-                  { label: t("users.unlimited"), value: "-1" },
-                ].map((opt) => (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={form.storage_limit === opt.value ? "default" : "outline"}
-                    onClick={() => setForm((f) => ({ ...f, storage_limit: opt.value }))}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
+              <Select
+                value={form.storage_limit}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, storage_limit: v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1073741824">1 GB</SelectItem>
+                  <SelectItem value="5368709120">5 GB</SelectItem>
+                  <SelectItem value="10737418240">10 GB</SelectItem>
+                  <SelectItem value="53687091200">50 GB</SelectItem>
+                  <SelectItem value="-1">{t("users.unlimited")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>{t("common.cancel")}</Button>
-            <Button onClick={handleSave} disabled={isPending || (!editingUser && (!form.username || !form.email || !form.password))}>
+            <Button variant="outline" onClick={closeDialog}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={
+                isPending ||
+                (!editingUser &&
+                  (!form.username || !form.email || !form.password))
+              }
+            >
               {isPending ? t("common.loading") : t("common.save")}
             </Button>
           </DialogFooter>

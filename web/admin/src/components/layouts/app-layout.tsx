@@ -1,328 +1,109 @@
 import { useState } from "react";
-import { Outlet, NavLink, Link, Navigate, useNavigate, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Upload,
-  FolderOpen,
-  KeyRound,
-  HardDrive,
-  Users,
-  Settings,
-  FileText,
-  Shield,
-  ArrowLeft,
-  LogOut,
-  Sun,
-  Moon,
-  Menu,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Navigate, Link } from "react-router-dom";
+import { PageTransition } from "@/components/page-transition";
+import { Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
-import { useTheme } from "@/components/theme-provider";
+import { Sidebar } from "@/components/layouts/sidebar";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-interface NavItem {
-  to: string;
-  icon: React.ElementType;
-  labelKey: string;
-  end?: boolean;
-}
-
-const userNavItems: NavItem[] = [
-  { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
-  { to: "/files", icon: Upload, labelKey: "nav.files" },
-  { to: "/albums", icon: FolderOpen, labelKey: "nav.albums" },
-  { to: "/tokens", icon: KeyRound, labelKey: "nav.tokens" },
-];
-
-const adminNavItems: NavItem[] = [
-  { to: "/admin", icon: LayoutDashboard, labelKey: "nav.dashboard", end: true },
-  { to: "/admin/files", icon: FileText, labelKey: "nav.adminFiles" },
-  { to: "/admin/storage", icon: HardDrive, labelKey: "nav.storage" },
-  { to: "/admin/users", icon: Users, labelKey: "nav.users" },
-  { to: "/admin/settings", icon: Settings, labelKey: "nav.settings" },
-];
-
-function AppLayout({ context }: { context: "user" | "admin" }) {
-  const { user, loading, logout } = useAuth();
+export default function AppLayout() {
+  const { user, loading } = useAuth();
   const { t } = useI18n();
-  const { theme, setTheme } = useTheme();
-  const navigate = useNavigate();
-  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const navItems = context === "admin" ? adminNavItems : userNavItems;
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Skeleton className="h-8 w-32" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <svg
+          className="size-8 animate-[splash-pulse_1.4s_ease-in-out_infinite]"
+          viewBox="0 0 32 32"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M16 3L28 15L16 27L4 15L16 3Z" />
+        </svg>
       </div>
     );
   }
 
   if (!user) return <Navigate to="/login" replace />;
-  if (context === "admin" && user.role !== "admin") {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-          {/* Mobile menu trigger */}
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar */}
+      <div className="hidden shrink-0 border-r md:flex">
+        <Sidebar />
+      </div>
+
+      {/* Right content area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile header */}
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 md:hidden">
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="shrink-0 md:hidden">
-                <Menu size={18} />
+              <Button variant="ghost" size="icon-sm">
+                <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              {/* Mobile nav brand */}
-              <div className="flex h-14 items-center gap-2.5 border-b px-5">
-                <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <span className="text-xs font-bold">K</span>
-                </div>
-                <span className="font-semibold">Kite</span>
-                {context === "admin" && (
-                  <Badge variant="secondary" className="px-1.5 text-[10px]">
-                    Admin
-                  </Badge>
-                )}
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 transition-opacity hover:opacity-80"
+            >
+              <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <span className="text-xs font-bold">K</span>
               </div>
+              <span className="font-semibold tracking-tight">Kite</span>
+            </Link>
+          </header>
+          <SheetContent side="left" className="w-[220px] p-0">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <Sidebar onClose={() => setMobileOpen(false)} />
+          </SheetContent>
+        </Sheet>
 
-              {/* Mobile nav items */}
-              <nav className="space-y-0.5 p-3">
-                {navItems.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      )
-                    }
-                  >
-                    <item.icon size={18} />
-                    {t(item.labelKey)}
-                  </NavLink>
-                ))}
+        {/* Scrollable content + footer */}
+        <main className="flex flex-1 flex-col overflow-y-auto">
+          <div className="mx-auto w-full max-w-screen-2xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            <PageTransition />
+          </div>
 
-                {/* Context switch */}
-                <div className="my-3 border-t" />
-                {context === "user" && user.role === "admin" && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  >
-                    <Shield size={18} />
-                    {t("nav.adminPanel")}
-                  </Link>
-                )}
-                {context === "admin" && (
-                  <Link
-                    to="/dashboard"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  >
-                    <ArrowLeft size={18} />
-                    {t("nav.backToUser")}
-                  </Link>
-                )}
-              </nav>
-            </SheetContent>
-          </Sheet>
-
-          {/* Logo */}
-          <Link
-            to={context === "admin" ? "/admin" : "/dashboard"}
-            className="flex shrink-0 items-center gap-2"
-          >
-            <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="text-xs font-bold">K</span>
-            </div>
-            <span className="hidden font-semibold sm:inline">Kite</span>
-            {context === "admin" && (
-              <Badge variant="secondary" className="hidden px-1.5 text-[10px] sm:inline-flex">
-                Admin
-              </Badge>
-            )}
-          </Link>
-
-          {/* Desktop nav */}
-          <nav className="hidden flex-1 items-center gap-1 md:flex">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "relative px-3 py-1.5 text-sm font-medium transition-colors duration-200",
-                    isActive
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                    "after:absolute after:inset-x-1 after:-bottom-[17px] after:h-0.5 after:rounded-full after:transition-all after:duration-200",
-                    isActive
-                      ? "after:bg-foreground"
-                      : "after:bg-transparent"
-                  )
-                }
-              >
-                {t(item.labelKey)}
-              </NavLink>
-            ))}
-          </nav>
-
-          {/* Spacer (mobile only) */}
-          <div className="flex-1 md:hidden" />
-
-          {/* Right actions */}
-          <div className="flex items-center gap-1.5">
-            {/* Theme toggle */}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              <Sun size={16} className="dark:hidden" />
-              <Moon size={16} className="hidden dark:block" />
-            </Button>
-
-            {/* User menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 gap-2 rounded-full px-1.5 pr-3">
-                  <Avatar className="size-6">
-                    <AvatarFallback className="bg-primary text-[10px] font-bold text-primary-foreground">
-                      {user.username?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="hidden text-sm font-medium sm:inline">
-                    {user.username}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={8} className="w-56 p-1.5">
-                {/* User info header */}
-                <div className="mb-1 rounded-md bg-muted/50 px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar className="size-8">
-                      <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">
-                        {user.username?.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{user.username}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user.role === "admin" ? t("nav.roleAdmin") : t("nav.roleUser")}
-                      </p>
-                    </div>
-                  </div>
+          {/* Footer — h-14 + border-t matches sidebar bottom */}
+          <footer className="mt-auto flex h-14 shrink-0 border-t">
+            <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 text-xs text-muted-foreground sm:px-6 lg:px-8">
+              <div className="flex items-center gap-1.5">
+                <div className="flex size-4 items-center justify-center rounded bg-primary text-[8px] font-bold text-primary-foreground">
+                  K
                 </div>
-
-                {context === "user" && user.role === "admin" && (
-                  <DropdownMenuItem
-                    className="gap-2.5 rounded-md px-3 py-2"
-                    onClick={() => navigate("/admin")}
-                  >
-                    <Shield size={15} className="text-muted-foreground" />
-                    <span className="text-[13px]">{t("nav.adminPanel")}</span>
-                  </DropdownMenuItem>
-                )}
-                {context === "admin" && (
-                  <DropdownMenuItem
-                    className="gap-2.5 rounded-md px-3 py-2"
-                    onClick={() => navigate("/dashboard")}
-                  >
-                    <ArrowLeft size={15} className="text-muted-foreground" />
-                    <span className="text-[13px]">{t("nav.backToUser")}</span>
-                  </DropdownMenuItem>
-                )}
-
-                <DropdownMenuSeparator className="my-1.5" />
-
-                <DropdownMenuItem
-                  variant="destructive"
-                  className="gap-2.5 rounded-md px-3 py-2"
-                  onClick={logout}
+                <span className="font-medium text-foreground/70">Kite</span>
+                <span className="mx-0.5 text-border">·</span>
+                <span className="hidden sm:inline">{t("footer.description")}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://github.com/amigoer/kite"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                 >
-                  <LogOut size={15} />
-                  <span className="text-[13px]">{t("auth.logout")}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-      {/* ── Content ── */}
-      <main className="mx-auto w-full max-w-screen-2xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
-        <div key={location.pathname} className="page-transition">
-          <Outlet />
-        </div>
-      </main>
-
-      {/* ── Footer ── */}
-      <footer className="border-t">
-        <div className="mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4 text-xs text-muted-foreground sm:px-6 lg:px-8">
-          <div className="flex items-center gap-1.5">
-            <div className="flex size-4 items-center justify-center rounded bg-primary text-primary-foreground text-[8px] font-bold">
-              K
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                  </svg>
+                  <span className="hidden sm:inline">GitHub</span>
+                </a>
+                <span className="text-border">·</span>
+                <span>&copy; 2026 Kite</span>
+              </div>
             </div>
-            <span className="font-medium text-foreground/70">Kite</span>
-            <span className="mx-0.5 text-border">·</span>
-            <span className="hidden sm:inline">{t("footer.description")}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <a
-              href="https://github.com/amigoer/kite"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-            >
-              <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              <span className="hidden sm:inline">GitHub</span>
-            </a>
-            <span className="text-border">·</span>
-            <span>&copy; 2026 Kite</span>
-          </div>
-        </div>
-      </footer>
+          </footer>
+        </main>
+      </div>
     </div>
   );
-}
-
-export function UserCenterLayout() {
-  return <AppLayout context="user" />;
-}
-
-export function AdminPanelLayout() {
-  return <AppLayout context="admin" />;
 }

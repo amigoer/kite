@@ -6,6 +6,7 @@ import {
   useCallback,
 } from "react";
 import { authApi } from "@/lib/api";
+import { toast } from "sonner";
 
 export interface User {
   user_id: string;
@@ -27,6 +28,25 @@ export interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+const PROFILE_CACHE_KEY = "user_profile";
+
+function readCachedUser(): User | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedUser(user: User | null) {
+  if (user) {
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(PROFILE_CACHE_KEY);
+  }
+}
+
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
@@ -34,8 +54,17 @@ export function useAuth() {
 }
 
 export function useAuthProvider(): AuthContextValue {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Hydrate synchronously so the first render already reflects auth state.
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === "undefined") return null;
+    if (!localStorage.getItem("access_token")) return null;
+    return readCachedUser();
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    // Only block on loading when a token exists AND we have no cached profile.
+    return !!localStorage.getItem("access_token") && !readCachedUser();
+  });
 
   const fetchProfile = useCallback(async () => {
     const token = localStorage.getItem("access_token");
@@ -46,9 +75,12 @@ export function useAuthProvider(): AuthContextValue {
     try {
       const { data } = await authApi.profile();
       setUser(data.data);
+      writeCachedUser(data.data);
     } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      writeCachedUser(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -65,6 +97,7 @@ export function useAuthProvider(): AuthContextValue {
     localStorage.setItem("refresh_token", tokens.refresh_token);
     const profile = await authApi.profile();
     setUser(profile.data.data);
+    writeCachedUser(profile.data.data);
   }, []);
 
   const register = useCallback(
@@ -77,8 +110,10 @@ export function useAuthProvider(): AuthContextValue {
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    writeCachedUser(null);
     setUser(null);
     authApi.logout().catch(() => {});
+    toast.success("已安全退出登录");
   }, []);
 
   return { user, loading, login, register, logout };

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, FolderOpen, Pencil } from "lucide-react";
+import { Plus, Trash2, FolderOpen, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+
 import { albumApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface Album {
   id: string;
@@ -47,7 +48,9 @@ export default function AlbumsPage() {
       queryClient.invalidateQueries({ queryKey: ["albums"] });
       setCreateOpen(false);
       setForm({ name: "", description: "", is_public: false });
+      toast.success("相册创建成功");
     },
+    onError: () => toast.error("相册创建失败"),
   });
 
   const updateMutation = useMutation({
@@ -56,12 +59,18 @@ export default function AlbumsPage() {
       queryClient.invalidateQueries({ queryKey: ["albums"] });
       setEditOpen(false);
       setEditingAlbum(null);
+      toast.success("相册更新成功");
     },
+    onError: () => toast.error("相册更新失败"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => albumApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["albums"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+      toast.success("相册删除成功");
+    },
+    onError: () => toast.error("相册删除失败"),
   });
 
   const openEdit = (album: Album) => {
@@ -71,7 +80,7 @@ export default function AlbumsPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("albums.title")}</h1>
@@ -129,8 +138,6 @@ export default function AlbumsPage() {
         </Dialog>
       </div>
 
-      <Separator />
-
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -143,7 +150,7 @@ export default function AlbumsPage() {
             {data?.items?.map((album: Album) => (
               <div
                 key={album.id}
-                className="group relative flex flex-col rounded-lg border bg-card p-4 transition-shadow hover:shadow-md"
+                className="group relative flex flex-col rounded-xl border bg-card p-4"
               >
                 <div className="mb-3 flex items-start justify-between">
                   <div className="flex items-center gap-2">
@@ -184,23 +191,23 @@ export default function AlbumsPage() {
 
           {data?.items?.length === 0 && (
             <div className="flex flex-col items-center py-20 text-center">
-              <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-muted">
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
                 <FolderOpen className="size-6 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">{t("albums.noAlbums")}</p>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">{t("albums.noAlbums")}</p>
             </div>
           )}
 
           {data && data.total > 20 && (
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                {t("common.previous")}
+              <Button variant="outline" size="icon-sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="size-4" />
               </Button>
-              <span className="text-sm text-muted-foreground">
-                {t("common.page")} {page} {t("common.of")} {Math.ceil(data.total / 20)}
+              <span className="min-w-[60px] text-center text-sm text-muted-foreground">
+                {page} / {Math.ceil(data.total / 20)}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / 20)} onClick={() => setPage((p) => p + 1)}>
-                {t("common.next")}
+              <Button variant="outline" size="icon-sm" disabled={page >= Math.ceil(data.total / 20)} onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight className="size-4" />
               </Button>
             </div>
           )}

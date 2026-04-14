@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { HardDrive, Trash2, Check, Plus, Pencil, AlertCircle } from "lucide-react";
+
 import { storageApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface StorageConfig {
   id: string;
@@ -68,12 +70,18 @@ export default function StoragePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["storage"] });
       closeDialog();
+      toast.success("存储配置保存成功");
     },
+    onError: () => toast.error("存储配置保存失败"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => storageApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["storage"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["storage"] });
+      toast.success("存储配置删除成功");
+    },
+    onError: () => toast.error("存储配置删除失败"),
   });
 
   const handleTest = async (id: string) => {
@@ -81,9 +89,11 @@ export default function StoragePage() {
     try {
       await storageApi.test(id);
       setTestResult((prev) => ({ ...prev, [id]: "ok" }));
+      toast.success("存储测试成功");
       setTimeout(() => setTestResult((prev) => ({ ...prev, [id]: undefined! })), 3000);
     } catch {
       setTestResult((prev) => ({ ...prev, [id]: "fail" }));
+      toast.error("存储测试失败，请检查配置");
       setTimeout(() => setTestResult((prev) => ({ ...prev, [id]: undefined! })), 3000);
     }
   };
@@ -117,8 +127,8 @@ export default function StoragePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("storage.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("storage.description")}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("storage.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("storage.description")}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
@@ -137,7 +147,7 @@ export default function StoragePage() {
           {data?.map((cfg) => (
             <div
               key={cfg.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-card p-4"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border bg-card p-4"
             >
               <div className="flex items-center gap-3">
                 <HardDrive className="size-5 text-muted-foreground shrink-0" />
@@ -186,8 +196,10 @@ export default function StoragePage() {
 
           {data?.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
-              <HardDrive className="mb-3 size-12 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">{t("storage.noStorage")}</p>
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                <HardDrive className="size-6 text-muted-foreground" />
+              </div>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">{t("storage.noStorage")}</p>
             </div>
           )}
         </div>

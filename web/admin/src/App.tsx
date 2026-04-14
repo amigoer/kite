@@ -1,25 +1,25 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthContext, useAuthProvider } from "@/hooks/use-auth";
+import { AuthContext, useAuthProvider, useAuth } from "@/hooks/use-auth";
 import { I18nContext, useI18nProvider } from "@/i18n";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 // Layouts
-import { UserCenterLayout, AdminPanelLayout } from "@/components/layouts/app-layout";
+import AppLayout from "@/components/layouts/app-layout";
 import { AuthLayout } from "@/components/layout";
 
 // Auth pages
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 
-// User pages
-import UserDashboard from "@/pages/user/dashboard";
+// Pages
+import DashboardPage from "@/pages/dashboard";
 import FilesPage from "@/pages/files";
 import AlbumsPage from "@/pages/albums";
 import TokensPage from "@/pages/tokens";
 
 // Admin pages
-import AdminDashboard from "@/pages/dashboard";
 import AdminFilesPage from "@/pages/admin/files";
 import StoragePage from "@/pages/admin/storage";
 import UsersPage from "@/pages/admin/users";
@@ -30,6 +30,12 @@ const queryClient = new QueryClient({
     queries: { retry: 1, refetchOnWindowFocus: false },
   },
 });
+
+function AdminRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}
 
 function AppRoutes() {
   const auth = useAuthProvider();
@@ -43,22 +49,22 @@ function AppRoutes() {
           <Route path="/register" element={<RegisterPage />} />
         </Route>
 
-        {/* User center (top nav) */}
-        <Route element={<UserCenterLayout />}>
+        {/* App (sidebar layout) */}
+        <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/albums" element={<AlbumsPage />} />
           <Route path="/tokens" element={<TokensPage />} />
-        </Route>
 
-        {/* Admin panel (top nav, admin-only) */}
-        <Route element={<AdminPanelLayout />}>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/files" element={<AdminFilesPage />} />
-          <Route path="/admin/storage" element={<StoragePage />} />
-          <Route path="/admin/users" element={<UsersPage />} />
-          <Route path="/admin/settings" element={<SettingsPage />} />
+          {/* Admin pages (role guard) */}
+          <Route element={<AdminRoute />}>
+            <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/admin/files" element={<AdminFilesPage />} />
+            <Route path="/admin/storage" element={<StoragePage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/settings" element={<SettingsPage />} />
+          </Route>
         </Route>
 
         {/* Fallback */}
@@ -78,6 +84,7 @@ export default function App() {
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <Toaster richColors closeButton position="top-center" />
         </QueryClientProvider>
       </I18nContext.Provider>
     </ThemeProvider>

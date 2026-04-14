@@ -24,7 +24,7 @@ run: build
 ## ── 开发模式 ──────────────────────────────────────────────
 
 # make dev  同时启动前端 dev server 和后端
-dev:
+dev: clean web-build
 	@echo "==> Starting development servers..."
 	@$(MAKE) dev-backend &
 	@$(MAKE) dev-frontend

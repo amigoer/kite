@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { settingsApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme-provider";
 import { localeLabels, type Locale } from "@/i18n";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { t, locale, setLocale } = useI18n();
@@ -45,8 +47,10 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       setSaved(true);
+      toast.success("全局设置已保存");
       setTimeout(() => setSaved(false), 2000);
     },
+    onError: () => toast.error("请求受阻，全局设置保存失败"),
   });
 
   const updateField = (key: string, value: string) =>
@@ -57,7 +61,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-48" />
         <Skeleton className="h-32" />
@@ -66,13 +70,11 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("settings.description")}</p>
       </div>
-
-      <Separator />
 
       {/* Appearance */}
       <Card>

@@ -8,3 +8,10 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Fade out the pre-mount splash once React has painted.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    document.getElementById('splash')?.classList.add('ready')
+  })
+})
