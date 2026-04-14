@@ -4,7 +4,9 @@ import { settingsApi } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Globe,
@@ -55,7 +57,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-48" />
         <Skeleton className="h-32" />
@@ -64,31 +66,35 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
-      <div className="mb-8 mt-2">
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t("settings.title")}</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">{t("settings.description")}</p>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{t("settings.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("settings.description")}</p>
       </div>
+
+      <Separator />
 
       {/* Appearance */}
       <Card>
-        <CardHeader className="pt-6 pb-4">
-          <CardTitle className="text-base font-semibold">{t("settings.appearance")}</CardTitle>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("settings.appearanceDesc")}</p>
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings.appearance")}</CardTitle>
+          <CardDescription>{t("settings.appearanceDesc")}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Languages className="size-4 text-muted-foreground" />
-              <span className="text-[14px] font-medium">{t("settings.language")}</span>
+              <span className="text-sm font-medium">{t("settings.language")}</span>
             </div>
-            <div className="flex bg-muted p-1 rounded-lg">
+            <div className="flex rounded-lg bg-muted p-1">
               {(Object.keys(localeLabels) as Locale[]).map((l) => (
                 <button
                   key={l}
                   className={cn(
-                    "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all shadow-none",
-                    locale === l ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    "rounded-md px-4 py-1.5 text-[13px] font-medium transition-all",
+                    locale === l
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                   onClick={() => setLocale(l)}
                 >
@@ -98,12 +104,14 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Separator />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Monitor className="size-4 text-muted-foreground" />
-              <span className="text-[14px] font-medium">{t("settings.theme")}</span>
+              <span className="text-sm font-medium">{t("settings.theme")}</span>
             </div>
-            <div className="flex bg-muted p-1 rounded-lg">
+            <div className="flex rounded-lg bg-muted p-1">
               {([
                 { value: "light", icon: Sun, label: t("settings.themeLight") },
                 { value: "dark", icon: Moon, label: t("settings.themeDark") },
@@ -112,8 +120,10 @@ export default function SettingsPage() {
                 <button
                   key={item.value}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-1.5 rounded-md text-[13px] font-medium transition-all shadow-none",
-                    theme === item.value ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-all",
+                    theme === item.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                   onClick={() => setTheme(item.value)}
                 >
@@ -128,30 +138,32 @@ export default function SettingsPage() {
 
       {/* Site config */}
       <Card>
-        <CardHeader className="pt-6 pb-4">
-          <CardTitle className="text-base font-semibold">{t("settings.site")}</CardTitle>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("settings.siteDesc")}</p>
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings.site")}</CardTitle>
+          <CardDescription>{t("settings.siteDesc")}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Globe className="size-4 text-muted-foreground" />
-              <span className="text-[14px] font-medium">{t("settings.siteName")}</span>
+              <span className="text-sm font-medium">{t("settings.siteName")}</span>
             </div>
             <Input
-              className="w-full sm:w-[320px]"
+              className="w-full sm:w-80"
               value={form.site_name ?? ""}
               onChange={(e) => updateField("site_name", e.target.value)}
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Separator />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <LinkIcon className="size-4 text-muted-foreground" />
-              <span className="text-[14px] font-medium">{t("settings.siteUrl")}</span>
+              <span className="text-sm font-medium">{t("settings.siteUrl")}</span>
             </div>
             <Input
-              className="w-full sm:w-[320px]"
+              className="w-full sm:w-80"
               value={form.site_url ?? ""}
               onChange={(e) => updateField("site_url", e.target.value)}
               placeholder={t("settings.siteUrlPlaceholder")}
@@ -162,82 +174,71 @@ export default function SettingsPage() {
 
       {/* Access control */}
       <Card>
-        <CardHeader className="pt-6 pb-4">
-          <CardTitle className="text-base font-semibold">{t("settings.accessControl")}</CardTitle>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("settings.accessControlDesc")}</p>
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings.accessControl")}</CardTitle>
+          <CardDescription>{t("settings.accessControlDesc")}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5 pb-6">
+        <CardContent className="space-y-6">
           {/* Registration */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <UserPlus className="size-4 text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-[14px] font-medium">{t("settings.allowRegistration")}</span>
-                <span className="text-[12px] text-muted-foreground hidden sm:block">{t("settings.allowRegistrationDesc")}</span>
+              <UserPlus className="size-4 shrink-0 text-muted-foreground" />
+              <div>
+                <span className="text-sm font-medium">{t("settings.allowRegistration")}</span>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  {t("settings.allowRegistrationDesc")}
+                </p>
               </div>
             </div>
-            <Button
-              variant={form.allow_registration === "true" ? "default" : "secondary"}
-              size="sm"
-              className={cn(
-                "h-8 px-4 text-[13px]",
-                form.allow_registration !== "true" && "bg-muted hover:bg-muted/80 text-foreground"
-              )}
-              onClick={() => toggleField("allow_registration")}
-            >
-              {form.allow_registration === "true" ? t("common.enabled") : t("common.disabled")}
-            </Button>
+            <Switch
+              checked={form.allow_registration === "true"}
+              onCheckedChange={() => toggleField("allow_registration")}
+            />
           </div>
+
+          <Separator />
 
           {/* Guest upload */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Upload className="size-4 text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-[14px] font-medium">{t("settings.allowGuestUpload")}</span>
-                <span className="text-[12px] text-muted-foreground hidden sm:block">{t("settings.allowGuestUploadDesc")}</span>
+              <Upload className="size-4 shrink-0 text-muted-foreground" />
+              <div>
+                <span className="text-sm font-medium">{t("settings.allowGuestUpload")}</span>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  {t("settings.allowGuestUploadDesc")}
+                </p>
               </div>
             </div>
-            <Button
-              variant={form.allow_guest_upload === "true" ? "default" : "secondary"}
-              size="sm"
-              className={cn(
-                "h-8 px-4 text-[13px]",
-                form.allow_guest_upload !== "true" && "bg-muted hover:bg-muted/80 text-foreground"
-              )}
-              onClick={() => toggleField("allow_guest_upload")}
-            >
-              {form.allow_guest_upload === "true" ? t("common.enabled") : t("common.disabled")}
-            </Button>
+            <Switch
+              checked={form.allow_guest_upload === "true"}
+              onCheckedChange={() => toggleField("allow_guest_upload")}
+            />
           </div>
+
+          <Separator />
 
           {/* Public gallery */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Eye className="size-4 text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-[14px] font-medium">{t("settings.allowPublicGallery")}</span>
-                <span className="text-[12px] text-muted-foreground hidden sm:block">{t("settings.allowPublicGalleryDesc")}</span>
+              <Eye className="size-4 shrink-0 text-muted-foreground" />
+              <div>
+                <span className="text-sm font-medium">{t("settings.allowPublicGallery")}</span>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  {t("settings.allowPublicGalleryDesc")}
+                </p>
               </div>
             </div>
-            <Button
-              variant={form.allow_public_gallery === "true" ? "default" : "secondary"}
-              size="sm"
-              className={cn(
-                "h-8 px-4 text-[13px]",
-                form.allow_public_gallery !== "true" && "bg-muted hover:bg-muted/80 text-foreground"
-              )}
-              onClick={() => toggleField("allow_public_gallery")}
-            >
-              {form.allow_public_gallery === "true" ? t("common.enabled") : t("common.disabled")}
-            </Button>
+            <Switch
+              checked={form.allow_public_gallery === "true"}
+              onCheckedChange={() => toggleField("allow_public_gallery")}
+            />
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-start mt-8">
+      <div className="flex justify-start">
         <Button
-          className="px-6"
+          className="px-8"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
         >

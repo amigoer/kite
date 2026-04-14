@@ -24,26 +24,18 @@ interface FileItem {
 }
 
 const fileTypeConfig = {
-  image: { icon: Image, bg: "bg-amber-50 dark:bg-amber-950/30", color: "text-amber-600 dark:text-amber-400" },
-  video: { icon: Video, bg: "bg-violet-50 dark:bg-violet-950/30", color: "text-violet-600 dark:text-violet-400" },
-  audio: { icon: Music, bg: "bg-blue-50 dark:bg-blue-950/30", color: "text-blue-600 dark:text-blue-400" },
-  file: { icon: FileText, bg: "bg-gray-100 dark:bg-gray-800/50", color: "text-gray-500 dark:text-gray-400" },
+  image: { icon: Image, accent: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" },
+  video: { icon: Video, accent: "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400" },
+  audio: { icon: Music, accent: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400" },
+  file: { icon: FileText, accent: "bg-muted text-muted-foreground" },
 };
 
 function getExtension(mimeType: string): string {
   const map: Record<string, string> = {
-    "image/png": "PNG",
-    "image/jpeg": "JPEG",
-    "image/webp": "WebP",
-    "image/gif": "GIF",
-    "image/svg+xml": "SVG",
-    "video/mp4": "MP4",
-    "video/webm": "WebM",
-    "audio/mpeg": "MP3",
-    "audio/wav": "WAV",
-    "audio/ogg": "OGG",
-    "application/zip": "ZIP",
-    "application/pdf": "PDF",
+    "image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WebP",
+    "image/gif": "GIF", "image/svg+xml": "SVG", "video/mp4": "MP4",
+    "video/webm": "WebM", "audio/mpeg": "MP3", "audio/wav": "WAV",
+    "audio/ogg": "OGG", "application/zip": "ZIP", "application/pdf": "PDF",
   };
   return map[mimeType] ?? mimeType.split("/").pop()?.toUpperCase() ?? "";
 }
@@ -62,16 +54,16 @@ export default function RecentFiles() {
 
   if (isLoading) {
     return (
-      <Card className="border-0 shadow-sm rounded-2xl overflow-hidden">
-        <CardHeader className="pt-5 pb-0">
+      <Card>
+        <CardHeader>
           <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-4 w-28 mt-1" />
+          <Skeleton className="h-4 w-28" />
         </CardHeader>
-        <CardContent className="pt-4 pb-5">
+        <CardContent>
           <div className="space-y-0">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 py-2.5">
-                <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+              <div key={i} className="flex items-center gap-3 py-3">
+                <Skeleton className="size-9 shrink-0 rounded-lg" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/3" />
@@ -88,19 +80,19 @@ export default function RecentFiles() {
   const files: FileItem[] = data?.items ?? [];
 
   return (
-    <Card className="border-0 shadow-sm rounded-2xl overflow-hidden">
-      <CardHeader className="pt-5 pb-0">
-        <CardTitle className="text-sm font-medium">
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-semibold">
           {t("dashboard.recentUploads")}
         </CardTitle>
-        <CardDescription className="text-xs">
-          {t("dashboard.latestFiles")}
-        </CardDescription>
+        <CardDescription>{t("dashboard.latestFiles")}</CardDescription>
       </CardHeader>
-      <CardContent className="pt-4 pb-5">
+      <CardContent>
         {files.length === 0 ? (
           <div className="flex flex-col items-center py-10 text-center">
-            <Upload size={32} className="mb-3 text-muted-foreground/30" />
+            <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
+              <Upload size={20} className="text-muted-foreground" />
+            </div>
             <p className="text-sm text-muted-foreground">
               {t("dashboard.noFilesYet")}
             </p>
@@ -108,29 +100,23 @@ export default function RecentFiles() {
         ) : (
           <div className="space-y-0">
             {files.map((file) => {
-              const config =
-                fileTypeConfig[file.file_type] ?? fileTypeConfig.file;
+              const config = fileTypeConfig[file.file_type] ?? fileTypeConfig.file;
               const Icon = config.icon;
               return (
                 <div
                   key={file.id}
-                  className="flex items-center gap-3 border-b border-border/50 py-2.5 last:border-b-0 last:pb-0"
+                  className="flex items-center gap-3 border-b border-border/40 py-3 last:border-b-0 last:pb-0 first:pt-0"
                 >
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${config.bg}`}
-                  >
-                    <Icon size={14} className={config.color} />
+                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${config.accent}`}>
+                    <Icon size={15} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-[13px] text-foreground">
-                      {file.original_name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {formatSize(file.size_bytes)} &middot;{" "}
-                      {getExtension(file.mime_type)}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{file.original_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatSize(file.size_bytes)} · {getExtension(file.mime_type)}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground/70">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {formatRelativeTime(file.created_at, locale)}
                   </span>
                 </div>

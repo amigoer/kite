@@ -6,6 +6,8 @@ import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -50,11 +52,11 @@ export default function TokensPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("tokens.title")}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight">{t("tokens.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {t("tokens.description")}
           </p>
         </div>
@@ -113,10 +115,12 @@ export default function TokensPage() {
         </Dialog>
       </div>
 
+      <Separator />
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
+            <Skeleton key={i} className="h-[72px] rounded-xl" />
           ))}
         </div>
       ) : (
@@ -129,37 +133,40 @@ export default function TokensPage() {
               expires_at?: string;
               created_at: string;
             }) => (
-              <div
-                key={token.id}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-card p-4"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Key className="size-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{token.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {t("tokens.created")}{" "}
-                      {new Date(token.created_at).toLocaleDateString()}
-                      {token.last_used &&
-                        ` · ${t("tokens.lastUsed")} ${new Date(token.last_used).toLocaleDateString()}`}
-                    </p>
+              <Card key={token.id} className="gap-0 py-0">
+                <CardContent className="flex items-center justify-between gap-3 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <Key className="size-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{token.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {t("tokens.created")}{" "}
+                        {new Date(token.created_at).toLocaleDateString()}
+                        {token.last_used &&
+                          ` · ${t("tokens.lastUsed")} ${new Date(token.last_used).toLocaleDateString()}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0"
-                  onClick={() => deleteMutation.mutate(token.id)}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </div>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteMutation.mutate(token.id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </CardContent>
+              </Card>
             )
           )}
 
           {data?.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
-              <Key className="mb-3 size-12 text-muted-foreground/30" />
+              <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
+                <Key className="size-5 text-muted-foreground" />
+              </div>
               <p className="text-sm text-muted-foreground">{t("tokens.noTokens")}</p>
             </div>
           )}

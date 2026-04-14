@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -70,11 +71,11 @@ export default function AlbumsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("albums.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("albums.description")}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("albums.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("albums.description")}</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
@@ -128,6 +129,8 @@ export default function AlbumsPage() {
         </Dialog>
       </div>
 
+      <Separator />
+
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -180,9 +183,11 @@ export default function AlbumsPage() {
           </div>
 
           {data?.items?.length === 0 && (
-            <div className="flex flex-col items-center py-16 text-center">
-              <FolderOpen className="mb-3 size-12 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">{t("albums.noAlbums")}</p>
+            <div className="flex flex-col items-center py-20 text-center">
+              <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-muted">
+                <FolderOpen className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">{t("albums.noAlbums")}</p>
             </div>
           )}
 

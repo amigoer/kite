@@ -17,6 +17,7 @@ import { useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -168,11 +169,11 @@ export default function FilesPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("files.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("files.description")}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("files.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("files.description")}</p>
         </div>
         <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
           <DialogTrigger asChild>
@@ -248,8 +249,10 @@ export default function FilesPage() {
         </Dialog>
       </div>
 
+      <Separator />
+
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
@@ -332,9 +335,11 @@ export default function FilesPage() {
           </div>
 
           {data?.items?.length === 0 && (
-            <div className="flex flex-col items-center py-16 text-center">
-              <FileText className="mb-3 size-12 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">{t("files.noFiles")}</p>
+            <div className="flex flex-col items-center py-20 text-center">
+              <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-muted">
+                <FileText className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">{t("files.noFiles")}</p>
             </div>
           )}
 
