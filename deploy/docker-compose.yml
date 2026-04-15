@@ -1,0 +1,46 @@
+services:
+  kite:
+    image: amigoer/kite:latest
+    container_name: kite
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      KITE_HOST: 0.0.0.0
+      KITE_PORT: "8080"
+      KITE_DB_DRIVER: sqlite
+      KITE_DSN: /app/data/kite.db
+      GIN_MODE: release
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/app/data
+    networks:
+      - kite-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/setup/status"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: kite-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/www:/var/www/certbot:ro
+    depends_on:
+      kite:
+        condition: service_started
+    networks:
+      - kite-net
+
+networks:
+  kite-net:
+    driver: bridge

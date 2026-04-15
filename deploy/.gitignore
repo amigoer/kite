@@ -1,0 +1,4 @@
+data/
+nginx/ssl/
+nginx/logs/
+nginx/www/
