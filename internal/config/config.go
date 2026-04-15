@@ -55,8 +55,12 @@ type ServerConfig struct {
 
 // DatabaseConfig 数据库配置。
 type DatabaseConfig struct {
-	Driver string `json:"driver"` // sqlite / postgres
-	DSN    string `json:"dsn"`    // 数据库连接字符串，sqlite 默认 "data/kite.db"
+	Driver string `json:"driver"` // sqlite / mysql / postgres
+	// DSN 数据库连接字符串，按驱动不同：
+	//   sqlite:   "data/kite.db"
+	//   mysql:    "user:pass@tcp(host:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+	//   postgres: "host=localhost user=postgres password=pass dbname=kite port=5432 sslmode=disable"
+	DSN string `json:"dsn"`
 }
 
 // DefaultConfig 返回带有默认值的配置。
