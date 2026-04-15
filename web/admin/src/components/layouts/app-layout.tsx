@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n";
 import { Sidebar } from "@/components/layouts/sidebar";
 import { Button } from "@/components/ui/button";
 import { KiteLogo } from "@/components/kite-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Sheet,
   SheetContent,
@@ -30,7 +31,12 @@ export default function AppLayout() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background relative">
+      {/* Floating Theme Toggle (Desktop only) */}
+      <div className="absolute top-4 right-6 z-50 hidden md:block">
+        <ThemeToggle />
+      </div>
+
       {/* Desktop sidebar */}
       <div className="hidden shrink-0 border-r md:flex">
         <Sidebar />
@@ -40,19 +46,23 @@ export default function AppLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile header */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 md:hidden">
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2 transition-opacity hover:opacity-80"
-            >
-              <KiteLogo className="size-6" />
-              <span className="font-semibold tracking-tight">Kite</span>
-            </Link>
+          <header className="flex h-14 shrink-0 items-center justify-between border-b px-4 md:hidden">
+            <div className="flex items-center gap-2">
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon-sm">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-2 transition-opacity hover:opacity-80"
+              >
+                <KiteLogo className="size-6" />
+                <span className="font-semibold tracking-tight">Kite</span>
+              </Link>
+            </div>
+            
+            <ThemeToggle />
           </header>
           <SheetContent side="left" className="w-[220px] p-0">
             <SheetTitle className="sr-only">Navigation</SheetTitle>

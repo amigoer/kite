@@ -46,23 +46,25 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-row items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             {t("dashboard.title")}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">
             {t("dashboard.description")}
           </p>
         </div>
-        <Button onClick={() => navigate("/files")}>
-          <Upload className="mr-2 h-4 w-4" />
-          {t("common.upload")}
+        <Button size="sm" className="shrink-0" onClick={() => navigate("/files")}>
+          <Upload className="mr-2 h-4 w-4 hidden sm:block" />
+          <Upload className="h-4 w-4 sm:hidden" />
+          <span className="hidden sm:inline-block ml-2">{t("common.upload")}</span>
+          <span className="sm:hidden ml-2">{t("common.upload")}</span>
         </Button>
       </div>
 
       {/* Stats grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">

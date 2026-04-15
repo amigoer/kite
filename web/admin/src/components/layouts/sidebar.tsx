@@ -8,13 +8,10 @@ import {
   Users,
   Settings,
   LogOut,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
-import { useTheme } from "@/components/theme-provider";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -40,7 +37,6 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
-  const { theme, setTheme } = useTheme();
 
   return (
     <aside className="flex h-full w-[220px] flex-col bg-background">
@@ -122,15 +118,6 @@ export function Sidebar({ onClose }: SidebarProps) {
             {user?.role === "admin" ? t("nav.roleAdmin") : t("nav.roleUser")}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          <Sun className="h-3.5 w-3.5 dark:hidden" />
-          <Moon className="hidden h-3.5 w-3.5 dark:block" />
-        </Button>
         <Button
           variant="ghost"
           size="icon-xs"
