@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import { Sidebar } from "@/components/layouts/sidebar";
 import { Button } from "@/components/ui/button";
+import { KiteLogo } from "@/components/kite-logo";
 import {
   Sheet,
   SheetContent,
@@ -21,14 +22,7 @@ export default function AppLayout() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <svg
-          className="size-8 animate-[splash-pulse_1.4s_ease-in-out_infinite]"
-          viewBox="0 0 32 32"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M16 3L28 15L16 27L4 15L16 3Z" />
-        </svg>
+        <KiteLogo className="size-8 animate-[splash-pulse_1.4s_ease-in-out_infinite]" />
       </div>
     );
   }
@@ -56,9 +50,7 @@ export default function AppLayout() {
               to="/dashboard"
               className="flex items-center gap-2 transition-opacity hover:opacity-80"
             >
-              <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <span className="text-xs font-bold">K</span>
-              </div>
+              <KiteLogo className="size-6" />
               <span className="font-semibold tracking-tight">Kite</span>
             </Link>
           </header>
@@ -78,9 +70,7 @@ export default function AppLayout() {
           <footer className="mt-auto flex h-14 shrink-0 border-t">
             <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 text-xs text-muted-foreground sm:px-6 lg:px-8">
               <div className="flex items-center gap-1.5">
-                <div className="flex size-4 items-center justify-center rounded bg-primary text-[8px] font-bold text-primary-foreground">
-                  K
-                </div>
+                <KiteLogo className="size-4" />
                 <span className="font-medium text-foreground/70">Kite</span>
                 <span className="mx-0.5 text-border">·</span>
                 <span className="hidden sm:inline">{t("footer.description")}</span>

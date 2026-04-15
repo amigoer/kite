@@ -18,6 +18,7 @@ import { useTheme } from "@/components/theme-provider";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { KiteLogo } from "@/components/kite-logo";
 
 const userNavItems = [
   { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
@@ -50,9 +51,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           onClick={onClose}
           className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
         >
-          <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <span className="text-xs font-bold">K</span>
-          </div>
+          <KiteLogo className="size-6" />
           <span className="font-semibold tracking-tight">Kite</span>
         </Link>
       </div>

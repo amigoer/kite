@@ -29,14 +29,7 @@ export function AuthLayout() {
   if (loading) {
     return (
       <div className="flex h-svh items-center justify-center bg-background">
-        <svg
-          className="size-8 animate-[splash-pulse_1.4s_ease-in-out_infinite]"
-          viewBox="0 0 32 32"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M16 3L28 15L16 27L4 15L16 3Z" />
-        </svg>
+        <KiteLogo className="size-8 animate-[splash-pulse_1.4s_ease-in-out_infinite]" />
       </div>
     );
   }
