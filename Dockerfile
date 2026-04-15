@@ -1,15 +1,19 @@
 # syntax=docker/dockerfile:1.7
 
-# ---- Stage 1: build frontend SPA ----
-FROM node:22-alpine AS frontend
+# ---- Stage 1: build frontend SPA (pinned to native build platform — JS output is arch-independent) ----
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /web
 COPY web/admin/package.json web/admin/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/admin/ ./
 RUN npm run build
 
-# ---- Stage 2: build Go binary with embedded assets ----
-FROM golang:1.25-alpine AS backend
+# ---- Stage 2: cross-compile Go binary on native toolchain ----
+# Run the compiler natively (BUILDPLATFORM) and cross-compile to TARGETOS/TARGETARCH
+# via Go's built-in cross-compilation. Avoids QEMU emulation entirely — pure-Go deps
+# only (sqlite via glebarez/modernc.org, no CGO needed).
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 
 COPY go.mod go.sum ./
@@ -20,7 +24,8 @@ COPY --from=frontend /web/dist ./web/admin/dist
 
 ENV CGO_ENABLED=0 \
     GOFLAGS=-trimpath
-RUN go build -ldflags="-s -w" -o /out/kite ./cmd/kite
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w" -o /out/kite ./cmd/kite
 
 # ---- Stage 3: minimal runtime ----
 FROM alpine:3.20
