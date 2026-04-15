@@ -80,7 +80,7 @@ func (h *SetupHandler) Setup(c *gin.Context) {
 	}
 
 	// 2. 创建管理员账号
-	admin, err := h.authSvc.CreateAdminUser(ctx, req.AdminUsername, req.AdminEmail, req.AdminPassword)
+	admin, err := h.authSvc.CreateAdminUser(ctx, req.AdminUsername, req.AdminEmail, req.AdminPassword, false)
 	if err != nil {
 		serverError(c, "failed to create admin user: "+err.Error())
 		return

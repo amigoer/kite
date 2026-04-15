@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/amigoer/kite/internal/service"
 	"github.com/amigoer/kite/internal/storage"
 	"github.com/amigoer/kite/web"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -65,6 +67,9 @@ func main() {
 	settingRepo := repo.NewSettingRepo(db)
 	loadRuntimeConfig(settingRepo, &cfg)
 
+	// 将旧格式的缩略图 URL 迁移到 /t/:hash 短链格式
+	migrateThumbURLs(db, cfg.Site.URL)
+
 	// 确保 JWT 密钥存在（首次启动自动生成并持久化）
 	if err := ensureJWTSecret(settingRepo, &cfg); err != nil {
 		log.Fatalf("failed to ensure jwt secret: %v", err)
@@ -72,7 +77,9 @@ func main() {
 
 	// 初始化存储管理器
 	storageMgr := storage.NewManager()
-	loadStorageConfigs(db, storageMgr)
+	storageRepo := repo.NewStorageConfigRepo(db)
+	seedDefaultStorage(storageRepo, dataDir, cfg.Site.URL)
+	loadStorageConfigs(storageRepo, storageMgr)
 
 	// 初始化服务
 	userRepo := repo.NewUserRepo(db)
@@ -192,8 +199,8 @@ func ensureJWTSecret(settingRepo *repo.SettingRepo, cfg *config.Config) error {
 	return nil
 }
 
-// seedDefaultAdmin 首次启动时自动创建默认管理员账号。
-// 密码随机生成并打印到控制台，仅此一次。
+// seedDefaultAdmin 首次启动时自动创建默认管理员账号 admin/admin。
+// 该账号标记为 PasswordMustChange，首次登录后强制在前端重置用户名与密码才可使用。
 func seedDefaultAdmin(userRepo *repo.UserRepo, authSvc *service.AuthService) {
 	ctx := context.Background()
 	count, err := userRepo.Count(ctx)
@@ -201,29 +208,79 @@ func seedDefaultAdmin(userRepo *repo.UserRepo, authSvc *service.AuthService) {
 		return
 	}
 
-	// 生成 8 字节随机密码（16 个 hex 字符）
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		log.Fatalf("failed to generate random password: %v", err)
-	}
-	password := hex.EncodeToString(b)
-
-	_, err = authSvc.CreateAdminUser(ctx, "admin", "admin@kite.local", password)
-	if err != nil {
+	if _, err := authSvc.CreateAdminUser(ctx, "admin", "admin@kite.local", "admin", true); err != nil {
 		log.Fatalf("failed to create default admin: %v", err)
 	}
 
-	log.Println("========================================")
-	log.Println("  Default admin account created:")
-	log.Printf("  Username: admin")
-	log.Printf("  Password: %s", password)
-	log.Println("  Please change the password after login.")
-	log.Println("========================================")
+	log.Println("============================================================")
+	log.Println("  ⚠️  Default admin account created with WEAK credentials:")
+	log.Println("        Username: admin")
+	log.Println("        Password: admin")
+	log.Println("  You MUST change the username and password on first login.")
+	log.Println("  Do NOT expose this server to the public internet until you")
+	log.Println("  have completed the first-login reset.")
+	log.Println("============================================================")
+}
+
+// migrateThumbURLs 将存量记录中旧格式的缩略图 URL（指向存储 BaseURL 路径）改写为 /t/:hash 短链。
+// 旧格式依赖 BaseURL 可公开访问，对默认本机存储无效；新格式由 ServeThumbnail 从存储流式读取。
+func migrateThumbURLs(db *gorm.DB, siteURL string) {
+	var files []model.File
+	if err := db.Where("thumb_url IS NOT NULL AND thumb_url NOT LIKE ?", "%/t/%").Find(&files).Error; err != nil {
+		return
+	}
+	if len(files) == 0 {
+		return
+	}
+	base := strings.TrimRight(siteURL, "/")
+	for _, f := range files {
+		if len(f.HashMD5) < 8 {
+			continue
+		}
+		newURL := base + "/t/" + f.HashMD5[:8]
+		_ = db.Model(&model.File{}).Where("id = ?", f.ID).Update("thumb_url", newURL).Error
+	}
+	log.Printf("migrated %d thumbnail URLs to /t/:hash short-link format", len(files))
+}
+
+// seedDefaultStorage 首次启动时自动创建一个本地存储作为兜底，避免用户必须先手动添加存储才能使用上传功能。
+// 仅在数据库中不存在任何存储配置时才创建；用户手动删除后重启不会被再次创建。
+func seedDefaultStorage(storageRepo *repo.StorageConfigRepo, dataDir, siteURL string) {
+	ctx := context.Background()
+	existing, err := storageRepo.List(ctx)
+	if err != nil {
+		log.Printf("warning: failed to check existing storage configs: %v", err)
+		return
+	}
+	if len(existing) > 0 {
+		return
+	}
+
+	basePath := filepath.Join(dataDir, "uploads")
+	lc := storage.LocalConfig{BasePath: basePath, BaseURL: siteURL}
+	raw, err := json.Marshal(lc)
+	if err != nil {
+		log.Printf("warning: failed to marshal default storage config: %v", err)
+		return
+	}
+
+	cfg := &model.StorageConfig{
+		ID:        uuid.New().String(),
+		Name:      "本机存储",
+		Driver:    "local",
+		Config:    string(raw),
+		IsDefault: true,
+		IsActive:  true,
+	}
+	if err := storageRepo.Create(ctx, cfg); err != nil {
+		log.Printf("warning: failed to seed default storage: %v", err)
+		return
+	}
+	log.Printf("seeded default local storage at %s", basePath)
 }
 
 // loadStorageConfigs 从数据库加载所有活跃的存储配置到管理器。
-func loadStorageConfigs(db *gorm.DB, mgr *storage.Manager) {
-	storageRepo := repo.NewStorageConfigRepo(db)
+func loadStorageConfigs(storageRepo *repo.StorageConfigRepo, mgr *storage.Manager) {
 	configs, err := storageRepo.ListActive(context.Background())
 	if err != nil {
 		log.Printf("warning: failed to load storage configs: %v", err)

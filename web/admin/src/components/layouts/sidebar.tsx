@@ -40,8 +40,8 @@ export function Sidebar({ onClose }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-[220px] flex-col bg-background">
-      {/* Logo */}
-      <div className="flex h-14 items-center px-5">
+      {/* Logo — h-14 + border-b aligns with desktop header */}
+      <div className="flex h-14 shrink-0 items-center border-b px-5">
         <Link
           to="/dashboard"
           onClick={onClose}
@@ -51,8 +51,6 @@ export function Sidebar({ onClose }: SidebarProps) {
           <span className="font-semibold tracking-tight">Kite</span>
         </Link>
       </div>
-
-      <Separator />
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
@@ -104,7 +102,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       </nav>
 
       {/* Bottom user section — h-14 matches the footer */}
-      <div className="flex h-14 shrink-0 items-center gap-3 border-t px-4">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-t px-3">
         <Avatar className="size-7">
           <AvatarFallback className="text-[10px] font-medium">
             {user?.username?.charAt(0).toUpperCase()}
@@ -120,11 +118,12 @@ export function Sidebar({ onClose }: SidebarProps) {
         </div>
         <Button
           variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground hover:text-destructive"
+          size="icon-sm"
+          className="rounded-full text-muted-foreground hover:text-destructive"
           onClick={logout}
+          aria-label={t("auth.logout")}
         >
-          <LogOut className="h-3.5 w-3.5" />
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </aside>

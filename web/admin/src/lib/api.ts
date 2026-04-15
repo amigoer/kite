@@ -48,6 +48,15 @@ export const authApi = {
     api.post("/auth/register", { username, email, password }),
   logout: () => api.post("/auth/logout"),
   profile: () => api.get("/profile"),
+  updateProfile: (data: { username: string; email: string }) =>
+    api.put("/profile", data),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.post("/auth/change-password", data),
+  firstLoginReset: (data: {
+    new_username: string;
+    new_email: string;
+    new_password: string;
+  }) => api.post("/auth/first-login-reset", data),
 };
 
 // Files

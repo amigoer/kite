@@ -31,23 +31,61 @@ interface StorageForm {
   name: string;
   driver: string;
   config: {
-    root_path?: string;
+    // local
+    base_path?: string;
+    // local & s3
     base_url?: string;
+    // s3
     endpoint?: string;
     region?: string;
     bucket?: string;
-    access_key?: string;
-    secret_key?: string;
-    cdn_domain?: string;
-    path_style?: string;
+    access_key_id?: string;
+    secret_access_key?: string;
+    force_path_style?: boolean;
   };
 }
 
 const emptyForm: StorageForm = {
   name: "",
   driver: "local",
-  config: { root_path: "./uploads", base_url: "" },
+  config: { base_path: "./uploads", base_url: "" },
 };
+
+// mapStorageError 把后端存储相关错误映射成中文提示。
+// 匹配失败时回退到通用提示，避免把英文技术信息直接暴露给用户。
+function mapStorageError(err: unknown, fallback: string): string {
+  const status = (err as { response?: { status?: number } })?.response?.status;
+  const msg =
+    (
+      err as { response?: { data?: { message?: string } } }
+    )?.response?.data?.message ?? "";
+
+  if (status === 401) return "登录已过期，请重新登录";
+  if (status === 403) return "没有权限执行此操作";
+  if (status === 409) return "存储名称已存在";
+  if (status && status >= 500) return "服务暂时不可用，请稍后再试";
+
+  // local 驱动
+  if (msg.includes("base_path is required")) return "根目录不能为空";
+  if (msg.includes("base_url is required")) return "访问 URL 不能为空";
+  if (msg.includes("resolve base_path")) return "根目录路径无效，请检查";
+  if (msg.includes("create base_path"))
+    return "无法创建根目录，请检查路径权限";
+  // s3 驱动
+  if (msg.includes("bucket is required")) return "Bucket 不能为空";
+  if (msg.includes("endpoint is required")) return "Endpoint 不能为空";
+  if (msg.includes("access_key_id") || msg.includes("secret_access_key"))
+    return "Access Key 和 Secret Key 不能为空";
+  // 驱动配置缺失
+  if (msg.includes("s3 config is nil")) return "S3 配置不完整";
+  if (msg.includes("local config is nil")) return "本地存储配置不完整";
+  if (msg.includes("unknown driver")) return "不支持的存储驱动";
+  // 表单校验（binding 错误）
+  if (msg.startsWith("invalid storage config"))
+    return "表单填写不完整，请检查";
+
+  return fallback;
+}
 
 export default function StoragePage() {
   const { t } = useI18n();
@@ -72,7 +110,7 @@ export default function StoragePage() {
       closeDialog();
       toast.success("存储配置保存成功");
     },
-    onError: () => toast.error("存储配置保存失败"),
+    onError: (err) => toast.error(mapStorageError(err, "存储配置保存失败")),
   });
 
   const deleteMutation = useMutation({
@@ -81,7 +119,7 @@ export default function StoragePage() {
       queryClient.invalidateQueries({ queryKey: ["storage"] });
       toast.success("存储配置删除成功");
     },
-    onError: () => toast.error("存储配置删除失败"),
+    onError: (err) => toast.error(mapStorageError(err, "存储配置删除失败")),
   });
 
   const handleTest = async (id: string) => {
@@ -91,9 +129,9 @@ export default function StoragePage() {
       setTestResult((prev) => ({ ...prev, [id]: "ok" }));
       toast.success("存储测试成功");
       setTimeout(() => setTestResult((prev) => ({ ...prev, [id]: undefined! })), 3000);
-    } catch {
+    } catch (err) {
       setTestResult((prev) => ({ ...prev, [id]: "fail" }));
-      toast.error("存储测试失败，请检查配置");
+      toast.error(mapStorageError(err, "存储测试失败，请检查配置"));
       setTimeout(() => setTestResult((prev) => ({ ...prev, [id]: undefined! })), 3000);
     }
   };
@@ -235,7 +273,7 @@ export default function StoragePage() {
                       setForm((f) => ({
                         ...f,
                         driver: d,
-                        config: d === "local" ? { root_path: "./uploads", base_url: "" } : {},
+                        config: d === "local" ? { base_path: "./uploads", base_url: "" } : {},
                       }))
                     }
                   >
@@ -250,8 +288,8 @@ export default function StoragePage() {
                 <div className="space-y-2">
                   <Label>{t("storage.rootPath")}</Label>
                   <Input
-                    value={form.config.root_path ?? ""}
-                    onChange={(e) => updateConfig("root_path", e.target.value)}
+                    value={form.config.base_path ?? ""}
+                    onChange={(e) => updateConfig("base_path", e.target.value)}
                     placeholder="./uploads"
                   />
                 </div>
@@ -295,23 +333,25 @@ export default function StoragePage() {
                 <div className="space-y-2">
                   <Label>Access Key</Label>
                   <Input
-                    value={form.config.access_key ?? ""}
-                    onChange={(e) => updateConfig("access_key", e.target.value)}
+                    value={form.config.access_key_id ?? ""}
+                    onChange={(e) => updateConfig("access_key_id", e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Secret Key</Label>
                   <Input
                     type="password"
-                    value={form.config.secret_key ?? ""}
-                    onChange={(e) => updateConfig("secret_key", e.target.value)}
+                    value={form.config.secret_access_key ?? ""}
+                    onChange={(e) =>
+                      updateConfig("secret_access_key", e.target.value)
+                    }
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>{t("storage.cdnDomain")}</Label>
                   <Input
-                    value={form.config.cdn_domain ?? ""}
-                    onChange={(e) => updateConfig("cdn_domain", e.target.value)}
+                    value={form.config.base_url ?? ""}
+                    onChange={(e) => updateConfig("base_url", e.target.value)}
                     placeholder="https://cdn.example.com"
                   />
                 </div>

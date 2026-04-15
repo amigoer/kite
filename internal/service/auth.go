@@ -24,6 +24,7 @@ var (
 	ErrRegistrationClosed = errors.New("user registration is not allowed")
 	ErrTokenExpired       = errors.New("token has expired")
 	ErrTokenInvalid       = errors.New("invalid token")
+	ErrPasswordMismatch   = errors.New("current password is incorrect")
 )
 
 // JWTClaims JWT 令牌中携带的声明。
@@ -179,20 +180,22 @@ func (s *AuthService) CreateAPIToken(ctx context.Context, userID, name string, e
 }
 
 // CreateAdminUser 创建管理员用户（安装向导使用）。
-func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, password string) (*model.User, error) {
+// mustChange=true 时，用户首次登录后必须重置账号和密码才能使用其他功能。
+func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, password string, mustChange bool) (*model.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash admin password: %w", err)
 	}
 
 	user := &model.User{
-		ID:           uuid.New().String(),
-		Username:     username,
-		Email:        email,
-		PasswordHash: string(hash),
-		Role:         "admin",
-		StorageLimit: -1, // 管理员无存储限制
-		IsActive:     true,
+		ID:                 uuid.New().String(),
+		Username:           username,
+		Email:              email,
+		PasswordHash:       string(hash),
+		Role:               "admin",
+		StorageLimit:       -1, // 管理员无存储限制
+		IsActive:           true,
+		PasswordMustChange: mustChange,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -200,6 +203,92 @@ func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, pass
 	}
 
 	return user, nil
+}
+
+// UpdateProfile 更新当前登录用户的基本资料（用户名、邮箱）。
+// 不涉及密码修改；若用户名或邮箱发生变化会进行唯一性校验。
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, newEmail string) (*model.User, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	if newUsername != user.Username || newEmail != user.Email {
+		conflict, err := s.userRepo.ExistsByUsernameOrEmailExcept(ctx, newUsername, newEmail, userID)
+		if err != nil {
+			return nil, fmt.Errorf("check conflict: %w", err)
+		}
+		if conflict {
+			return nil, ErrUserExists
+		}
+	}
+
+	user.Username = newUsername
+	user.Email = newEmail
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+	return user, nil
+}
+
+// ChangePassword 校验当前密码后更新为新密码。
+func (s *AuthService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrPasswordMismatch
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash new password: %w", err)
+	}
+	user.PasswordHash = string(hash)
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	return nil
+}
+
+// ResetFirstLoginCredentials 重置首次登录用户的账号与密码。
+// 仅当用户的 PasswordMustChange 为 true 时允许调用；成功后清除该标志并返回新 token pair
+// （因为用户名变化会使旧 token 的 username claim 失效）。
+func (s *AuthService) ResetFirstLoginCredentials(ctx context.Context, userID, newUsername, newEmail, newPassword string) (*TokenPair, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	if !user.PasswordMustChange {
+		return nil, errors.New("first-login reset is not required for this user")
+	}
+
+	// 用户名或邮箱冲突检测（排除当前用户自身）
+	if newUsername != user.Username || newEmail != user.Email {
+		conflict, err := s.userRepo.ExistsByUsernameOrEmailExcept(ctx, newUsername, newEmail, userID)
+		if err != nil {
+			return nil, fmt.Errorf("check conflict: %w", err)
+		}
+		if conflict {
+			return nil, ErrUserExists
+		}
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash new password: %w", err)
+	}
+
+	user.Username = newUsername
+	user.Email = newEmail
+	user.PasswordHash = string(hash)
+	user.PasswordMustChange = false
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+
+	return s.generateTokenPair(user)
 }
 
 func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {

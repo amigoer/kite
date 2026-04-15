@@ -42,7 +42,7 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 	settingRepo := repo.NewSettingRepo(cfg.DB)
 
 	// 初始化 handlers
-	authHandler := NewAuthHandler(cfg.AuthSvc)
+	authHandler := NewAuthHandler(cfg.AuthSvc, userRepo)
 	fileHandler := NewFileHandler(cfg.FileSvc, fileRepo)
 	albumHandler := NewAlbumHandler(albumRepo, fileRepo)
 	tokenHandler := NewTokenHandler(cfg.AuthSvc, tokenRepo)
@@ -153,7 +153,10 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 	{
 		// 用户信息
 		authed.GET("/profile", authHandler.GetProfile)
+		authed.PUT("/profile", authHandler.UpdateProfile)
 		authed.POST("/auth/logout", authHandler.Logout)
+		authed.POST("/auth/change-password", authHandler.ChangePassword)
+		authed.POST("/auth/first-login-reset", authHandler.FirstLoginReset)
 
 		// 文件管理
 		authed.POST("/upload", fileHandler.Upload)
@@ -211,12 +214,15 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		}
 	}
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{})
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"CurrentUser": getOptionalUser(c, cfg.AuthSvc),
+		})
 	})
 	r.GET("/explore", func(c *gin.Context) {
 		val, _ := settingRepo.Get(c.Request.Context(), "allow_public_gallery")
 		c.HTML(http.StatusOK, "explore.html", gin.H{
 			"GalleryEnabled": val == "true",
+			"CurrentUser":    getOptionalUser(c, cfg.AuthSvc),
 		})
 	})
 	r.GET("/upload", func(c *gin.Context) {
@@ -224,6 +230,7 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		val, _ := settingRepo.Get(c.Request.Context(), "allow_guest_upload")
 		c.HTML(http.StatusOK, "upload.html", gin.H{
 			"GuestUploadEnabled": val == "true",
+			"CurrentUser":        getOptionalUser(c, cfg.AuthSvc),
 		})
 	})
 
@@ -266,4 +273,31 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 	}
 
 	return r
+}
+
+// publicUser 公开页面模板注入的当前登录用户视图（仅包含展示所需字段）。
+type publicUser struct {
+	ID       string
+	Username string
+	Role     string
+	IsAdmin  bool
+}
+
+// getOptionalUser 尝试从 access_token cookie 解析当前登录用户；无 cookie 或无效时返回 nil。
+// 用于公开落地页（/ /explore /upload）在不强制登录的前提下识别登录态，避免前台模板仍显示“登录”按钮。
+func getOptionalUser(c *gin.Context, authSvc *service.AuthService) *publicUser {
+	cookie, err := c.Cookie("access_token")
+	if err != nil || cookie == "" {
+		return nil
+	}
+	claims, err := authSvc.ValidateToken(cookie)
+	if err != nil {
+		return nil
+	}
+	return &publicUser{
+		ID:       claims.UserID,
+		Username: claims.Username,
+		Role:     claims.Role,
+		IsAdmin:  claims.Role == "admin",
+	}
 }

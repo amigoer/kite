@@ -11,7 +11,9 @@ import { toast } from "sonner";
 export interface User {
   user_id: string;
   username: string;
+  email?: string;
   role: string;
+  password_must_change?: boolean;
 }
 
 export interface AuthContextValue {
@@ -24,6 +26,10 @@ export interface AuthContextValue {
     password: string
   ) => Promise<void>;
   logout: () => void;
+  applyTokensAndRefresh: (tokens: {
+    access_token: string;
+    refresh_token: string;
+  }) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -116,5 +122,16 @@ export function useAuthProvider(): AuthContextValue {
     toast.success("已安全退出登录");
   }, []);
 
-  return { user, loading, login, register, logout };
+  const applyTokensAndRefresh = useCallback(
+    async (tokens: { access_token: string; refresh_token: string }) => {
+      localStorage.setItem("access_token", tokens.access_token);
+      localStorage.setItem("refresh_token", tokens.refresh_token);
+      const profile = await authApi.profile();
+      setUser(profile.data.data);
+      writeCachedUser(profile.data.data);
+    },
+    []
+  );
+
+  return { user, loading, login, register, logout, applyTokensAndRefresh };
 }

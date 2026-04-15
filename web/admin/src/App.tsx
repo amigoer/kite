@@ -12,12 +12,14 @@ import { AuthLayout } from "@/components/layout";
 // Auth pages
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import FirstLoginPage from "@/pages/first-login";
 
 // Pages
 import DashboardPage from "@/pages/dashboard";
 import FilesPage from "@/pages/files";
 import AlbumsPage from "@/pages/albums";
 import TokensPage from "@/pages/tokens";
+import ProfilePage from "@/pages/profile";
 
 // Admin pages
 import AdminFilesPage from "@/pages/admin/files";
@@ -37,25 +39,59 @@ function AdminRoute() {
   return <Outlet />;
 }
 
+// FirstLoginGate: 当用户 password_must_change=true 时，除 /first-login 外其他路径
+// 一律跳转到首次配置页；反之访问 /first-login 则跳回 dashboard。
+function FirstLoginGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.password_must_change) {
+    return <Navigate to="/first-login" replace />;
+  }
+  return <>{children}</>;
+}
+
+function FirstLoginOnlyGate() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.password_must_change) return <Navigate to="/dashboard" replace />;
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md">
+        <FirstLoginPage />
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const auth = useAuthProvider();
 
   return (
     <AuthContext.Provider value={auth}>
       <Routes>
+        {/* First-login reset (强制首次配置，独立布局) */}
+        <Route path="/first-login" element={<FirstLoginOnlyGate />} />
+
         {/* Auth (centered card) */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
 
-        {/* App (sidebar layout) */}
-        <Route element={<AppLayout />}>
+        {/* App (sidebar layout) — 受 first-login 守卫保护 */}
+        <Route
+          element={
+            <FirstLoginGate>
+              <AppLayout />
+            </FirstLoginGate>
+          }
+        >
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/albums" element={<AlbumsPage />} />
           <Route path="/tokens" element={<TokensPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
 
           {/* Admin pages (role guard) */}
           <Route element={<AdminRoute />}>

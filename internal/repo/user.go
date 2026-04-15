@@ -112,6 +112,18 @@ func (r *UserRepo) ExistsByUsernameOrEmail(ctx context.Context, username, email 
 	return count > 0, nil
 }
 
+// ExistsByUsernameOrEmailExcept 检查除指定用户外是否有其他用户名或邮箱冲突。
+// 用于用户更新自身资料时的冲突检测。
+func (r *UserRepo) ExistsByUsernameOrEmailExcept(ctx context.Context, username, email, excludeID string) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.User{}).
+		Where("(username = ? OR email = ?) AND id <> ?", username, email, excludeID).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf("check user exists except: %w", err)
+	}
+	return count > 0, nil
+}
+
 // Count 返回用户总数（用于判断是否需要初始化安装）。
 func (r *UserRepo) Count(ctx context.Context) (int64, error) {
 	var count int64

@@ -5,17 +5,19 @@ import (
 	"net/http"
 
 	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // AuthHandler 认证相关的 HTTP 处理器。
 type AuthHandler struct {
-	authSvc *service.AuthService
+	authSvc  *service.AuthService
+	userRepo *repo.UserRepo
 }
 
-func NewAuthHandler(authSvc *service.AuthService) *AuthHandler {
-	return &AuthHandler{authSvc: authSvc}
+func NewAuthHandler(authSvc *service.AuthService, userRepo *repo.UserRepo) *AuthHandler {
+	return &AuthHandler{authSvc: authSvc, userRepo: userRepo}
 }
 
 type loginRequest struct {
@@ -113,12 +115,108 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // GetProfile 获取当前登录用户信息。
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
-	username := c.GetString(middleware.ContextKeyUsername)
-	role := c.GetString(middleware.ContextKeyRole)
+
+	user, err := h.userRepo.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		unauthorized(c, "user not found")
+		return
+	}
 
 	success(c, gin.H{
-		"user_id":  userID,
-		"username": username,
-		"role":     role,
+		"user_id":              user.ID,
+		"username":             user.Username,
+		"email":                user.Email,
+		"role":                 user.Role,
+		"password_must_change": user.PasswordMustChange,
 	})
+}
+
+type updateProfileRequest struct {
+	Username string `json:"username" binding:"required,min=3,max=32"`
+	Email    string `json:"email" binding:"required,email"`
+}
+
+// UpdateProfile 当前登录用户更新自己的用户名与邮箱。
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	var req updateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "invalid profile data: "+err.Error())
+		return
+	}
+
+	userID := c.GetString(middleware.ContextKeyUserID)
+	user, err := h.authSvc.UpdateProfile(c.Request.Context(), userID, req.Username, req.Email)
+	if err != nil {
+		if errors.Is(err, service.ErrUserExists) {
+			fail(c, http.StatusConflict, 40900, err.Error())
+			return
+		}
+		serverError(c, "update profile failed")
+		return
+	}
+
+	success(c, gin.H{
+		"user_id":  user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+		"role":     user.Role,
+	})
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6,max=64"`
+}
+
+// ChangePassword 当前登录用户修改自己的密码。
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req changePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "invalid password data: "+err.Error())
+		return
+	}
+
+	userID := c.GetString(middleware.ContextKeyUserID)
+	if err := h.authSvc.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, service.ErrPasswordMismatch) {
+			fail(c, http.StatusBadRequest, 40010, err.Error())
+			return
+		}
+		serverError(c, "change password failed")
+		return
+	}
+
+	success(c, nil)
+}
+
+type firstLoginResetRequest struct {
+	NewUsername string `json:"new_username" binding:"required,min=3,max=32"`
+	NewEmail    string `json:"new_email" binding:"required,email"`
+	NewPassword string `json:"new_password" binding:"required,min=6,max=64"`
+}
+
+// FirstLoginReset 首次登录强制重置账号与密码。
+// 仅当用户 PasswordMustChange=true 时允许；成功后返回新的 token pair。
+func (h *AuthHandler) FirstLoginReset(c *gin.Context) {
+	var req firstLoginResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		badRequest(c, "invalid reset data: "+err.Error())
+		return
+	}
+
+	userID := c.GetString(middleware.ContextKeyUserID)
+	tokenPair, err := h.authSvc.ResetFirstLoginCredentials(
+		c.Request.Context(), userID, req.NewUsername, req.NewEmail, req.NewPassword,
+	)
+	if err != nil {
+		if errors.Is(err, service.ErrUserExists) {
+			fail(c, http.StatusConflict, 40900, err.Error())
+			return
+		}
+		badRequest(c, err.Error())
+		return
+	}
+
+	c.SetCookie("access_token", tokenPair.AccessToken, 7200, "/", "", false, true)
+	success(c, tokenPair)
 }

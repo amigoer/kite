@@ -284,7 +284,7 @@ func (h *FileHandler) ServeDownload(c *gin.Context) {
 	h.serveFile(c, "", forceDownload)
 }
 
-// ServeThumbnail 通过短链提供缩略图访问。
+// ServeThumbnail 通过短链从存储后端流式输出缩略图。
 func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 	hash := c.Param("hash")
 
@@ -298,7 +298,22 @@ func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, *file.ThumbURL)
+	reader, size, err := h.fileSvc.GetThumbContent(c.Request.Context(), file)
+	if err != nil {
+		notFound(c, "thumbnail not found")
+		return
+	}
+	defer reader.Close()
+
+	c.Header("Content-Type", "image/jpeg")
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Header("ETag", file.HashMD5+"-thumb")
+	c.Header("Content-Length", strconv.FormatInt(size, 10))
+	c.Status(http.StatusOK)
+	c.Stream(func(w io.Writer) bool {
+		_, err := io.Copy(w, reader)
+		return err == nil
+	})
 }
 
 func (h *FileHandler) serveFile(c *gin.Context, expectedType string, forceDownload bool) {

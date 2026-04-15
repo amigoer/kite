@@ -216,6 +216,27 @@ const en = {
     saveSettings: "Save Settings",
   },
 
+  profile: {
+    title: "Profile",
+    description: "Manage your personal information and account password.",
+    basicInfo: "Basic Information",
+    basicInfoDesc: "Update your username and email address.",
+    changePassword: "Change Password",
+    changePasswordDesc: "Enter your current password, then set a new one.",
+    currentPassword: "Current Password",
+    newPassword: "New Password",
+    saveProfile: "Save Changes",
+    savePassword: "Update Password",
+    profileSaved: "Profile updated",
+    profileFailed: "Failed to update profile",
+    passwordSaved: "Password updated",
+    passwordFailed: "Failed to update password",
+    allFieldsRequired: "Please fill in all required fields",
+    newPasswordMustDiffer: "New password must differ from the current one",
+    passwordTip:
+      "Your password is stored as a salted hash. We cannot recover it — keep the new one safe.",
+  },
+
   toast: {
     saved: "Settings saved",
     deleted: "Deleted successfully",

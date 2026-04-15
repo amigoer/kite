@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/amigoer/kite/internal/model"
@@ -195,7 +196,8 @@ func (h *StorageHandler) Test(c *gin.Context) {
 
 	// 尝试上传一个测试文件
 	testKey := ".kite-test-connection"
-	err = driver.Put(c.Request.Context(), testKey, nil, 0, "text/plain")
+	testPayload := []byte("kite storage test")
+	err = driver.Put(c.Request.Context(), testKey, bytes.NewReader(testPayload), int64(len(testPayload)), "text/plain")
 	if err != nil {
 		success(c, gin.H{"ok": false, "error": err.Error()})
 		return

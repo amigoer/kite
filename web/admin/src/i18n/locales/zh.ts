@@ -218,6 +218,26 @@ const zh: Translations = {
     saveSettings: "保存设置",
   },
 
+  profile: {
+    title: "个人资料",
+    description: "管理你的个人信息与账号密码。",
+    basicInfo: "基本信息",
+    basicInfoDesc: "更新你的用户名与邮箱地址。",
+    changePassword: "修改密码",
+    changePasswordDesc: "输入当前密码以验证身份后设置新密码。",
+    currentPassword: "当前密码",
+    newPassword: "新密码",
+    saveProfile: "保存修改",
+    savePassword: "更新密码",
+    profileSaved: "资料已更新",
+    profileFailed: "资料更新失败",
+    passwordSaved: "密码已更新",
+    passwordFailed: "密码更新失败",
+    allFieldsRequired: "请完整填写所有必填项",
+    newPasswordMustDiffer: "新密码不能与当前密码相同",
+    passwordTip: "密码以哈希方式存储，无法找回，请妥善保存新密码。",
+  },
+
   toast: {
     saved: "设置已保存",
     deleted: "删除成功",

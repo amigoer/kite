@@ -6,7 +6,7 @@
     <title>上传文件 - Kite</title>
 </head>
 <body hx-boost="true" class="font-sans antialiased bg-white text-gray-900 min-h-screen flex flex-col">
-    {{template "header"}}
+    {{template "header" .}}
 
     <main class="flex-1">
         <div class="max-w-3xl mx-auto px-6 py-16 md:py-24">
@@ -32,12 +32,37 @@
             <div id="uploadList" class="mt-6 space-y-3 hidden"></div>
             <div id="resultList" class="mt-6 space-y-4 hidden"></div>
 
+            <!-- Toast container (top-center) -->
+            <div id="toastContainer" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none"></div>
+
             <script>
             (function() {
                 var dropZone = document.getElementById('dropZone');
                 var fileInput = document.getElementById('fileInput');
                 var uploadList = document.getElementById('uploadList');
                 var resultList = document.getElementById('resultList');
+                var toastContainer = document.getElementById('toastContainer');
+
+                window.showToast = function(type, message) {
+                    var el = document.createElement('div');
+                    var base = 'pointer-events-auto flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur transition-all duration-300 transform opacity-0 -translate-y-2';
+                    var scheme = type === 'success'
+                        ? 'bg-green-50/95 border-green-200 text-green-800'
+                        : 'bg-red-50/95 border-red-200 text-red-800';
+                    var icon = type === 'success'
+                        ? '<svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>'
+                        : '<svg class="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
+                    el.className = base + ' ' + scheme;
+                    el.innerHTML = icon + '<span>' + message + '</span>';
+                    toastContainer.appendChild(el);
+                    requestAnimationFrame(function() {
+                        el.classList.remove('opacity-0','-translate-y-2');
+                    });
+                    setTimeout(function() {
+                        el.classList.add('opacity-0','-translate-y-2');
+                        setTimeout(function() { el.remove(); }, 300);
+                    }, 2500);
+                };
 
                 ['dragenter','dragover'].forEach(function(e) {
                     dropZone.addEventListener(e, function(ev) { ev.preventDefault(); dropZone.classList.add('border-gray-900','bg-gray-50'); });
@@ -72,14 +97,28 @@
                     xhr.onload = function() {
                         if(xhr.status===200) {
                             var res=JSON.parse(xhr.responseText);
-                            if(res.status&&res.data) { document.getElementById(id).remove(); if(uploadList.children.length===0) uploadList.classList.add('hidden'); showResult(file.name, res.data); }
+                            if(res.status&&res.data) {
+                                document.getElementById(id).remove();
+                                if(uploadList.children.length===0) uploadList.classList.add('hidden');
+                                showResult(file.name, res.data);
+                                showToast('success', '上传成功：' + file.name);
+                            } else {
+                                document.getElementById(id+'_pct').textContent='失败';
+                                document.getElementById(id+'_bar').classList.replace('bg-gray-900','bg-red-500');
+                                document.getElementById(id+'_bar').style.width='100%';
+                                showToast('error', '上传失败：' + (res.message || file.name));
+                            }
                         } else {
                             document.getElementById(id+'_pct').textContent='失败';
                             document.getElementById(id+'_bar').classList.replace('bg-gray-900','bg-red-500');
                             document.getElementById(id+'_bar').style.width='100%';
+                            showToast('error', '上传失败：' + file.name);
                         }
                     };
-                    xhr.onerror = function() { document.getElementById(id+'_pct').textContent='失败'; };
+                    xhr.onerror = function() {
+                        document.getElementById(id+'_pct').textContent='失败';
+                        showToast('error', '网络错误：' + file.name);
+                    };
                     xhr.send(fd);
                 }
 
@@ -95,14 +134,14 @@
                     card.innerHTML = '<div class="flex items-center gap-4 mb-4">'+preview
                         + '<div class="min-w-0"><p class="font-medium text-gray-900 truncate">'+filename+'</p><p class="text-xs text-gray-400 mt-0.5">'+fmtSize(data.size)+' · '+data.mimetype+'</p></div>'
                         + '<div class="ml-auto"><span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-100 rounded-full px-2.5 py-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>已上传</span></div></div>'
-                        + '<div class="space-y-2">'+lr('链接',links.url)+lr('Markdown',links.markdown)+lr('HTML',links.html)+lr('BBCode',links.bbcode)+'</div>';
+                        + '<div class="space-y-2">'+lr('短链接',links.url)+lr('源 URL',links.source_url)+lr('Markdown',links.markdown)+lr('HTML',links.html)+lr('BBCode',links.bbcode)+'</div>';
                     resultList.prepend(card);
                 }
 
                 function lr(label, val) {
                     if(!val) return '';
                     var e=val.replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                    return '<div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2"><span class="text-xs text-gray-400 w-16 shrink-0">'+label+'</span>'
+                    return '<div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2"><span class="text-xs text-gray-400 w-20 shrink-0">'+label+'</span>'
                         + '<input type="text" readonly value="'+e+'" class="flex-1 bg-transparent text-sm text-gray-700 outline-none truncate" onclick="this.select()">'
                         + '<button onclick="copyText(this,\''+e+'\')" class="text-xs text-gray-400 hover:text-gray-900 transition shrink-0 px-2 py-1 rounded hover:bg-gray-200">复制</button></div>';
                 }
@@ -128,7 +167,7 @@
         </div>
     </main>
 
-    {{template "footer"}}
+    {{template "footer" .}}
 </body>
 </html>
 {{end}}

@@ -59,7 +59,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	var err error
 
 	if req.Role == "admin" {
-		user, err = h.authSvc.CreateAdminUser(c.Request.Context(), req.Username, req.Email, req.Password)
+		user, err = h.authSvc.CreateAdminUser(c.Request.Context(), req.Username, req.Email, req.Password, false)
 	} else {
 		user, err = h.authSvc.Register(c.Request.Context(), req.Username, req.Email, req.Password)
 	}

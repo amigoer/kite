@@ -1,13 +1,22 @@
 import { useState } from "react";
-import { Navigate, Link, useLocation } from "react-router-dom";
+import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import { PageTransition } from "@/components/page-transition";
-import { Menu } from "lucide-react";
+import { Bell, Menu, User as UserIcon, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import { Sidebar } from "@/components/layouts/sidebar";
 import { Button } from "@/components/ui/button";
 import { KiteLogo } from "@/components/kite-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -15,10 +24,23 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+const pageTitleMap: Record<string, string> = {
+  "/dashboard": "nav.dashboard",
+  "/files": "nav.files",
+  "/albums": "nav.albums",
+  "/tokens": "nav.tokens",
+  "/profile": "profile.title",
+  "/admin/files": "nav.adminFiles",
+  "/admin/storage": "nav.storage",
+  "/admin/users": "nav.users",
+  "/admin/settings": "nav.settings",
+};
+
 export default function AppLayout() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const { t } = useI18n();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) {
@@ -40,12 +62,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background relative">
-      {/* Floating Theme Toggle (Desktop only) */}
-      <div className="absolute top-4 right-6 z-50 hidden md:block">
-        <ThemeToggle />
-      </div>
-
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden shrink-0 border-r md:flex">
         <Sidebar />
@@ -70,7 +87,7 @@ export default function AppLayout() {
                 <span className="font-semibold tracking-tight">Kite</span>
               </Link>
             </div>
-            
+
             <ThemeToggle />
           </header>
           <SheetContent side="left" className="w-[220px] p-0">
@@ -79,39 +96,100 @@ export default function AppLayout() {
           </SheetContent>
         </Sheet>
 
-        {/* Scrollable content + footer */}
-        <main className="flex flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto w-full max-w-screen-2xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Desktop header */}
+        <header className="hidden h-14 shrink-0 border-b md:flex">
+          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
+              {pageTitleMap[location.pathname] ? (
+                <span>{t(pageTitleMap[location.pathname])}</span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Notifications"
+              >
+                <Bell className="size-4" />
+              </Button>
+              <ThemeToggle />
+              <div className="mx-1 h-5 w-px bg-border" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <Avatar className="size-5">
+                      <AvatarFallback className="text-[10px] font-medium">
+                        {user.username?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">{user.username}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium leading-none">
+                        {user.username}
+                      </span>
+                      <span className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {user.email ?? ""}
+                      </span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <UserIcon className="size-4" />
+                    {t("profile.title")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={logout}>
+                    <LogOut className="size-4" />
+                    {t("auth.logout")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
             <PageTransition />
           </div>
-
-          {/* Footer — h-14 + border-t matches sidebar bottom */}
-          <footer className="mt-auto flex h-14 shrink-0 border-t">
-            <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 text-xs text-muted-foreground sm:px-6 lg:px-8">
-              <div className="flex items-center gap-1.5">
-                <KiteLogo className="size-4" />
-                <span className="font-medium text-foreground/70">Kite</span>
-                <span className="mx-0.5 text-border">·</span>
-                <span className="hidden sm:inline">{t("footer.description")}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <a
-                  href="https://github.com/amigoer/kite"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-                >
-                  <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                  </svg>
-                  <span className="hidden sm:inline">GitHub</span>
-                </a>
-                <span className="text-border">·</span>
-                <span>&copy; 2026 Kite</span>
-              </div>
-            </div>
-          </footer>
         </main>
+
+        {/* Footer — sticky at bottom, h-14 + border-t matches sidebar bottom */}
+        <footer className="flex h-14 shrink-0 border-t bg-background">
+          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 text-xs text-muted-foreground sm:px-6 lg:px-8">
+            <div className="flex items-center gap-1.5">
+              <KiteLogo className="size-4" />
+              <span className="font-medium text-foreground/70">Kite</span>
+              <span className="mx-0.5 text-border">·</span>
+              <span className="hidden sm:inline">{t("footer.description")}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://github.com/amigoer/kite"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+              >
+                <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <span className="hidden sm:inline">GitHub</span>
+              </a>
+              <span className="text-border">·</span>
+              <span>&copy; 2026 Kite</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

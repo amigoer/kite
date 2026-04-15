@@ -75,7 +75,8 @@ type UploadResult struct {
 
 // FileLinks 各种格式的访问链接（兼容兰空格式）。
 type FileLinks struct {
-	URL              string `json:"url"`
+	URL              string `json:"url"`               // 短链接，形如 /i/{hash}
+	SourceURL        string `json:"source_url,omitempty"` // 原始存储 URL，指向存储后端中的真实路径
 	HTML             string `json:"html"`
 	BBCode           string `json:"bbcode"`
 	Markdown         string `json:"markdown"`
@@ -169,7 +170,8 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		if err == nil {
 			thumbKey := "thumb/" + storageKey
 			if putErr := driver.Put(ctx, thumbKey, thumbBuf, int64(thumbBuf.Len()), "image/jpeg"); putErr == nil {
-				u := driver.URL(thumbKey)
+				// 使用短链 /t/:hash，由 ServeThumbnail 从存储流式读取，避免依赖存储 BaseURL 的可访问性
+				u := s.siteURL + "/t/" + hashMD5[:8]
 				thumbURL = &u
 			}
 		}
@@ -261,6 +263,16 @@ func (s *FileService) GetFileContent(ctx context.Context, file *model.File) (io.
 	return driver.Get(ctx, file.StorageKey)
 }
 
+// GetThumbContent 获取缩略图内容流（用于 /t/:hash 短链服务）。
+// 缩略图的存储 key 固定为 "thumb/" + file.StorageKey。
+func (s *FileService) GetThumbContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
+	driver, err := s.storageMgr.Get(file.StorageConfigID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get storage driver: %w", err)
+	}
+	return driver.Get(ctx, "thumb/"+file.StorageKey)
+}
+
 // GetFileByHash 通过 MD5 哈希前缀查找文件（用于公开访问链接）。
 func (s *FileService) GetFileByHash(ctx context.Context, hashPrefix string) (*model.File, error) {
 	// 通过 hash 前缀查询
@@ -323,6 +335,9 @@ func (s *FileService) generateLinks(file *model.File) FileLinks {
 		BBCode:           fmt.Sprintf(`[img]%s[/img]`, file.URL),
 		Markdown:         fmt.Sprintf(`![%s](%s)`, file.OriginalName, file.URL),
 		MarkdownWithLink: fmt.Sprintf(`[![%s](%s)](%s)`, file.OriginalName, file.URL, file.URL),
+	}
+	if driver, err := s.storageMgr.Get(file.StorageConfigID); err == nil {
+		links.SourceURL = driver.URL(file.StorageKey)
 	}
 	if file.ThumbURL != nil {
 		links.ThumbnailURL = *file.ThumbURL

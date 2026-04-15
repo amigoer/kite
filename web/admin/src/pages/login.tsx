@@ -29,9 +29,23 @@ export default function LoginPage() {
       navigate(redirectTo, { replace: true });
     } catch (err) {
       await minDelay;
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? "账号或密码错误，请重试";
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      const backendMsg = (
+        err as { response?: { data?: { message?: string } } }
+      )?.response?.data?.message;
+      let msg = "登录失败，请稍后重试";
+      if (status === 401) {
+        msg = "账号或密码错误，请重试";
+      } else if (status === 403) {
+        msg = "账号已被停用，请联系管理员";
+      } else if (status === 429) {
+        msg = "尝试过于频繁，请稍后再试";
+      } else if (status && status >= 500) {
+        msg = "服务暂时不可用，请稍后再试";
+      } else if (backendMsg) {
+        msg = backendMsg;
+      }
       toast.error(msg);
     } finally {
       setLoading(false);
