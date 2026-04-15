@@ -89,3 +89,4 @@ logs/
 web/admin/public/login-bg.jpg
 kite
 .agents/rules/dev-env.md
+.claude/settings.local.json
