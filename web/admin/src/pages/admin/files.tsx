@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Trash2,
   FileText,
+  LayoutGrid,
+  List,
   Search,
   Copy,
   Check,
@@ -63,6 +65,7 @@ export default function AdminFilesPage() {
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [fileType, setFileType] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [detailFile, setDetailFile] = useState<FileItem | null>(null);
   const [copied, setCopied] = useState("");
 
@@ -140,149 +143,240 @@ export default function AdminFilesPage() {
             </Button>
           ))}
         </div>
+        <div className="ml-auto inline-flex items-center gap-1 rounded-lg border bg-background p-1">
+          <Button
+            size="icon-sm"
+            variant={viewMode === "table" ? "default" : "ghost"}
+            onClick={() => setViewMode("table")}
+            title="列表视图"
+          >
+            <List className="size-4" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant={viewMode === "grid" ? "default" : "ghost"}
+            onClick={() => setViewMode("grid")}
+            title="网格视图"
+          >
+            <LayoutGrid className="size-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* File Table */}
+      {/* File List/Grid */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 rounded-lg" />
-          ))}
-        </div>
+        viewMode === "table" ? (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-44 rounded-lg" />
+            ))}
+          </div>
+        )
       ) : (
         <>
-          {/* Desktop table */}
-          <div className="hidden overflow-hidden rounded-xl border sm:block">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead>{t("files.fileName")}</TableHead>
-                  <TableHead>{t("files.uploader")}</TableHead>
-                  <TableHead>{t("common.type")}</TableHead>
-                  <TableHead>{t("common.size")}</TableHead>
-                  <TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          {viewMode === "table" ? (
+            <>
+              <div className="hidden overflow-hidden rounded-xl border sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead>{t("files.fileName")}</TableHead>
+                      <TableHead>{t("files.uploader")}</TableHead>
+                      <TableHead>{t("common.type")}</TableHead>
+                      <TableHead>{t("common.size")}</TableHead>
+                      <TableHead className="w-20" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.items?.map((file: FileItem) => {
+                      const fi = getFileIconInfo(file);
+                      const Icon = fi.icon;
+                      const previewUrl = file.file_type === "image" ? (file.thumb_url || file.url) : null;
+                      return (
+                        <TableRow
+                          key={file.id}
+                          className="cursor-pointer"
+                          onClick={() => setDetailFile(file)}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-3 min-w-0">
+                              {previewUrl ? (
+                                <img
+                                  src={previewUrl}
+                                  className="size-8 shrink-0 rounded-md object-cover"
+                                  alt=""
+                                />
+                              ) : (
+                                <div className={`flex size-8 shrink-0 items-center justify-center rounded-md ${fi.bg}`}>
+                                  <Icon className={`size-4 ${fi.color}`} />
+                                </div>
+                              )}
+                              <span className="truncate font-medium">
+                                {file.original_name}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {file.user_id === "guest"
+                              ? t("files.guest")
+                              : file.user_id.slice(0, 8)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {getFileTypeLabel(file)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatBytes(file.size_bytes)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="icon-xs"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyUrl(file.url, file.id);
+                                }}
+                              >
+                                {copied === file.id ? (
+                                  <Check className="size-3" />
+                                ) : (
+                                  <Copy className="size-3" />
+                                )}
+                              </Button>
+                              <Button
+                                size="icon-xs"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteMutation.mutate(file.id);
+                                }}
+                              >
+                                <Trash2 className="size-3 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="space-y-3 sm:hidden">
                 {data?.items?.map((file: FileItem) => {
                   const fi = getFileIconInfo(file);
                   const Icon = fi.icon;
+                  const previewUrl = file.file_type === "image" ? (file.thumb_url || file.url) : null;
                   return (
-                    <TableRow
+                    <div
                       key={file.id}
-                      className="cursor-pointer"
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3"
                       onClick={() => setDetailFile(file)}
                     >
-                      <TableCell>
-                        <div className="flex items-center gap-3 min-w-0">
-                          {file.file_type === "image" && file.thumb_url ? (
-                            <img
-                              src={file.thumb_url}
-                              className="size-8 shrink-0 rounded-md object-cover"
-                              alt=""
-                            />
-                          ) : (
-                            <div className={`flex size-8 shrink-0 items-center justify-center rounded-md ${fi.bg}`}>
-                              <Icon className={`size-4 ${fi.color}`} />
-                            </div>
-                          )}
-                          <span className="truncate font-medium">
-                            {file.original_name}
-                          </span>
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          className="size-10 shrink-0 rounded-lg object-cover"
+                          alt=""
+                        />
+                      ) : (
+                        <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${fi.bg}`}>
+                          <Icon className={`size-5 ${fi.color}`} />
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {file.user_id === "guest"
-                          ? t("files.guest")
-                          : file.user_id.slice(0, 8)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {getFileTypeLabel(file)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatBytes(file.size_bytes)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyUrl(file.url, file.id);
-                            }}
-                          >
-                            {copied === file.id ? (
-                              <Check className="size-3" />
-                            ) : (
-                              <Copy className="size-3" />
-                            )}
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteMutation.mutate(file.id);
-                            }}
-                          >
-                            <Trash2 className="size-3 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {file.original_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatBytes(file.size_bytes)} · {getFileTypeLabel(file)}
+                        </p>
+                      </div>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMutation.mutate(file.id);
+                        }}
+                      >
+                        <Trash2 className="size-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="space-y-3 sm:hidden">
-            {data?.items?.map((file: FileItem) => {
-              const fi = getFileIconInfo(file);
-              const Icon = fi.icon;
-              return (
-                <div
-                  key={file.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3"
-                  onClick={() => setDetailFile(file)}
-                >
-                  {file.file_type === "image" && file.thumb_url ? (
-                    <img
-                      src={file.thumb_url}
-                      className="size-10 shrink-0 rounded-lg object-cover"
-                      alt=""
-                    />
-                  ) : (
-                    <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${fi.bg}`}>
-                      <Icon className={`size-5 ${fi.color}`} />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {file.original_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatBytes(file.size_bytes)} · {getFileTypeLabel(file)}
-                    </p>
-                  </div>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteMutation.mutate(file.id);
-                    }}
+              </div>
+            </>
+          ) : (
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+              {data?.items?.map((file: FileItem) => {
+                const fi = getFileIconInfo(file);
+                const Icon = fi.icon;
+                const previewUrl = file.file_type === "image" ? (file.thumb_url || file.url) : null;
+                return (
+                  <div
+                    key={file.id}
+                    className="group relative overflow-hidden rounded-lg border bg-card cursor-pointer"
+                    onClick={() => setDetailFile(file)}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
+                    <div className="flex h-28 items-center justify-center bg-muted/30">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={file.original_name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className={`flex size-12 items-center justify-center rounded-xl ${fi.bg}`}>
+                          <Icon className={`size-6 ${fi.color}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="truncate text-sm font-medium">{file.original_name}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[10px]">{getFileTypeLabel(file)}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
+                      </div>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {file.user_id === "guest" ? t("files.guest") : file.user_id.slice(0, 8)}
+                      </p>
+                    </div>
+                    <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        size="icon-xs"
+                        variant="secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyUrl(file.url, file.id);
+                        }}
+                      >
+                        {copied === file.id ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMutation.mutate(file.id);
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {data?.items?.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">

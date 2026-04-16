@@ -5,6 +5,8 @@ import {
   Trash2,
   Copy,
   FileText,
+  LayoutGrid,
+  List,
   Search,
   Check,
   ExternalLink,
@@ -68,6 +70,7 @@ export default function FilesPage() {
   const [detailFile, setDetailFile] = useState<FileItem | null>(null);
   const [uploads, setUploads] = useState<UploadTask[]>([]);
   const [copied, setCopied] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
@@ -276,68 +279,146 @@ export default function FilesPage() {
             </Button>
           ))}
         </div>
+        <div className="ml-auto inline-flex items-center gap-1 rounded-lg border bg-background p-1">
+          <Button
+            size="icon-sm"
+            variant={viewMode === "grid" ? "default" : "ghost"}
+            onClick={() => setViewMode("grid")}
+            title="网格视图"
+          >
+            <LayoutGrid className="size-4" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant={viewMode === "list" ? "default" : "ghost"}
+            onClick={() => setViewMode("list")}
+            title="列表视图"
+          >
+            <List className="size-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* File Grid */}
+      {/* File List/Grid */}
       {isLoading ? (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-lg" />
-          ))}
-        </div>
+        viewMode === "grid" ? (
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-48 rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-lg" />
+            ))}
+          </div>
+        )
       ) : (
         <>
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {data?.items?.map((file: FileItem) => {
-              const fi = getFileIconInfo(file);
-              const Icon = fi.icon;
-              return (
-                <div
-                  key={file.id}
-                  className="group relative overflow-hidden rounded-lg border bg-card cursor-pointer"
-                  onClick={() => setDetailFile(file)}
-                >
-                  <div className="flex h-32 items-center justify-center bg-muted/30">
-                    {file.file_type === "image" && file.thumb_url ? (
-                      <img
-                        src={file.thumb_url}
-                        alt={file.original_name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className={`flex size-14 items-center justify-center rounded-xl ${fi.bg}`}>
-                        <Icon className={`size-7 ${fi.color}`} />
+          {viewMode === "grid" ? (
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {data?.items?.map((file: FileItem) => {
+                const fi = getFileIconInfo(file);
+                const Icon = fi.icon;
+                const previewUrl = file.file_type === "image" ? (file.thumb_url || file.url) : null;
+                return (
+                  <div
+                    key={file.id}
+                    className="group relative overflow-hidden rounded-lg border bg-card cursor-pointer"
+                    onClick={() => setDetailFile(file)}
+                  >
+                    <div className="flex h-32 items-center justify-center bg-muted/30">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={file.original_name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className={`flex size-14 items-center justify-center rounded-xl ${fi.bg}`}>
+                          <Icon className={`size-7 ${fi.color}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="truncate text-sm font-medium">{file.original_name}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[10px]">{getFileTypeLabel(file)}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
                       </div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="truncate text-sm font-medium">{file.original_name}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px]">{getFileTypeLabel(file)}</Badge>
-                      <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
+                    </div>
+                    <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        size="icon-xs"
+                        variant="secondary"
+                        onClick={(e) => { e.stopPropagation(); copyUrl(file.url, file.id); }}
+                      >
+                        {copied === file.id ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="destructive"
+                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(file.id); }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
                     </div>
                   </div>
-                  {/* Quick actions */}
-                  <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                      size="icon-xs"
-                      variant="secondary"
-                      onClick={(e) => { e.stopPropagation(); copyUrl(file.url, file.id); }}
-                    >
-                      {copied === file.id ? <Check className="size-3" /> : <Copy className="size-3" />}
-                    </Button>
-                    <Button
-                      size="icon-xs"
-                      variant="destructive"
-                      onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(file.id); }}
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data?.items?.map((file: FileItem) => {
+                const fi = getFileIconInfo(file);
+                const Icon = fi.icon;
+                const previewUrl = file.file_type === "image" ? (file.thumb_url || file.url) : null;
+                return (
+                  <div
+                    key={file.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2.5"
+                    onClick={() => setDetailFile(file)}
+                  >
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt={file.original_name}
+                        className="size-10 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${fi.bg}`}>
+                        <Icon className={`size-5 ${fi.color}`} />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{file.original_name}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[10px]">{getFileTypeLabel(file)}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={(e) => { e.stopPropagation(); copyUrl(file.url, file.id); }}
+                      >
+                        {copied === file.id ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(file.id); }}
+                      >
+                        <Trash2 className="size-3 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {data?.items?.length === 0 && (
             <div className="flex flex-col items-center py-20 text-center">
