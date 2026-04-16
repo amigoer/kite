@@ -120,7 +120,7 @@ export function useAuthProvider(): AuthContextValue {
     localStorage.removeItem("refresh_token");
     writeCachedUser(null);
     setUser(null);
-    authApi.logout().catch(() => {});
+    authApi.logout().catch(() => { });
     toast.success("已安全退出登录");
   }, []);
 

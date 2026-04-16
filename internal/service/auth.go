@@ -45,9 +45,9 @@ type TokenPair struct {
 
 // AuthService 认证业务逻辑。
 type AuthService struct {
-	userRepo     *repo.UserRepo
-	tokenRepo    *repo.APITokenRepo
-	cfg          config.AuthConfig
+	userRepo  *repo.UserRepo
+	tokenRepo *repo.APITokenRepo
+	cfg       config.AuthConfig
 }
 
 func NewAuthService(userRepo *repo.UserRepo, tokenRepo *repo.APITokenRepo, cfg config.AuthConfig) *AuthService {
