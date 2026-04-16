@@ -4,9 +4,6 @@ import {
   Upload,
   Trash2,
   Copy,
-  Image,
-  Video,
-  Music,
   FileText,
   Search,
   Check,
@@ -30,13 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-
-const typeIcons: Record<string, typeof FileText> = {
-  image: Image,
-  video: Video,
-  audio: Music,
-  file: FileText,
-};
+import { getFileIconInfo, getFileTypeLabel } from "@/lib/file-utils";
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -298,7 +289,8 @@ export default function FilesPage() {
         <>
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {data?.items?.map((file: FileItem) => {
-              const Icon = typeIcons[file.file_type] ?? FileText;
+              const fi = getFileIconInfo(file);
+              const Icon = fi.icon;
               return (
                 <div
                   key={file.id}
@@ -313,13 +305,15 @@ export default function FilesPage() {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <Icon className="size-10 text-muted-foreground/50" />
+                      <div className={`flex size-14 items-center justify-center rounded-xl ${fi.bg}`}>
+                        <Icon className={`size-7 ${fi.color}`} />
+                      </div>
                     )}
                   </div>
                   <div className="p-3">
                     <p className="truncate text-sm font-medium">{file.original_name}</p>
                     <div className="mt-1 flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px]">{file.file_type}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">{getFileTypeLabel(file)}</Badge>
                       <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
                     </div>
                   </div>
@@ -403,7 +397,11 @@ export default function FilesPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground">{t("common.type")}</span>
-                  <p className="font-medium">{detailFile.mime_type}</p>
+                  <p className="font-medium">{getFileTypeLabel(detailFile)}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">MIME</span>
+                  <p className="font-medium text-xs break-all">{detailFile.mime_type}</p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">{t("common.size")}</span>

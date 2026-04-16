@@ -2,9 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Trash2,
-  Image,
-  Video,
-  Music,
   FileText,
   Search,
   Copy,
@@ -35,13 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const typeIcons: Record<string, typeof FileText> = {
-  image: Image,
-  video: Video,
-  audio: Music,
-  file: FileText,
-};
+import { getFileIconInfo, getFileTypeLabel } from "@/lib/file-utils";
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -174,7 +165,8 @@ export default function AdminFilesPage() {
               </TableHeader>
               <TableBody>
                 {data?.items?.map((file: FileItem) => {
-                  const Icon = typeIcons[file.file_type] ?? FileText;
+                  const fi = getFileIconInfo(file);
+                  const Icon = fi.icon;
                   return (
                     <TableRow
                       key={file.id}
@@ -190,8 +182,8 @@ export default function AdminFilesPage() {
                               alt=""
                             />
                           ) : (
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                              <Icon className="size-4 text-muted-foreground" />
+                            <div className={`flex size-8 shrink-0 items-center justify-center rounded-md ${fi.bg}`}>
+                              <Icon className={`size-4 ${fi.color}`} />
                             </div>
                           )}
                           <span className="truncate font-medium">
@@ -206,7 +198,7 @@ export default function AdminFilesPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-[10px]">
-                          {file.file_type}
+                          {getFileTypeLabel(file)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -250,7 +242,8 @@ export default function AdminFilesPage() {
           {/* Mobile cards */}
           <div className="space-y-3 sm:hidden">
             {data?.items?.map((file: FileItem) => {
-              const Icon = typeIcons[file.file_type] ?? FileText;
+              const fi = getFileIconInfo(file);
+              const Icon = fi.icon;
               return (
                 <div
                   key={file.id}
@@ -264,8 +257,8 @@ export default function AdminFilesPage() {
                       alt=""
                     />
                   ) : (
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                      <Icon className="size-5 text-muted-foreground" />
+                    <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${fi.bg}`}>
+                      <Icon className={`size-5 ${fi.color}`} />
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
@@ -273,7 +266,7 @@ export default function AdminFilesPage() {
                       {file.original_name}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatBytes(file.size_bytes)} · {file.file_type}
+                      {formatBytes(file.size_bytes)} · {getFileTypeLabel(file)}
                     </p>
                   </div>
                   <Button
@@ -355,7 +348,13 @@ export default function AdminFilesPage() {
                   <span className="text-xs text-muted-foreground">
                     {t("common.type")}
                   </span>
-                  <p className="font-medium">{detailFile.mime_type}</p>
+                  <p className="font-medium">{getFileTypeLabel(detailFile)}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">
+                    MIME
+                  </span>
+                  <p className="font-medium text-xs break-all">{detailFile.mime_type}</p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">
