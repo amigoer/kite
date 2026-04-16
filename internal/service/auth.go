@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/amigoer/kite/internal/config"
@@ -205,9 +206,9 @@ func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, pass
 	return user, nil
 }
 
-// UpdateProfile 更新当前登录用户的基本资料（用户名、邮箱）。
+// UpdateProfile 更新当前登录用户的基本资料（用户名、昵称、邮箱、头像）。
 // 不涉及密码修改；若用户名或邮箱发生变化会进行唯一性校验。
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, newEmail string) (*model.User, error) {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername string, newNickname *string, newEmail string, newAvatarURL *string) (*model.User, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
@@ -224,7 +225,23 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, ne
 	}
 
 	user.Username = newUsername
+	if newNickname != nil {
+		nickname := strings.TrimSpace(*newNickname)
+		if nickname == "" {
+			user.Nickname = nil
+		} else {
+			user.Nickname = &nickname
+		}
+	}
 	user.Email = newEmail
+	if newAvatarURL != nil {
+		avatar := strings.TrimSpace(*newAvatarURL)
+		if avatar == "" {
+			user.AvatarURL = nil
+		} else {
+			user.AvatarURL = &avatar
+		}
+	}
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, fmt.Errorf("update user: %w", err)
 	}

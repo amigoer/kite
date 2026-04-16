@@ -45,6 +45,7 @@ import { toast } from "sonner";
 interface UserItem {
   id: string;
   username: string;
+  nickname?: string;
   email: string;
   role: string;
   storage_used: number;
@@ -68,6 +69,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [form, setForm] = useState({
     username: "",
+    nickname: "",
     email: "",
     password: "",
     role: "user",
@@ -85,6 +87,7 @@ export default function UsersPage() {
     mutationFn: () =>
       userApi.create({
         username: form.username,
+        nickname: form.nickname,
         email: form.email,
         password: form.password,
         role: form.role,
@@ -111,6 +114,7 @@ export default function UsersPage() {
         storage_limit: parseInt(form.storage_limit),
       };
       if (form.email) payload.email = form.email;
+      payload.nickname = form.nickname;
       if (form.password) payload.password = form.password;
       return userApi.update(editingUser!.id, payload);
     },
@@ -140,6 +144,7 @@ export default function UsersPage() {
     setEditingUser(null);
     setForm({
       username: "",
+      nickname: "",
       email: "",
       password: "",
       role: "user",
@@ -154,6 +159,7 @@ export default function UsersPage() {
     setEditingUser(user);
     setForm({
       username: user.username,
+      nickname: user.nickname ?? "",
       email: user.email,
       password: "",
       role: user.role,
@@ -219,7 +225,14 @@ export default function UsersPage() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        {user.username}
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">
+                            {user.nickname?.trim() || user.username}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            @{user.username}
+                          </div>
+                        </div>
                         {!user.is_active && (
                           <Badge variant="outline" className="text-[10px]">
                             {t("common.disabled")}
@@ -274,7 +287,7 @@ export default function UsersPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{user.username}</span>
+                      <span className="text-sm font-medium">{user.nickname?.trim() || user.username}</span>
                       <Badge
                         variant={user.role === "admin" ? "default" : "secondary"}
                         className="text-[10px]"
@@ -287,6 +300,7 @@ export default function UsersPage() {
                         </Badge>
                       )}
                     </div>
+                    <p className="mt-1 text-xs text-muted-foreground">@{user.username}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{user.email}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {formatBytes(user.storage_used)}
@@ -336,7 +350,7 @@ export default function UsersPage() {
               >
                 <ChevronLeft className="size-4" />
               </Button>
-              <span className="min-w-[60px] text-center text-sm text-muted-foreground">
+              <span className="min-w-15 text-center text-sm text-muted-foreground">
                 {page} / {totalPages}
               </span>
               <Button
@@ -367,6 +381,16 @@ export default function UsersPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+            <div className="space-y-2">
+              <Label>{t("profile.nickname")}</Label>
+              <Input
+                value={form.nickname}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nickname: e.target.value }))
+                }
+                placeholder={t("profile.nicknamePlaceholder")}
+              />
+            </div>
             <div className="space-y-2">
               <Label>{t("users.username")}</Label>
               <Input

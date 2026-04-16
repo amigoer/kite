@@ -8,7 +8,7 @@ import { Sidebar } from "@/components/layouts/sidebar";
 import { Button } from "@/components/ui/button";
 import { KiteLogo } from "@/components/kite-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -24,17 +24,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const pageTitleMap: Record<string, string> = {
-  "/dashboard": "nav.dashboard",
-  "/files": "nav.files",
-  "/albums": "nav.albums",
-  "/tokens": "nav.tokens",
-  "/profile": "profile.title",
-  "/admin/files": "nav.adminFiles",
-  "/admin/storage": "nav.storage",
-  "/admin/users": "nav.users",
-  "/admin/settings": "nav.settings",
-};
+const SIDEBAR_COLLAPSED_KEY = "kite_sidebar_collapsed";
 
 export default function AppLayout() {
   const { user, loading, logout } = useAuth();
@@ -42,6 +32,19 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+  });
+  const displayName = user?.nickname?.trim() || user?.username;
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  };
 
   if (loading) {
     return (
@@ -65,7 +68,7 @@ export default function AppLayout() {
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden shrink-0 border-r md:flex">
-        <Sidebar />
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
       </div>
 
       {/* Right content area */}
@@ -90,7 +93,7 @@ export default function AppLayout() {
 
             <ThemeToggle />
           </header>
-          <SheetContent side="left" className="w-[220px] p-0">
+          <SheetContent side="left" className="w-55 p-0">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             <Sidebar onClose={() => setMobileOpen(false)} />
           </SheetContent>
@@ -98,12 +101,7 @@ export default function AppLayout() {
 
         {/* Desktop header */}
         <header className="hidden h-14 shrink-0 border-b md:flex">
-          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
-              {pageTitleMap[location.pathname] ? (
-                <span>{t(pageTitleMap[location.pathname])}</span>
-              ) : null}
-            </div>
+          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-end px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -123,18 +121,22 @@ export default function AppLayout() {
                     className="gap-2 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                   >
                     <Avatar className="size-5">
+                      <AvatarImage src={user.avatar_url} alt={user.username ?? ""} />
                       <AvatarFallback className="text-[10px] font-medium">
                         {user.username?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{user.username}</span>
+                    <span className="font-medium">{displayName}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col">
                       <span className="text-sm font-medium leading-none">
-                        {user.username}
+                        {displayName}
+                      </span>
+                      <span className="mt-1 truncate text-[11px] text-muted-foreground">
+                        @{user.username}
                       </span>
                       <span className="mt-1 truncate text-[11px] text-muted-foreground">
                         {user.email ?? ""}

@@ -2,10 +2,13 @@ package api
 
 import (
 	"strconv"
+	"strings"
 
+	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UserHandler 用户管理的 HTTP 处理器（管理员专用）。
@@ -41,6 +44,7 @@ func (h *UserHandler) List(c *gin.Context) {
 
 type createUserRequest struct {
 	Username     string `json:"username" binding:"required,min=3,max=32"`
+	Nickname     string `json:"nickname" binding:"max=32"`
 	Email        string `json:"email" binding:"required,email"`
 	Password     string `json:"password" binding:"required,min=6,max=64"`
 	Role         string `json:"role" binding:"required,oneof=admin user"`
@@ -69,10 +73,24 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if createdUser, ok := user.(*model.User); ok {
+		nickname := strings.TrimSpace(req.Nickname)
+		if nickname != "" {
+			createdUser.Nickname = &nickname
+			if err := h.userRepo.Update(c.Request.Context(), createdUser); err != nil {
+				serverError(c, "failed to save user nickname")
+				return
+			}
+		}
+	}
+
 	created(c, user)
 }
 
 type updateUserRequest struct {
+	Nickname     *string `json:"nickname" binding:"omitempty,max=32"`
+	Email        *string `json:"email" binding:"omitempty,email"`
+	Password     *string `json:"password" binding:"omitempty,min=6,max=64"`
 	Role         *string `json:"role" binding:"omitempty,oneof=admin user"`
 	IsActive     *bool   `json:"is_active"`
 	StorageLimit *int64  `json:"storage_limit"`
@@ -96,6 +114,34 @@ func (h *UserHandler) Update(c *gin.Context) {
 
 	if req.Role != nil {
 		user.Role = *req.Role
+	}
+	if req.Nickname != nil {
+		nickname := strings.TrimSpace(*req.Nickname)
+		if nickname == "" {
+			user.Nickname = nil
+		} else {
+			user.Nickname = &nickname
+		}
+	}
+	if req.Email != nil {
+		conflict, conflictErr := h.userRepo.ExistsByUsernameOrEmailExcept(c.Request.Context(), user.Username, *req.Email, user.ID)
+		if conflictErr != nil {
+			serverError(c, "failed to validate user email")
+			return
+		}
+		if conflict {
+			fail(c, 409, 40900, service.ErrUserExists.Error())
+			return
+		}
+		user.Email = *req.Email
+	}
+	if req.Password != nil && strings.TrimSpace(*req.Password) != "" {
+		hash, hashErr := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		if hashErr != nil {
+			serverError(c, "failed to hash password")
+			return
+		}
+		user.PasswordHash = string(hash)
 	}
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive

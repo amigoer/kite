@@ -125,18 +125,22 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	success(c, gin.H{
 		"user_id":              user.ID,
 		"username":             user.Username,
+		"nickname":             user.Nickname,
 		"email":                user.Email,
+		"avatar_url":           user.AvatarURL,
 		"role":                 user.Role,
 		"password_must_change": user.PasswordMustChange,
 	})
 }
 
 type updateProfileRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=32"`
-	Email    string `json:"email" binding:"required,email"`
+	Username  string  `json:"username" binding:"required,min=3,max=32"`
+	Nickname  *string `json:"nickname" binding:"omitempty,max=32"`
+	Email     string  `json:"email" binding:"required,email"`
+	AvatarURL *string `json:"avatar_url" binding:"omitempty,max=512"`
 }
 
-// UpdateProfile 当前登录用户更新自己的用户名与邮箱。
+// UpdateProfile 当前登录用户更新自己的用户名、昵称、邮箱与头像。
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	var req updateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -145,7 +149,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	userID := c.GetString(middleware.ContextKeyUserID)
-	user, err := h.authSvc.UpdateProfile(c.Request.Context(), userID, req.Username, req.Email)
+	user, err := h.authSvc.UpdateProfile(c.Request.Context(), userID, req.Username, req.Nickname, req.Email, req.AvatarURL)
 	if err != nil {
 		if errors.Is(err, service.ErrUserExists) {
 			fail(c, http.StatusConflict, 40900, err.Error())
@@ -156,10 +160,12 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	success(c, gin.H{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"email":    user.Email,
-		"role":     user.Role,
+		"user_id":    user.ID,
+		"username":   user.Username,
+		"nickname":   user.Nickname,
+		"email":      user.Email,
+		"avatar_url": user.AvatarURL,
+		"role":       user.Role,
 	})
 }
 

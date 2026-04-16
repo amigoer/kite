@@ -7,7 +7,9 @@ import "time"
 type User struct {
 	ID                 string    `gorm:"column:id;primaryKey" json:"id"`
 	Username           string    `gorm:"column:username;uniqueIndex;not null" json:"username"`
+	Nickname           *string   `gorm:"column:nickname" json:"nickname,omitempty"`
 	Email              string    `gorm:"column:email;uniqueIndex;not null" json:"email"`
+	AvatarURL          *string   `gorm:"column:avatar_url" json:"avatar_url,omitempty"`
 	PasswordHash       string    `gorm:"column:password_hash;not null" json:"-"`
 	Role               string    `gorm:"column:role;default:user" json:"role"`                            // admin / user
 	StorageLimit       int64     `gorm:"column:storage_limit;default:10737418240" json:"storage_limit"`   // 默认 10GB，-1 无限

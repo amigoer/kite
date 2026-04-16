@@ -11,7 +11,9 @@ import { toast } from "sonner";
 export interface User {
   user_id: string;
   username: string;
+  nickname?: string;
   email?: string;
+  avatar_url?: string;
   role: string;
   password_must_change?: boolean;
 }
