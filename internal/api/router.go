@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/amigoer/kite/internal/api/middleware"
 	"github.com/amigoer/kite/internal/repo"
@@ -216,14 +217,16 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 	}
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
-			"CurrentUser": getOptionalUser(c, cfg.AuthSvc),
+			"CurrentUser": getOptionalUser(c, cfg.AuthSvc, userRepo),
+			"ActiveNav":   "",
 		})
 	})
 	r.GET("/explore", func(c *gin.Context) {
 		val, _ := settingRepo.Get(c.Request.Context(), "allow_public_gallery")
 		c.HTML(http.StatusOK, "explore.html", gin.H{
 			"GalleryEnabled": val == "true",
-			"CurrentUser":    getOptionalUser(c, cfg.AuthSvc),
+			"CurrentUser":    getOptionalUser(c, cfg.AuthSvc, userRepo),
+			"ActiveNav":      "explore",
 		})
 	})
 	r.GET("/upload", func(c *gin.Context) {
@@ -231,7 +234,8 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		val, _ := settingRepo.Get(c.Request.Context(), "allow_guest_upload")
 		c.HTML(http.StatusOK, "upload.html", gin.H{
 			"GuestUploadEnabled": val == "true",
-			"CurrentUser":        getOptionalUser(c, cfg.AuthSvc),
+			"CurrentUser":        getOptionalUser(c, cfg.AuthSvc, userRepo),
+			"ActiveNav":          "upload",
 		})
 	})
 
@@ -283,15 +287,18 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 
 // publicUser 公开页面模板注入的当前登录用户视图（仅包含展示所需字段）。
 type publicUser struct {
-	ID       string
-	Username string
-	Role     string
-	IsAdmin  bool
+	ID          string
+	Username    string
+	DisplayName string
+	AvatarURL   string
+	Initial     string
+	Role        string
+	IsAdmin     bool
 }
 
 // getOptionalUser 尝试从 access_token cookie 解析当前登录用户；无 cookie 或无效时返回 nil。
 // 用于公开落地页（/ /explore /upload）在不强制登录的前提下识别登录态，避免前台模板仍显示“登录”按钮。
-func getOptionalUser(c *gin.Context, authSvc *service.AuthService) *publicUser {
+func getOptionalUser(c *gin.Context, authSvc *service.AuthService, userRepo *repo.UserRepo) *publicUser {
 	cookie, err := c.Cookie("access_token")
 	if err != nil || cookie == "" {
 		return nil
@@ -300,10 +307,41 @@ func getOptionalUser(c *gin.Context, authSvc *service.AuthService) *publicUser {
 	if err != nil {
 		return nil
 	}
-	return &publicUser{
-		ID:       claims.UserID,
-		Username: claims.Username,
-		Role:     claims.Role,
-		IsAdmin:  claims.Role == "admin",
+
+	userView := &publicUser{
+		ID:          claims.UserID,
+		Username:    claims.Username,
+		DisplayName: claims.Username,
+		Role:        claims.Role,
+		IsAdmin:     claims.Role == "admin",
 	}
+
+	if user, getErr := userRepo.GetByID(c.Request.Context(), claims.UserID); getErr == nil {
+		userView.Username = user.Username
+		if user.Nickname != nil {
+			nickname := strings.TrimSpace(*user.Nickname)
+			if nickname != "" {
+				userView.DisplayName = nickname
+			}
+		}
+		if user.AvatarURL != nil {
+			userView.AvatarURL = strings.TrimSpace(*user.AvatarURL)
+		}
+	}
+
+	userView.Initial = nameInitial(userView.Username)
+
+	return userView
+}
+
+func nameInitial(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "U"
+	}
+	r, _ := utf8.DecodeRuneInString(trimmed)
+	if r == utf8.RuneError {
+		return "U"
+	}
+	return strings.ToUpper(string(r))
 }

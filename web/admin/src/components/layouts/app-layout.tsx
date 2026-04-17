@@ -341,7 +341,7 @@ export default function AppLayout() {
             if (!open) setGlobalQuery("");
           }}
         >
-          <DialogContent className="max-h-[min(85vh,600px)] w-[min(90vw,500px)] gap-0 overflow-hidden border-border/80 p-0 shadow-2xl md:max-h-[600px] md:w-170 [&>button]:hidden">
+          <DialogContent className="max-h-[min(85vh,600px)] w-[min(90vw,500px)] gap-0 overflow-hidden border-border/80 p-0 shadow-2xl md:max-h-150 md:w-170 [&>button]:hidden">
             <DialogTitle className="sr-only">Search</DialogTitle>
             <Command shouldFilter={false} className="rounded-none">
               <CommandInput
