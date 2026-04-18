@@ -512,13 +512,11 @@ export default function FilesPage() {
                 ].map((link) => (
                   <div key={link.label} className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
                     <span className="text-xs text-muted-foreground w-16 shrink-0">{link.label}</span>
-                    <input
-                      type="text"
-                      readOnly
-                      value={link.value}
-                      className="min-w-0 flex-1 bg-transparent text-xs outline-none truncate"
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
+                    <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <code className="block w-max min-w-full whitespace-nowrap bg-transparent text-xs text-foreground/90">
+                        {link.value}
+                      </code>
+                    </div>
                     <Button
                       size="icon-xs"
                       variant="ghost"
