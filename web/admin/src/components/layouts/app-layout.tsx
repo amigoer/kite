@@ -57,6 +57,7 @@ const routeLabelKeys: Record<string, string> = {
   "/user/dashboard": "nav.dashboard",
   "/user/files": "nav.files",
   "/user/albums": "nav.albums",
+  "/user/folders": "nav.albums",
   "/user/tokens": "nav.tokens",
   "/user/profile": "profile.title",
   "/admin": "nav.adminPanel",
@@ -113,7 +114,7 @@ export default function AppLayout() {
     const base: SearchTarget[] = [
       { to: "/user/dashboard", label: t("nav.dashboard"), group: workspaceGroup, keywords: "home stats" },
       { to: "/user/files", label: t("nav.files"), group: workspaceGroup, keywords: "upload media" },
-      { to: "/user/albums", label: t("nav.albums"), group: workspaceGroup, keywords: "gallery collections" },
+      { to: "/user/folders", label: t("nav.albums"), group: workspaceGroup, keywords: "folder directory hierarchy" },
       { to: "/user/tokens", label: t("nav.tokens"), group: workspaceGroup, keywords: "api key" },
       { to: "/user/profile", label: t("profile.title"), group: workspaceGroup, keywords: "account user" },
     ];

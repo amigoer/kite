@@ -24,6 +24,16 @@ type createAlbumRequest struct {
 	Name        string `json:"name" binding:"required,max=100"`
 	Description string `json:"description" binding:"max=500"`
 	IsPublic    bool   `json:"is_public"`
+	ParentID    string `json:"parent_id"`
+}
+
+type albumListData struct {
+	Items         []model.Album `json:"items"`
+	Total         int64         `json:"total"`
+	Page          int           `json:"page"`
+	Size          int           `json:"size"`
+	CurrentFolder *model.Album  `json:"current_folder,omitempty"`
+	Ancestors     []model.Album `json:"ancestors,omitempty"`
 }
 
 // Create 创建相册。
@@ -43,6 +53,14 @@ func (h *AlbumHandler) Create(c *gin.Context) {
 		Description: req.Description,
 		IsPublic:    req.IsPublic,
 	}
+	if req.ParentID != "" {
+		parent, err := h.albumRepo.GetByID(c.Request.Context(), req.ParentID)
+		if err != nil || parent.UserID != userID {
+			badRequest(c, "invalid parent folder")
+			return
+		}
+		album.ParentID = &req.ParentID
+	}
 
 	if err := h.albumRepo.Create(c.Request.Context(), album); err != nil {
 		serverError(c, "failed to create album")
@@ -52,11 +70,12 @@ func (h *AlbumHandler) Create(c *gin.Context) {
 	created(c, album)
 }
 
-// List 获取当前用户的相册列表。
+// List 获取当前用户在指定目录下的文件夹列表。
 func (h *AlbumHandler) List(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	parentID := c.Query("parent_id")
 	if page < 1 {
 		page = 1
 	}
@@ -64,25 +83,53 @@ func (h *AlbumHandler) List(c *gin.Context) {
 		size = 20
 	}
 
-	albums, total, err := h.albumRepo.ListByUser(c.Request.Context(), userID, page, size)
+	var parentIDPtr *string
+	var currentFolder *model.Album
+	var ancestors []model.Album
+	if parentID != "" {
+		parentIDPtr = &parentID
+		folder, err := h.albumRepo.GetByID(c.Request.Context(), parentID)
+		if err != nil || folder.UserID != userID {
+			notFound(c, "folder not found")
+			return
+		}
+		currentFolder = folder
+		ancestors, err = h.albumRepo.ListAncestors(c.Request.Context(), userID, parentID)
+		if err != nil {
+			serverError(c, "failed to load folder path")
+			return
+		}
+	}
+
+	albums, total, err := h.albumRepo.ListByUser(c.Request.Context(), userID, parentIDPtr, page, size)
 	if err != nil {
 		serverError(c, "failed to list albums")
 		return
 	}
 
-	// 填充每个相册的文件数量
+	// 填充每个文件夹的子文件夹数量和文件数量
 	for i := range albums {
 		count, _ := h.fileRepo.CountByAlbum(c.Request.Context(), albums[i].ID)
 		albums[i].FileCount = count
+		folderCount, _ := h.albumRepo.CountChildren(c.Request.Context(), albums[i].ID)
+		albums[i].FolderCount = folderCount
 	}
 
-	paged(c, albums, total, page, size)
+	success(c, albumListData{
+		Items:         albums,
+		Total:         total,
+		Page:          page,
+		Size:          size,
+		CurrentFolder: currentFolder,
+		Ancestors:     ancestors,
+	})
 }
 
 type updateAlbumRequest struct {
 	Name        *string `json:"name" binding:"omitempty,max=100"`
 	Description *string `json:"description" binding:"omitempty,max=500"`
 	IsPublic    *bool   `json:"is_public"`
+	ParentID    *string `json:"parent_id"`
 }
 
 // Update 更新相册。
@@ -116,6 +163,33 @@ func (h *AlbumHandler) Update(c *gin.Context) {
 	if req.IsPublic != nil {
 		album.IsPublic = *req.IsPublic
 	}
+	if req.ParentID != nil {
+		if *req.ParentID == "" {
+			album.ParentID = nil
+		} else {
+			if *req.ParentID == album.ID {
+				badRequest(c, "folder cannot be its own parent")
+				return
+			}
+			parent, err := h.albumRepo.GetByID(c.Request.Context(), *req.ParentID)
+			if err != nil || parent.UserID != userID {
+				badRequest(c, "invalid parent folder")
+				return
+			}
+			ancestors, err := h.albumRepo.ListAncestors(c.Request.Context(), userID, *req.ParentID)
+			if err != nil {
+				badRequest(c, "invalid parent folder")
+				return
+			}
+			for _, ancestor := range ancestors {
+				if ancestor.ID == album.ID {
+					badRequest(c, "cannot move folder into its descendant")
+					return
+				}
+			}
+			album.ParentID = req.ParentID
+		}
+	}
 
 	if err := h.albumRepo.Update(c.Request.Context(), album); err != nil {
 		serverError(c, "failed to update album")
@@ -125,7 +199,7 @@ func (h *AlbumHandler) Update(c *gin.Context) {
 	success(c, album)
 }
 
-// Delete 删除相册。
+// Delete 删除文件夹。
 func (h *AlbumHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)

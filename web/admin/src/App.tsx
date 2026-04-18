@@ -93,7 +93,8 @@ function AppRoutes() {
           <Route path="/user" element={<Navigate to="/user/dashboard" replace />} />
           <Route path="/user/dashboard" element={<DashboardPage />} />
           <Route path="/user/files" element={<FilesPage />} />
-          <Route path="/user/albums" element={<AlbumsPage />} />
+          <Route path="/user/albums" element={<Navigate to="/user/folders" replace />} />
+          <Route path="/user/folders" element={<AlbumsPage />} />
           <Route path="/user/tokens" element={<TokensPage />} />
           <Route path="/user/profile" element={<ProfilePage />} />
 
@@ -110,7 +111,8 @@ function AppRoutes() {
           {/* 旧路径兼容 — 自动迁移到新结构 */}
           <Route path="/dashboard" element={<Navigate to="/user/dashboard" replace />} />
           <Route path="/files" element={<Navigate to="/user/files" replace />} />
-          <Route path="/albums" element={<Navigate to="/user/albums" replace />} />
+          <Route path="/albums" element={<Navigate to="/user/folders" replace />} />
+          <Route path="/folders" element={<Navigate to="/user/folders" replace />} />
           <Route path="/tokens" element={<Navigate to="/user/tokens" replace />} />
           <Route path="/profile" element={<Navigate to="/user/profile" replace />} />
         </Route>

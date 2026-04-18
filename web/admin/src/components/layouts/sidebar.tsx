@@ -23,7 +23,7 @@ import { KiteLogo } from "@/components/kite-logo";
 const userNavItems = [
   { to: "/user/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { to: "/user/files", icon: Upload, labelKey: "nav.files" },
-  { to: "/user/albums", icon: FolderOpen, labelKey: "nav.albums" },
+  { to: "/user/folders", icon: FolderOpen, labelKey: "nav.albums" },
   { to: "/user/tokens", icon: KeyRound, labelKey: "nav.tokens" },
   { to: "/user/profile", icon: UserIcon, labelKey: "profile.title" },
 ];

@@ -168,11 +168,15 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		authed.DELETE("/files/:id", fileHandler.Delete)
 		authed.POST("/files/batch-delete", fileHandler.BatchDelete)
 
-		// 相册管理
+		// 文件夹管理（兼容旧 albums API）
 		authed.GET("/albums", albumHandler.List)
 		authed.POST("/albums", albumHandler.Create)
 		authed.PUT("/albums/:id", albumHandler.Update)
 		authed.DELETE("/albums/:id", albumHandler.Delete)
+		authed.GET("/folders", albumHandler.List)
+		authed.POST("/folders", albumHandler.Create)
+		authed.PUT("/folders/:id", albumHandler.Update)
+		authed.DELETE("/folders/:id", albumHandler.Delete)
 
 		// API Token 管理
 		authed.GET("/tokens", tokenHandler.List)

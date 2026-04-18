@@ -76,11 +76,11 @@ export const fileApi = {
   batchDelete: (ids: string[]) => api.post("/files/batch-delete", { ids }),
 };
 
-// Albums
+// Albums / Folders
 export const albumApi = {
   list: (params: Record<string, string | number>) =>
     api.get("/albums", { params }),
-  create: (data: { name: string; description?: string; is_public?: boolean }) =>
+  create: (data: { name: string; description?: string; is_public?: boolean; parent_id?: string }) =>
     api.post("/albums", data),
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/albums/${id}`, data),
