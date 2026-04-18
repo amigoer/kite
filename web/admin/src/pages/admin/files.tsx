@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Trash2,
@@ -35,6 +35,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getFileIconInfo, getFileTypeLabel } from "@/lib/file-utils";
+import { useAdaptiveGridPageSize } from "@/hooks/use-adaptive-grid-page-size";
+
+const LIST_PAGE_SIZE = 20;
+const DEFAULT_GRID_PAGE_SIZE = 20;
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -68,12 +72,28 @@ export default function AdminFilesPage() {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [detailFile, setDetailFile] = useState<FileItem | null>(null);
   const [copied, setCopied] = useState("");
+  const {
+    gridRef,
+    pageSize: adaptiveGridPageSize,
+    paginationRef,
+  } = useAdaptiveGridPageSize({
+    enabled: viewMode === "grid",
+    defaultPageSize: DEFAULT_GRID_PAGE_SIZE,
+    targetRows: 4,
+    minRows: 2,
+    maxRows: 4,
+  });
+  const pageSize = viewMode === "grid" ? adaptiveGridPageSize : LIST_PAGE_SIZE;
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-files", page, keyword, fileType],
+    queryKey: ["admin-files", page, keyword, fileType, pageSize],
     queryFn: () =>
       adminFileApi
-        .list({ page, size: 20, keyword, file_type: fileType })
+        .list({ page, size: pageSize, keyword, file_type: fileType })
         .then((r) => r.data.data),
   });
 
@@ -101,7 +121,7 @@ export default function AdminFilesPage() {
     { value: "file", labelKey: "files.otherFiles" },
   ];
 
-  const totalPages = Math.ceil((data?.total ?? 0) / 20);
+  const totalPages = Math.ceil((data?.total ?? 0) / pageSize);
 
   return (
     <div className="space-y-6">
@@ -115,7 +135,7 @@ export default function AdminFilesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col flex-wrap items-start gap-3 sm:flex-row sm:items-center">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
@@ -128,38 +148,43 @@ export default function AdminFilesPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex flex-wrap gap-1">
-          {types.map((tp) => (
+        <div className="flex items-start justify-between gap-3 sm:flex-1 sm:items-center">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+            {types.map((tp) => (
+              <Button
+                key={tp.value}
+                variant={fileType === tp.value ? "default" : "outline"}
+                size="sm"
+                className="h-10 rounded-xl px-4 text-sm shadow-sm"
+                onClick={() => {
+                  setFileType(tp.value);
+                  setPage(1);
+                }}
+              >
+                {t(tp.labelKey)}
+              </Button>
+            ))}
+          </div>
+          <div className="shrink-0 inline-flex h-10 items-center gap-1 rounded-xl border bg-background p-1 shadow-sm">
             <Button
-              key={tp.value}
-              variant={fileType === tp.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setFileType(tp.value);
-                setPage(1);
-              }}
+              size="icon-sm"
+              variant={viewMode === "table" ? "default" : "ghost"}
+              className="rounded-lg"
+              onClick={() => setViewMode("table")}
+              title="列表视图"
             >
-              {t(tp.labelKey)}
+              <List className="size-4" />
             </Button>
-          ))}
-        </div>
-        <div className="ml-auto inline-flex items-center gap-1 rounded-lg border bg-background p-1">
-          <Button
-            size="icon-sm"
-            variant={viewMode === "table" ? "default" : "ghost"}
-            onClick={() => setViewMode("table")}
-            title="列表视图"
-          >
-            <List className="size-4" />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant={viewMode === "grid" ? "default" : "ghost"}
-            onClick={() => setViewMode("grid")}
-            title="网格视图"
-          >
-            <LayoutGrid className="size-4" />
-          </Button>
+            <Button
+              size="icon-sm"
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              className="rounded-lg"
+              onClick={() => setViewMode("grid")}
+              title="网格视图"
+            >
+              <LayoutGrid className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -172,8 +197,8 @@ export default function AdminFilesPage() {
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div ref={gridRef} className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: pageSize }).map((_, i) => (
               <Skeleton key={i} className="h-44 rounded-lg" />
             ))}
           </div>
@@ -316,7 +341,7 @@ export default function AdminFilesPage() {
               </div>
             </>
           ) : (
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+            <div ref={gridRef} className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data?.items?.map((file: FileItem) => {
                 const fi = getFileIconInfo(file);
                 const Icon = fi.icon;
@@ -389,8 +414,8 @@ export default function AdminFilesPage() {
             </div>
           )}
 
-          {data && data.total > 20 && (
-            <div className="flex items-center justify-center gap-2">
+          {data && data.total > pageSize && (
+            <div ref={paginationRef} className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="icon-sm"

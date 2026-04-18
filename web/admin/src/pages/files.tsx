@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Upload,
@@ -30,6 +30,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { getFileIconInfo, getFileTypeLabel } from "@/lib/file-utils";
+import { useAdaptiveGridPageSize } from "@/hooks/use-adaptive-grid-page-size";
+
+const LIST_PAGE_SIZE = 20;
+const DEFAULT_GRID_PAGE_SIZE = 20;
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -72,12 +76,28 @@ export default function FilesPage() {
   const [copied, setCopied] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    gridRef,
+    pageSize: adaptiveGridPageSize,
+    paginationRef,
+  } = useAdaptiveGridPageSize({
+    enabled: viewMode === "grid",
+    defaultPageSize: DEFAULT_GRID_PAGE_SIZE,
+    targetRows: 4,
+    minRows: 2,
+    maxRows: 4,
+  });
+  const pageSize = viewMode === "grid" ? adaptiveGridPageSize : LIST_PAGE_SIZE;
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["files", page, keyword, fileType],
+    queryKey: ["files", page, keyword, fileType, pageSize],
     queryFn: () =>
       fileApi
-        .list({ page, size: 20, keyword, file_type: fileType })
+        .list({ page, size: pageSize, keyword, file_type: fileType })
         .then((r) => r.data.data),
   });
 
@@ -257,7 +277,7 @@ export default function FilesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
@@ -267,43 +287,48 @@ export default function FilesPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-1 flex-wrap">
-          {types.map((tp) => (
+        <div className="flex items-start justify-between gap-3 sm:flex-1 sm:items-center">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+            {types.map((tp) => (
+              <Button
+                key={tp.value}
+                variant={fileType === tp.value ? "default" : "outline"}
+                size="sm"
+                className="h-10 rounded-xl px-4 text-sm shadow-sm"
+                onClick={() => { setFileType(tp.value); setPage(1); }}
+              >
+                {t(tp.labelKey)}
+              </Button>
+            ))}
+          </div>
+          <div className="shrink-0 inline-flex h-10 items-center gap-1 rounded-xl border bg-background p-1 shadow-sm">
             <Button
-              key={tp.value}
-              variant={fileType === tp.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setFileType(tp.value); setPage(1); }}
+              size="icon-sm"
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              className="rounded-lg"
+              onClick={() => setViewMode("grid")}
+              title="网格视图"
             >
-              {t(tp.labelKey)}
+              <LayoutGrid className="size-4" />
             </Button>
-          ))}
-        </div>
-        <div className="ml-auto inline-flex items-center gap-1 rounded-lg border bg-background p-1">
-          <Button
-            size="icon-sm"
-            variant={viewMode === "grid" ? "default" : "ghost"}
-            onClick={() => setViewMode("grid")}
-            title="网格视图"
-          >
-            <LayoutGrid className="size-4" />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant={viewMode === "list" ? "default" : "ghost"}
-            onClick={() => setViewMode("list")}
-            title="列表视图"
-          >
-            <List className="size-4" />
-          </Button>
+            <Button
+              size="icon-sm"
+              variant={viewMode === "list" ? "default" : "ghost"}
+              className="rounded-lg"
+              onClick={() => setViewMode("list")}
+              title="列表视图"
+            >
+              <List className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* File List/Grid */}
       {isLoading ? (
         viewMode === "grid" ? (
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {Array.from({ length: 10 }).map((_, i) => (
+          <div ref={gridRef} className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: pageSize }).map((_, i) => (
               <Skeleton key={i} className="h-48 rounded-lg" />
             ))}
           </div>
@@ -317,7 +342,7 @@ export default function FilesPage() {
       ) : (
         <>
           {viewMode === "grid" ? (
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div ref={gridRef} className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data?.items?.map((file: FileItem) => {
                 const fi = getFileIconInfo(file);
                 const Icon = fi.icon;
@@ -429,8 +454,8 @@ export default function FilesPage() {
             </div>
           )}
 
-          {data && data.total > 20 && (
-            <div className="flex items-center justify-center gap-2">
+          {data && data.total > pageSize && (
+            <div ref={paginationRef} className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -440,12 +465,12 @@ export default function FilesPage() {
                 <ChevronLeft className="size-4" />
               </Button>
               <span className="min-w-15 text-center text-sm text-muted-foreground">
-                {page} / {Math.ceil(data.total / 20)}
+                {page} / {Math.ceil(data.total / pageSize)}
               </span>
               <Button
                 variant="outline"
                 size="icon-sm"
-                disabled={page >= Math.ceil(data.total / 20)}
+                disabled={page >= Math.ceil(data.total / pageSize)}
                 onClick={() => setPage((p) => p + 1)}
               >
                 <ChevronRight className="size-4" />
