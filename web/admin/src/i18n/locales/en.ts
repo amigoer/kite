@@ -109,7 +109,7 @@ const en = {
     last7Days: "Last 7d",
     vsLastWeek: "vs last week",
     unlimitedStorage: "Unlimited",
-    recentUploadsDesc: "Latest 5 uploaded files",
+    recentUploadsDesc: "Latest {count} uploaded files",
     viewAll: "View all",
     noRecentFiles: "No uploads yet",
   },

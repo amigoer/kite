@@ -111,7 +111,7 @@ const zh: Translations = {
     last7Days: "近 7 日",
     vsLastWeek: "较上周",
     unlimitedStorage: "不限容量",
-    recentUploadsDesc: "最新上传的 5 个文件",
+    recentUploadsDesc: "最新上传的 {count} 个文件",
     viewAll: "查看全部",
     noRecentFiles: "暂无上传记录",
   },

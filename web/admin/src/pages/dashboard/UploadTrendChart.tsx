@@ -109,19 +109,19 @@ export default function UploadTrendChart({ admin = false }: { admin?: boolean })
       <CardContent className="px-4 pb-4 sm:px-6 sm:pb-5">
         {isLoading ? (
           <>
-            <Skeleton className="h-[110px] w-full sm:h-[120px]" />
+            <Skeleton className="h-[140px] w-full sm:h-[160px]" />
             <Skeleton className="mt-2 h-3 w-full" />
           </>
         ) : (
           <>
             <ChartContainer
               config={chartConfig}
-              className="h-[110px] w-full sm:h-[120px]"
+              className="h-[140px] w-full sm:h-[160px]"
             >
               <AreaChart
                 accessibilityLayer
                 data={points}
-                margin={{ left: 0, right: 0, top: 4, bottom: 0 }}
+                margin={{ left: 4, right: 4, top: 8, bottom: 0 }}
               >
                 <defs>
                   <linearGradient
@@ -134,7 +134,7 @@ export default function UploadTrendChart({ admin = false }: { admin?: boolean })
                     <stop
                       offset="0%"
                       stopColor="hsl(var(--foreground))"
-                      stopOpacity={0.12}
+                      stopOpacity={0.08}
                     />
                     <stop
                       offset="100%"
@@ -186,9 +186,30 @@ export default function UploadTrendChart({ admin = false }: { admin?: boolean })
                   stroke="hsl(var(--foreground))"
                   strokeWidth={1.5}
                   fill="url(#dashboardAreaFill)"
-                  dot={false}
+                  dot={(props: {
+                    cx?: number;
+                    cy?: number;
+                    payload?: Record<string, number>;
+                    index?: number;
+                  }) => {
+                    const val = props.payload?.[active] ?? 0;
+                    if (!val || props.cx == null || props.cy == null) {
+                      return <g key={`dot-${props.index ?? 0}`} />;
+                    }
+                    return (
+                      <circle
+                        key={`dot-${props.index ?? 0}`}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={3}
+                        fill="hsl(var(--background))"
+                        stroke="hsl(var(--foreground))"
+                        strokeWidth={1.5}
+                      />
+                    );
+                  }}
                   activeDot={{
-                    r: 2.5,
+                    r: 3.5,
                     strokeWidth: 1.5,
                     stroke: "hsl(var(--foreground))",
                     fill: "hsl(var(--background))",
@@ -198,10 +219,16 @@ export default function UploadTrendChart({ admin = false }: { admin?: boolean })
               </AreaChart>
             </ChartContainer>
 
-            <div className="mt-2 flex justify-between text-[9px] tabular-nums text-muted-foreground">
-              {points.map((p) => (
-                <span key={p.day}>{p.label}</span>
-              ))}
+            <div className="mt-2 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+              {points.map((p, i) => {
+                const show =
+                  i === 0 || i === points.length - 1 || i === Math.floor(points.length / 2);
+                return (
+                  <span key={p.day} className={show ? "" : "opacity-0"}>
+                    {p.label}
+                  </span>
+                );
+              })}
             </div>
           </>
         )}

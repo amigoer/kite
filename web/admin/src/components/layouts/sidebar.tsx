@@ -93,8 +93,8 @@ export function Sidebar({ onClose, collapsed = false }: SidebarProps) {
                 "flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-2" : "gap-3 px-3",
                 isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "bg-accent/50 text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
               )
             }
           >

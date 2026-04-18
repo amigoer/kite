@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronUp,
+  ArrowUp,
   Files,
   FileIcon,
   HardDrive,
@@ -166,11 +166,11 @@ export default function DashboardPage() {
           <div className="text-2xl font-semibold tabular-nums tracking-tight">
             {stats.total_files.toLocaleString()}
           </div>
-          <div className="mt-1 flex items-center gap-0.5 text-xs text-muted-foreground">
+          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             {recentUploads > 0 && (
-              <ChevronUp className="size-3" strokeWidth={2.2} />
+              <ArrowUp className="size-3 shrink-0" strokeWidth={2} />
             )}
-            <span>
+            <span className="leading-none">
               {t("dashboard.vsLastWeek")}{" "}
               {recentUploads > 0 ? `+${recentUploads}` : recentUploads}
             </span>
@@ -271,7 +271,10 @@ export default function DashboardPage() {
         locale={locale}
         viewAllLabel={t("dashboard.viewAll")}
         title={t("dashboard.recentUploads")}
-        subtitle={t("dashboard.recentUploadsDesc")}
+        subtitle={t("dashboard.recentUploadsDesc").replace(
+          "{count}",
+          String(recent?.items?.length ?? 0)
+        )}
         emptyLabel={t("dashboard.noRecentFiles")}
       />
     </div>
@@ -321,12 +324,17 @@ function CircularProgress({
   value: number;
   unlimited?: boolean;
 }) {
-  const size = 44;
-  const stroke = 4;
+  const size = 52;
+  const stroke = 3;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = unlimited ? 0 : Math.max(0, Math.min(100, value));
   const offset = c * (1 - pct / 100);
+  const label = unlimited
+    ? "∞"
+    : pct > 0 && pct < 1
+      ? "<1%"
+      : `${Math.round(pct)}%`;
   return (
     <svg
       width={size}
@@ -341,7 +349,7 @@ function CircularProgress({
           r={r}
           fill="none"
           stroke="hsl(var(--foreground))"
-          strokeOpacity={0.12}
+          strokeOpacity={0.1}
           strokeWidth={stroke}
         />
         {!unlimited && (
@@ -363,10 +371,14 @@ function CircularProgress({
         y={size / 2}
         textAnchor="middle"
         dominantBaseline="central"
-        className="fill-foreground font-semibold"
-        style={{ fontSize: unlimited ? 11 : 10 }}
+        className="fill-foreground"
+        style={{
+          fontSize: unlimited ? 15 : label.length > 3 ? 9 : 11,
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+        }}
       >
-        {unlimited ? "∞" : `${Math.round(pct)}%`}
+        {label}
       </text>
     </svg>
   );
@@ -431,9 +443,9 @@ function RecentUploadsSection({
       </CardHeader>
       <CardContent className="px-4 pb-4 sm:px-6 sm:pb-5">
         {isLoading ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+              <Skeleton key={i} className="aspect-square w-full rounded-md" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -441,43 +453,44 @@ function RecentUploadsSection({
             {emptyLabel}
           </div>
         ) : (
-          <ul className="flex flex-col">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {items.map((file) => {
               const Icon = fileTypeIcon(file.file_type);
               const thumb =
                 file.file_type === "image" ? file.thumb_url || file.url : null;
               return (
-                <li
+                <div
                   key={file.id}
-                  className="flex items-center gap-3 border-b border-border/60 py-2.5 last:border-b-0"
+                  className="group flex min-w-0 flex-col gap-2"
                 >
-                  <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                  <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted">
                     {thumb ? (
                       <img
                         src={thumb}
                         alt={file.original_name}
-                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
                       />
                     ) : (
                       <Icon
-                        className="size-4 text-muted-foreground"
-                        strokeWidth={1.8}
+                        className="size-6 text-muted-foreground"
+                        strokeWidth={1.6}
                       />
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-foreground">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs text-foreground">
                       {file.original_name}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
+                    <div className="mt-0.5 truncate text-[10px] text-muted-foreground tabular-nums">
                       {formatSize(file.size_bytes)} ·{" "}
                       {formatRelativeTime(file.created_at, locale)}
                     </div>
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </CardContent>
     </Card>
