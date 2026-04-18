@@ -25,7 +25,7 @@ export default function LoginPage() {
       await Promise.all([login(username, password), minDelay]);
       toast.success("登录成功啦！");
       const redirectTo =
-        (location.state as { from?: string } | null)?.from ?? "/dashboard";
+        (location.state as { from?: string } | null)?.from ?? "/user/dashboard";
       navigate(redirectTo, { replace: true });
     } catch (err) {
       await minDelay;

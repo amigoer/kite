@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import { PageTransition } from "@/components/page-transition";
-import { Bell, Menu, User as UserIcon, LogOut, ChevronRight, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  Bell,
+  Menu,
+  User as UserIcon,
+  LogOut,
+  ChevronRight,
+  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import { Sidebar } from "@/components/layouts/sidebar";
@@ -43,12 +53,14 @@ import { Badge } from "@/components/ui/badge";
 const SIDEBAR_COLLAPSED_KEY = "kite_sidebar_collapsed";
 
 const routeLabelKeys: Record<string, string> = {
-  "/dashboard": "nav.dashboard",
-  "/files": "nav.files",
-  "/albums": "nav.albums",
-  "/tokens": "nav.tokens",
-  "/profile": "profile.title",
+  "/user": "nav.general",
+  "/user/dashboard": "nav.dashboard",
+  "/user/files": "nav.files",
+  "/user/albums": "nav.albums",
+  "/user/tokens": "nav.tokens",
+  "/user/profile": "profile.title",
   "/admin": "nav.adminPanel",
+  "/admin/dashboard": "nav.dashboard",
   "/admin/files": "nav.adminFiles",
   "/admin/storage": "nav.storage",
   "/admin/users": "nav.users",
@@ -76,10 +88,13 @@ export default function AppLayout() {
   });
   const displayName = user?.nickname?.trim() || user?.username;
 
+  const isAdminWorkspace = location.pathname.startsWith("/admin");
+  const homePath = isAdminWorkspace ? "/admin/dashboard" : "/user/dashboard";
+
   const breadcrumbItems = useMemo(() => {
     const parts = location.pathname.split("/").filter(Boolean);
     if (!parts.length) {
-      return [{ to: "/dashboard", label: t("nav.dashboard") }];
+      return [{ to: "/user/dashboard", label: t("nav.dashboard") }];
     }
 
     const items: Array<{ to: string; label: string }> = [];
@@ -95,16 +110,17 @@ export default function AppLayout() {
   const globalSearchTargets = useMemo<SearchTarget[]>(() => {
     const workspaceGroup = t("nav.general");
     const adminGroup = t("nav.admin");
-    const base = [
-      { to: "/dashboard", label: t("nav.dashboard"), group: workspaceGroup, keywords: "home stats" },
-      { to: "/files", label: t("nav.files"), group: workspaceGroup, keywords: "upload media" },
-      { to: "/albums", label: t("nav.albums"), group: workspaceGroup, keywords: "gallery collections" },
-      { to: "/tokens", label: t("nav.tokens"), group: workspaceGroup, keywords: "api key" },
-      { to: "/profile", label: t("profile.title"), group: workspaceGroup, keywords: "account user" },
+    const base: SearchTarget[] = [
+      { to: "/user/dashboard", label: t("nav.dashboard"), group: workspaceGroup, keywords: "home stats" },
+      { to: "/user/files", label: t("nav.files"), group: workspaceGroup, keywords: "upload media" },
+      { to: "/user/albums", label: t("nav.albums"), group: workspaceGroup, keywords: "gallery collections" },
+      { to: "/user/tokens", label: t("nav.tokens"), group: workspaceGroup, keywords: "api key" },
+      { to: "/user/profile", label: t("profile.title"), group: workspaceGroup, keywords: "account user" },
     ];
 
     if (user?.role === "admin") {
       base.push(
+        { to: "/admin/dashboard", label: t("nav.dashboard"), group: adminGroup, keywords: "admin overview" },
         { to: "/admin/files", label: t("files.adminTitle"), group: adminGroup, keywords: "all files moderation" },
         { to: "/admin/storage", label: t("nav.storage"), group: adminGroup, keywords: "s3 local driver" },
         { to: "/admin/users", label: t("nav.users"), group: adminGroup, keywords: "members role" },
@@ -202,11 +218,17 @@ export default function AppLayout() {
                 </Button>
               </SheetTrigger>
               <Link
-                to="/dashboard"
+                to={homePath}
                 className="flex items-center gap-2 transition-opacity hover:opacity-80"
               >
                 <KiteLogo className="size-6" />
                 <span className="font-semibold tracking-tight">Kite</span>
+                {isAdminWorkspace && (
+                  <Badge variant="secondary" className="gap-1 text-[10px]">
+                    <ShieldCheck className="size-3" />
+                    {t("nav.admin")}
+                  </Badge>
+                )}
               </Link>
             </div>
 
@@ -319,7 +341,7 @@ export default function AppLayout() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <DropdownMenuItem onClick={() => navigate("/user/profile")}>
                     <UserIcon className="size-4" />
                     {t("profile.title")}
                   </DropdownMenuItem>

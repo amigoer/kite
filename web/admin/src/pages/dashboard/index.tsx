@@ -90,7 +90,7 @@ export default function DashboardPage() {
             {t("dashboard.description")}
           </p>
         </div>
-        <Button size="sm" className="shrink-0" onClick={() => navigate("/files")}>
+        <Button size="sm" className="shrink-0" onClick={() => navigate("/user/files")}>
           <Upload className="h-4 w-4" />
           <span className="ml-2">{t("common.upload")}</span>
         </Button>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <FileTypeChart
           totalFiles={stats.total_files}
           imageCount={stats.images}

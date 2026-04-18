@@ -14,14 +14,14 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import FirstLoginPage from "@/pages/first-login";
 
-// Pages
+// User workspace
 import DashboardPage from "@/pages/dashboard";
 import FilesPage from "@/pages/files";
 import AlbumsPage from "@/pages/albums";
 import TokensPage from "@/pages/tokens";
 import ProfilePage from "@/pages/profile";
 
-// Admin pages
+// Admin console
 import AdminFilesPage from "@/pages/admin/files";
 import StoragePage from "@/pages/admin/storage";
 import UsersPage from "@/pages/admin/users";
@@ -35,12 +35,12 @@ const queryClient = new QueryClient({
 
 function AdminRoute() {
   const { user } = useAuth();
-  if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
+  if (user?.role !== "admin") return <Navigate to="/user/dashboard" replace />;
   return <Outlet />;
 }
 
 // FirstLoginGate: 当用户 password_must_change=true 时，除 /first-login 外其他路径
-// 一律跳转到首次配置页；反之访问 /first-login 则跳回 dashboard。
+// 一律跳转到首次配置页；反之访问 /first-login 则跳回 /user/dashboard。
 function FirstLoginGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user?.password_must_change) {
@@ -53,7 +53,7 @@ function FirstLoginOnlyGate() {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
-  if (!user.password_must_change) return <Navigate to="/dashboard" replace />;
+  if (!user.password_must_change) return <Navigate to="/user/dashboard" replace />;
   return (
     <div className="flex min-h-svh items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
@@ -86,25 +86,37 @@ function AppRoutes() {
             </FirstLoginGate>
           }
         >
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/files" element={<FilesPage />} />
-          <Route path="/albums" element={<AlbumsPage />} />
-          <Route path="/tokens" element={<TokensPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          {/* Root → 用户工作区 */}
+          <Route path="/" element={<Navigate to="/user/dashboard" replace />} />
 
-          {/* Admin pages (role guard) */}
+          {/* 用户工作区 */}
+          <Route path="/user" element={<Navigate to="/user/dashboard" replace />} />
+          <Route path="/user/dashboard" element={<DashboardPage />} />
+          <Route path="/user/files" element={<FilesPage />} />
+          <Route path="/user/albums" element={<AlbumsPage />} />
+          <Route path="/user/tokens" element={<TokensPage />} />
+          <Route path="/user/profile" element={<ProfilePage />} />
+
+          {/* 管理控制台 (role guard) */}
           <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/dashboard" element={<DashboardPage />} />
             <Route path="/admin/files" element={<AdminFilesPage />} />
             <Route path="/admin/storage" element={<StoragePage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
           </Route>
+
+          {/* 旧路径兼容 — 自动迁移到新结构 */}
+          <Route path="/dashboard" element={<Navigate to="/user/dashboard" replace />} />
+          <Route path="/files" element={<Navigate to="/user/files" replace />} />
+          <Route path="/albums" element={<Navigate to="/user/albums" replace />} />
+          <Route path="/tokens" element={<Navigate to="/user/tokens" replace />} />
+          <Route path="/profile" element={<Navigate to="/user/profile" replace />} />
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/user/dashboard" replace />} />
       </Routes>
     </AuthContext.Provider>
   );

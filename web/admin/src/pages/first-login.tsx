@@ -45,7 +45,7 @@ export default function FirstLoginPage() {
       });
       await applyTokensAndRefresh(data.data);
       toast.success("账号已重置，欢迎使用 Kite！");
-      navigate("/dashboard", { replace: true });
+      navigate("/user/dashboard", { replace: true });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data

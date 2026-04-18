@@ -35,7 +35,7 @@ export function AuthLayout() {
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/user/dashboard" replace />;
   }
 
   return (
