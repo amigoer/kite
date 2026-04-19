@@ -42,6 +42,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -89,6 +99,12 @@ interface UserStats {
   videos: number;
   audios: number;
   others: number;
+}
+
+interface PendingDelete {
+  ids: string[];
+  displayName?: string;
+  closeDetail?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -229,14 +245,21 @@ function FilterPill({
  * FileVisual — square visual area, branches by file_type
  * ──────────────────────────────────────────────────────────── */
 function FileVisual({ file }: { file: FileItem }) {
+  const [imgSrc, setImgSrc] = useState(file.thumb_url || file.url || "");
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(file.thumb_url || file.url || "");
+    setImgFailed(false);
+  }, [file.id, file.thumb_url, file.url]);
+
   const ext = fileExt(file.original_name) ?? "";
 
   // Images: use the real thumbnail when we have one; fall back to the
   // HTML design's per-file hue gradient (+ soft radial highlight + IMG tag)
   // so the placeholder reads as an image placeholder even without a URL.
   if (file.file_type === "image") {
-    const src = file.thumb_url || file.url;
-    if (src) {
+    if (imgSrc && !imgFailed) {
       // Transparency checkerboard behind the image — `object-contain` fits
       // the whole source inside the square so transparent PNGs/SVGs reveal
       // the grid through their transparent regions (matching the preview
@@ -244,10 +267,17 @@ function FileVisual({ file }: { file: FileItem }) {
       return (
         <div className="checker-bg h-full w-full">
           <img
-            src={src}
+            src={imgSrc}
             alt={file.original_name}
             loading="lazy"
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={() => {
+              if (imgSrc !== file.url && file.url) {
+                setImgSrc(file.url);
+                return;
+              }
+              setImgFailed(true);
+            }}
           />
         </div>
       );
@@ -511,6 +541,7 @@ export default function FilesPage() {
   const [fileType, setFileType] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailFile, setDetailFile] = useState<FileItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [uploads, setUploads] = useState<UploadTask[]>([]);
   const [copied, setCopied] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -741,24 +772,51 @@ export default function FilesPage() {
 
   const bulkDelete = () => {
     if (selectedFiles.length === 0) return;
-    const n = selectedFiles.length;
-    if (!window.confirm(t("files.bulkDeleteConfirm").replace("{n}", String(n))))
+    setPendingDelete({
+      ids: selectedFiles.map((f) => f.id),
+    });
+  };
+
+  const requestSingleDelete = useCallback((file: FileItem, options?: { closeDetail?: boolean }) => {
+    setPendingDelete({
+      ids: [file.id],
+      displayName: file.original_name,
+      closeDetail: options?.closeDetail,
+    });
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!pendingDelete) return;
+
+    const ids = pendingDelete.ids;
+    const isSingle = ids.length === 1;
+
+    if (pendingDelete.closeDetail) {
+      setDetailFile(null);
+    }
+    setPendingDelete(null);
+
+    if (isSingle) {
+      deleteMutation.mutate(ids[0], {
+        onSuccess: () => toast.success(t("files.deleteSuccess")),
+        onError: () => toast.error(t("files.deleteFailed")),
+      });
       return;
-    Promise.allSettled(
-      selectedFiles.map((f) => fileApi.delete(f.id))
-    ).then((results) => {
+    }
+
+    Promise.allSettled(ids.map((id) => fileApi.delete(id))).then((results) => {
       const ok = results.filter((r) => r.status === "fulfilled").length;
       queryClient.invalidateQueries({ queryKey: ["files"] });
       queryClient.invalidateQueries({ queryKey: ["files", "stats"] });
       if (ok > 0) {
         toast.success(t("files.bulkDeleteSuccess").replace("{n}", String(ok)));
       }
-      if (ok < n) {
+      if (ok < ids.length) {
         toast.error(t("files.deleteFailed"));
       }
       clearSelection();
     });
-  };
+  }, [clearSelection, deleteMutation, pendingDelete, queryClient, t]);
 
   const bulkMove = () => toast.message(t("files.comingSoon"));
   const bulkShare = () => toast.message(t("files.comingSoon"));
@@ -1097,10 +1155,7 @@ export default function FilesPage() {
                     document.body.removeChild(a);
                   }}
                   onDelete={() => {
-                    deleteMutation.mutate(file.id, {
-                      onSuccess: () => toast.success(t("files.deleteSuccess")),
-                      onError: () => toast.error(t("files.deleteFailed")),
-                    });
+                    requestSingleDelete(file);
                   }}
                 />
               ))}
@@ -1175,12 +1230,7 @@ export default function FilesPage() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteMutation.mutate(file.id, {
-                              onSuccess: () =>
-                                toast.success(t("files.deleteSuccess")),
-                              onError: () =>
-                                toast.error(t("files.deleteFailed")),
-                            });
+                            requestSingleDelete(file);
                           }}
                         >
                           <Trash2 className="size-3 text-destructive" />
@@ -1352,11 +1402,7 @@ export default function FilesPage() {
                   size="sm"
                   variant="destructive"
                   onClick={() => {
-                    deleteMutation.mutate(detailFile.id, {
-                      onSuccess: () => toast.success(t("files.deleteSuccess")),
-                      onError: () => toast.error(t("files.deleteFailed")),
-                    });
-                    setDetailFile(null);
+                    requestSingleDelete(detailFile, { closeDetail: true });
                   }}
                 >
                   <Trash2 className="size-3.5" />
@@ -1367,6 +1413,33 @@ export default function FilesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("common.delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete && pendingDelete.ids.length > 1
+                ? t("files.bulkDeleteConfirm").replace("{n}", String(pendingDelete.ids.length))
+                : t("files.deleteConfirm")}
+            </AlertDialogDescription>
+            {pendingDelete?.displayName && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                {pendingDelete.displayName}
+              </div>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>{t("common.delete")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

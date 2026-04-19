@@ -32,9 +32,11 @@ type RouterConfig struct {
 // SetupRouter 注册所有路由并返回 gin.Engine 实例。
 func SetupRouter(cfg RouterConfig) *gin.Engine {
 	r := gin.Default()
+	realtimeCollector := NewRealtimeSystemStatusCollector()
 
 	// 全局中间件
 	r.Use(middleware.CORS())
+	r.Use(realtimeCollector.Middleware())
 
 	// 初始化 repos
 	userRepo := repo.NewUserRepo(cfg.DB)
@@ -54,6 +56,7 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 	settingsHandler := NewSettingsHandler(settingRepo)
 	userHandler := NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
 	setupHandler := NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)
+	systemStatusRealtimeHandler := NewSystemStatusRealtimeHandler(realtimeCollector)
 
 	// ========== 公开接口（无需认证）==========
 
@@ -66,6 +69,13 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 
 	// API v1
 	v1 := r.Group("/api/v1")
+	v1.GET("/admin/system-status/ws", systemStatusRealtimeHandler.Stream)
+	v1.GET("/health", func(c *gin.Context) {
+		success(c, gin.H{
+			"status": "ok",
+			"ts":     time.Now().Unix(),
+		})
+	})
 
 	// 认证（带速率限制）
 	authGroup := v1.Group("/auth")
@@ -193,6 +203,8 @@ func SetupRouter(cfg RouterConfig) *gin.Engine {
 		admin := authed.Group("")
 		admin.Use(middleware.AdminOnly())
 		{
+			admin.POST("/admin/system-status/ws-ticket", systemStatusRealtimeHandler.IssueWSTicket)
+
 			// 存储配置
 			admin.GET("/storage", storageHandler.List)
 			admin.GET("/storage/:id", storageHandler.GetOne)

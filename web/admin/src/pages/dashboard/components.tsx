@@ -327,7 +327,10 @@ export function TrendCombo({
           <CartesianGrid vertical={false} />
           <YAxis
             tickLine={false}
-            axisLine
+            axisLine={{
+              stroke: "hsl(var(--border))",
+              strokeDasharray: "4 4",
+            }}
             orientation="left"
             tickMargin={8}
             width={44}

@@ -157,6 +157,11 @@ export const adminStatsApi = {
     api.get("/admin/stats/daily", { params: { days } }),
 };
 
+export const systemStatusApi = {
+  wsTicket: () => api.post("/admin/system-status/ws-ticket"),
+  ping: () => api.get("/health"),
+};
+
 // Setup
 export const setupApi = {
   status: () => api.get("/setup/status"),

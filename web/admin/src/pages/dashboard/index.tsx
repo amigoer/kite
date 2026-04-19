@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,7 @@ import {
   adminFileApi,
   adminStatsApi,
   fileApi,
+  systemStatusApi,
   statsApi,
   storageApi,
   tokenApi,
@@ -39,6 +40,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Avatar,
   AvatarFallback,
@@ -1060,11 +1067,13 @@ function Gauge({
   value,
   display,
   color,
+  valueTestId,
 }: {
   label: string;
   value: number;
   display: string;
   color: string;
+  valueTestId?: string;
 }) {
   const r = 30;
   const cx = 36;
@@ -1094,7 +1103,10 @@ function Gauge({
             style={{ transition: "stroke-dasharray 400ms ease" }}
           />
         </svg>
-        <div className="absolute inset-x-0 bottom-0 text-center text-[13px] font-semibold tabular-nums">
+        <div
+          className="absolute inset-x-0 bottom-0 text-center text-[13px] font-semibold tabular-nums"
+          data-testid={valueTestId}
+        >
           {display}
         </div>
       </div>
@@ -1206,9 +1218,125 @@ function MetricTile({
 }
 
 function SystemStatusCard({ t }: { t: (k: string) => string }) {
-  // Live metrics are not yet exposed by the API — use the same mocked values
-  // as the design target until an endpoint lands. (See pages-admin.jsx.)
-  const uptimeDays = 7;
+  type LiveSystemStatus = {
+    cpu_percent: number;
+    process_cpu_percent: number;
+    cpu_cores: number;
+    memory_used_bytes: number;
+    memory_total_bytes: number;
+    upload_mbps: number;
+    download_mbps: number;
+    upload_percent: number;
+    download_percent: number;
+    api_latency_ms: number;
+    disk_io_mbps: number;
+    active_connections: number;
+    error_rate_percent: number;
+    uptime_days: number;
+    all_operational: boolean;
+  };
+
+  const [live, setLive] = useState<LiveSystemStatus | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let reconnectTimer: number | undefined;
+    let socket: WebSocket | null = null;
+
+    const connect = async () => {
+      try {
+        const ticketRes = await systemStatusApi.wsTicket();
+        const ticket = ticketRes.data?.data?.ticket as string | undefined;
+        if (!ticket || !active) return;
+
+        const proto = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${proto}://${window.location.host}/api/v1/admin/system-status/ws?ticket=${encodeURIComponent(ticket)}`;
+        socket = new WebSocket(wsUrl);
+
+        socket.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data) as LiveSystemStatus;
+            if (active) setLive(payload);
+          } catch {
+            // ignore malformed payloads
+          }
+        };
+
+        socket.onclose = () => {
+          if (!active) return;
+          reconnectTimer = window.setTimeout(connect, 3000);
+        };
+
+        socket.onerror = () => {
+          socket?.close();
+        };
+      } catch {
+        if (!active) return;
+        reconnectTimer = window.setTimeout(connect, 3000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      active = false;
+      if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
+      if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      void systemStatusApi.ping().catch(() => undefined);
+    };
+
+    tick();
+    const timer = window.setInterval(tick, 10_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const formatBytesAdaptive = (bytes: number) => {
+    const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
+    const mb = safe / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    return `${(mb / 1024).toFixed(2)} GB`;
+  };
+  const fmtBandwidth = (mbps: number) => {
+    const safe = Number.isFinite(mbps) && mbps > 0 ? mbps : 0;
+    if (safe < 0.001) return `${(safe * 1_000_000).toFixed(0)} b/s`;
+    if (safe < 1) return `${(safe * 1000).toFixed(1)} Kb/s`;
+    return `${safe.toFixed(2)} Mb/s`;
+  };
+  const fmtPercent = (v: number) => `${v.toFixed(2)}%`;
+  const fmtLatency = (ms: number) => {
+    const safe = Number.isFinite(ms) && ms > 0 ? ms : 0;
+    if (safe < 1) return `${safe.toFixed(2)} ms`;
+    if (safe < 10) return `${safe.toFixed(1)} ms`;
+    return `${safe.toFixed(0)} ms`;
+  };
+  const hasLive = !!live;
+
+  const cpuPercent = live?.cpu_percent ?? 0;
+  const processCpuPercent = live?.process_cpu_percent ?? 0;
+  const cpuCores = live?.cpu_cores ?? 0;
+  const memoryUsedBytes = live?.memory_used_bytes ?? 0;
+  const memoryTotalBytes = live?.memory_total_bytes ?? 0;
+  const memoryPct = memoryTotalBytes > 0 ? (memoryUsedBytes / memoryTotalBytes) * 100 : 0;
+  const memoryFreeBytes = Math.max(0, memoryTotalBytes - memoryUsedBytes);
+  const uploadMbps = live?.upload_mbps ?? 0;
+  const downloadMbps = live?.download_mbps ?? 0;
+  const uploadPct = live?.upload_percent ?? 0;
+  const downloadPct = live?.download_percent ?? 0;
+  const apiLatencyMS = live?.api_latency_ms ?? 0;
+  const diskIOMBps = live?.disk_io_mbps ?? 0;
+  const activeConnections = live?.active_connections ?? 0;
+  const errorRatePercent = live?.error_rate_percent ?? 0;
+  const uptimeDays = live?.uptime_days ?? 0;
+  const allOperational = live?.all_operational ?? true;
+
   return (
     <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
       <CardHeader className="px-5">
@@ -1221,52 +1349,121 @@ function SystemStatusCard({ t }: { t: (k: string) => string }) {
       </CardHeader>
       <CardContent className="space-y-3 px-5">
         <div className="grid grid-cols-2 gap-2.5">
-          <Gauge
-            label={t("dashboard.systemStatus.cpu")}
-            value={12}
-            display="12%"
-            color="hsl(var(--chart-3))"
-          />
-          <Gauge
-            label={t("dashboard.systemStatus.memory")}
-            value={30}
-            display="1.2 / 4 GB"
-            color="hsl(var(--chart-2))"
-          />
+          <TooltipProvider delayDuration={120}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Gauge
+                    label={t("dashboard.systemStatus.cpu")}
+                    value={cpuPercent}
+                    display={hasLive ? `${cpuPercent.toFixed(0)}%` : "--"}
+                    color="hsl(var(--chart-3))"
+                    valueTestId="system-status-cpu"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                sideOffset={8}
+                className="w-52 rounded-lg border bg-card p-3 text-card-foreground shadow-lg"
+              >
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold">
+                    {t("dashboard.systemStatus.cpu")}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.cpuSystemUsage")}</span>
+                    <span className="text-right font-medium">{hasLive ? `${cpuPercent.toFixed(1)}%` : "--"}</span>
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.cpuProcessUsage")}</span>
+                    <span className="text-right font-medium">{hasLive ? `${processCpuPercent.toFixed(1)}%` : "--"}</span>
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.cpuCores")}</span>
+                    <span className="text-right font-medium">{hasLive ? String(cpuCores) : "--"}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={120}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Gauge
+                    label={t("dashboard.systemStatus.memory")}
+                    value={memoryPct}
+                    display={hasLive ? `${memoryPct.toFixed(0)}%` : "--"}
+                    color="hsl(var(--chart-2))"
+                    valueTestId="system-status-memory"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                sideOffset={8}
+                className="w-52 rounded-lg border bg-card p-3 text-card-foreground shadow-lg"
+              >
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold">
+                    {t("dashboard.systemStatus.memory")}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.memoryUsed")}</span>
+                    <span className="text-right font-medium">{hasLive ? formatBytesAdaptive(memoryUsedBytes) : "--"}</span>
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.memoryTotal")}</span>
+                    <span className="text-right font-medium">{hasLive ? formatBytesAdaptive(memoryTotalBytes) : "--"}</span>
+                    <span className="text-muted-foreground">{t("dashboard.systemStatus.memoryFree")}</span>
+                    <span className="text-right font-medium">{hasLive ? formatBytesAdaptive(memoryFreeBytes) : "--"}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <BandwidthTile
           upLabel={t("dashboard.systemStatus.upload")}
           downLabel={t("dashboard.systemStatus.download")}
-          up="38 Mbps"
-          down="112 Mbps"
-          upPct={19}
-          downPct={22}
+          up={hasLive ? fmtBandwidth(uploadMbps) : "--"}
+          down={hasLive ? fmtBandwidth(downloadMbps) : "--"}
+          upPct={uploadPct}
+          downPct={downloadPct}
         />
         <div className="grid grid-cols-2 gap-2">
           <MetricTile
             label={t("dashboard.systemStatus.apiLatency")}
-            value="46 ms"
+            value={hasLive ? fmtLatency(apiLatencyMS) : "--"}
             dot="hsl(var(--chart-5))"
           />
           <MetricTile
             label={t("dashboard.systemStatus.diskIO")}
-            value="28 MB/s"
+            value={hasLive ? `${diskIOMBps.toFixed(1)} MB/s` : "--"}
             dot="hsl(var(--chart-3))"
           />
           <MetricTile
             label={t("dashboard.systemStatus.activeConnections")}
-            value="184"
+            value={hasLive ? String(activeConnections) : "--"}
             dot="hsl(var(--chart-2))"
           />
           <MetricTile
             label={t("dashboard.systemStatus.errorRate")}
-            value="0.02%"
+            value={hasLive ? fmtPercent(errorRatePercent) : "--"}
             dot="hsl(var(--chart-1))"
           />
         </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-emerald-500/5 p-2.5 text-[11px]">
-          <span className="size-2 rounded-full bg-emerald-500" />
-          <span className="font-medium text-emerald-700 dark:text-emerald-400">
+        <div className={cn(
+          "flex items-center gap-2 rounded-lg border p-2.5 text-[11px]",
+          allOperational
+            ? "bg-emerald-500/5"
+            : "bg-amber-500/5"
+        )}>
+          <span className={cn(
+            "size-2 rounded-full",
+            allOperational ? "bg-emerald-500" : "bg-amber-500"
+          )} />
+          <span className={cn(
+            "font-medium",
+            allOperational
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-amber-700 dark:text-amber-400"
+          )}>
             {t("dashboard.systemStatus.allOperational")}
           </span>
           <span className="ml-auto text-muted-foreground">
