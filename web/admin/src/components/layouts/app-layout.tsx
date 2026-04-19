@@ -622,7 +622,7 @@ export default function AppLayout() {
 
         {/* Footer — always a single row; mobile trims to essentials */}
         <footer className="shrink-0 border-t bg-background">
-          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between gap-3 px-4 py-2.5 text-[11px] text-muted-foreground sm:px-6 lg:px-8">
+          <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between gap-3 px-6 py-2.5 text-[11px] text-muted-foreground sm:px-6 lg:px-8">
             {/* left cluster: brand · [year ·] version */}
             <div className="flex min-w-0 items-center gap-x-2 sm:gap-x-3">
               <div className="flex shrink-0 items-center gap-1.5">

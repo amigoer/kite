@@ -300,6 +300,17 @@ export default function DashboardPage() {
     }));
   }, [daily?.days]);
 
+  // Trim leading all-zero days so the chart doesn't waste space on empty history.
+  // Always keep at least 14 points so the line still reads as a trend.
+  const trendDays = useMemo(() => {
+    const firstActive = days30.findIndex(
+      (d) => d.uploads > 0 || d.accesses > 0,
+    );
+    if (firstActive <= 0) return days30;
+    const start = Math.min(firstActive, Math.max(0, days30.length - 14));
+    return days30.slice(start);
+  }, [days30]);
+
   const last7 = useMemo(() => days30.slice(-7), [days30]);
   const weekUploads = last7.reduce((a, b) => a + b.uploads, 0);
   const weekAccesses = last7.reduce((a, b) => a + b.accesses, 0);
@@ -384,7 +395,7 @@ export default function DashboardPage() {
     () =>
       [...(topUsersData?.items ?? [])]
         .sort((a, b) => (b.storage_used ?? 0) - (a.storage_used ?? 0))
-        .slice(0, 5),
+        .slice(0, 6),
     [topUsersData?.items]
   );
 
@@ -409,6 +420,90 @@ export default function DashboardPage() {
   ).length;
 
   /* ── render ─────────────────────────────────────────────── */
+  const trendHeatmapRow = (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs">
+        <CardHeader className="px-5">
+          <CardTitle className="text-sm">
+            {isAdminWorkspace
+              ? t("dashboard.trend.adminTitle")
+              : t("dashboard.trend.title")}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {isAdminWorkspace
+              ? t("dashboard.trend.adminSub")
+              : t("dashboard.trend.sub")}
+          </CardDescription>
+          <CardAction>
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span
+                  className="size-2 rounded-sm"
+                  style={{ background: "hsl(var(--chart-3))" }}
+                />
+                {t("dashboard.uploads")}
+              </span>
+              <span className="flex items-center gap-1">
+                <span
+                  className="size-2 rounded-sm"
+                  style={{ background: "hsl(var(--chart-2))" }}
+                />
+                {t("dashboard.accesses")}
+              </span>
+            </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="min-w-0 px-5">
+          <div className="h-44 w-full sm:h-56">
+            {!daily ? (
+              <Skeleton className="h-full w-full" />
+            ) : (
+              <TrendCombo
+                data={trendDays}
+                height={220}
+                uploadsLabel={t("dashboard.uploads")}
+                accessesLabel={t("dashboard.accesses")}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs">
+        <CardHeader className="px-5">
+          <CardTitle className="text-sm">
+            {isAdminWorkspace
+              ? t("dashboard.heatmap.adminTitle")
+              : t("dashboard.heatmap.title")}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {isAdminWorkspace
+              ? t("dashboard.heatmap.adminSub")
+              : t("dashboard.heatmap.sub")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="min-w-0 px-5">
+          <Heatmap
+            grid={heatmap}
+            weekdayLabels={[
+              t("dashboard.weekdays.mon"),
+              t("dashboard.weekdays.tue"),
+              t("dashboard.weekdays.wed"),
+              t("dashboard.weekdays.thu"),
+              t("dashboard.weekdays.fri"),
+              t("dashboard.weekdays.sat"),
+              t("dashboard.weekdays.sun"),
+            ]}
+          />
+          <HeatmapLegend
+            lowLabel={t("dashboard.heatmap.low")}
+            highLabel={t("dashboard.heatmap.high")}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="page-enter flex flex-col gap-5 sm:gap-6">
       {/* ═════ HERO ═════════════════════════════════════════ */}
@@ -582,222 +677,9 @@ export default function DashboardPage() {
         </div>
       </PageHero>
 
-      {/* ═════ ROW 1 ═════════════════════════════════════════ */}
-      {isAdminWorkspace ? (
-        <div className="grid gap-4 lg:grid-cols-5">
-          <StorageBackendsCard
-            backends={backendsData ?? []}
-            onManage={() => navigate("/admin/storage")}
-            t={t}
-          />
-          <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
-            <CardHeader className="px-5">
-              <CardTitle className="text-sm">
-                {t("dashboard.composition.title")}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {t("dashboard.composition.sub")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4 px-5 pb-1">
-              {statsLoading ? (
-                <Skeleton className="size-40 rounded-full" />
-              ) : (
-                <>
-                  <Donut
-                    segments={donutSegs}
-                    total={totalCount}
-                    size={160}
-                    stroke={18}
-                    label={t("dashboard.composition.centerLabel")}
-                  />
-                  <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5">
-                    {storageSegs.map((s) => {
-                      const pct =
-                        totalCount > 0
-                          ? Math.round((s.count / totalCount) * 100)
-                          : 0;
-                      return (
-                        <div
-                          key={s.kind}
-                          className="flex items-center gap-2 text-[11px]"
-                        >
-                          <span
-                            className="size-2 shrink-0 rounded-sm"
-                            style={{ background: s.color }}
-                          />
-                          <span className="truncate text-muted-foreground">
-                            {s.label}
-                          </span>
-                          <span className="ml-auto tabular-nums text-foreground/80">
-                            {pct}%
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-5">
-          <Card className="gap-4 py-5 shadow-xs lg:col-span-3">
-            <CardHeader className="px-5">
-              <CardTitle className="text-sm">
-                {t("dashboard.storage.breakdownTitle")}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {t("dashboard.storage.breakdownSub")}
-              </CardDescription>
-              <CardAction>
-                <span className="inline-flex items-center gap-1 rounded-md border bg-background/50 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                  <HardDrive className="size-3" />
-                  {formatSize(totalBytes)}
-                </span>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="space-y-5 px-5">
-              {statsLoading ? (
-                <>
-                  <Skeleton className="h-2.5 w-full rounded-full" />
-                  <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={`sk-pct-${i}`} className="space-y-1.5">
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="h-2 w-14" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-1 sm:grid-cols-4">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={`sk-cnt-${i}`} className="space-y-2">
-                        <Skeleton className="h-2.5 w-12" />
-                        <Skeleton className="h-7 w-16" />
-                        <Skeleton className="h-2 w-10" />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <StackedStorageBar data={storageSegs} total={totalBytes} />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
-            <CardHeader className="px-5">
-              <CardTitle className="text-sm">
-                {t("dashboard.composition.title")}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {t("dashboard.composition.sub")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-center justify-center px-5">
-              {statsLoading ? (
-                <Skeleton className="size-40 rounded-full" />
-              ) : (
-                <Donut
-                  segments={donutSegs}
-                  total={totalCount}
-                  size={160}
-                  stroke={18}
-                  label={t("dashboard.composition.centerLabel")}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ═════ ROW 2: Trend + Heatmap ══════════════════════ */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs lg:col-span-3">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">
-              {isAdminWorkspace
-                ? t("dashboard.trend.adminTitle")
-                : t("dashboard.trend.title")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {isAdminWorkspace
-                ? t("dashboard.trend.adminSub")
-                : t("dashboard.trend.sub")}
-            </CardDescription>
-            <CardAction>
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span
-                    className="size-2 rounded-sm"
-                    style={{ background: "hsl(var(--chart-3))" }}
-                  />
-                  {t("dashboard.uploads")}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span
-                    className="size-2 rounded-sm"
-                    style={{ background: "hsl(var(--chart-2))" }}
-                  />
-                  {t("dashboard.accesses")}
-                </span>
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="min-w-0 px-5">
-            <div className="h-44 w-full sm:h-56">
-              {!daily ? (
-                <Skeleton className="h-full w-full" />
-              ) : (
-                <TrendCombo
-                  data={days30}
-                  height={220}
-                  uploadsLabel={t("dashboard.uploads")}
-                  accessesLabel={t("dashboard.accesses")}
-                />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs lg:col-span-2">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">
-              {isAdminWorkspace
-                ? t("dashboard.heatmap.adminTitle")
-                : t("dashboard.heatmap.title")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {isAdminWorkspace
-                ? t("dashboard.heatmap.adminSub")
-                : t("dashboard.heatmap.sub")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="min-w-0 px-5">
-            <Heatmap
-              grid={heatmap}
-              weekdayLabels={[
-                t("dashboard.weekdays.mon"),
-                t("dashboard.weekdays.tue"),
-                t("dashboard.weekdays.wed"),
-                t("dashboard.weekdays.thu"),
-                t("dashboard.weekdays.fri"),
-                t("dashboard.weekdays.sat"),
-                t("dashboard.weekdays.sun"),
-              ]}
-            />
-            <HeatmapLegend
-              lowLabel={t("dashboard.heatmap.low")}
-              highLabel={t("dashboard.heatmap.high")}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ═════ ROW 3 ═════════════════════════════════════════ */}
       {isAdminWorkspace ? (
         <>
+          {/* ═════ ROW 1: Service Health + Resource Usage ═════ */}
           <div className="grid gap-4 lg:grid-cols-2">
             <ServiceHealthCard t={t} />
             <ResourceUsageCard
@@ -808,72 +690,160 @@ export default function DashboardPage() {
               t={t}
             />
           </div>
-          <TopUsersCard users={topUsers} locale={locale} t={t} />
+
+          {/* ═════ ROW 2: Storage Backends + Top Users ═════ */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <StorageBackendsCard
+              backends={backendsData ?? []}
+              onManage={() => navigate("/admin/storage")}
+              t={t}
+            />
+            <TopUsersCard users={topUsers} locale={locale} t={t} />
+          </div>
+
+          {/* ═════ ROW 3: Trend + Heatmap ═════ */}
+          {trendHeatmapRow}
         </>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-5">
-          <RecentUploadsCard
-            items={recent?.items ?? []}
-            isLoading={recentLoading}
-            locale={locale}
-            t={t}
-          />
+        <>
+          {/* ═════ ROW 1: Storage breakdown + Composition ═════ */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <Card className="gap-4 py-5 shadow-xs lg:col-span-3">
+              <CardHeader className="px-5">
+                <CardTitle className="text-sm">
+                  {t("dashboard.storage.breakdownTitle")}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("dashboard.storage.breakdownSub")}
+                </CardDescription>
+                <CardAction>
+                  <span className="inline-flex items-center gap-1 rounded-md border bg-background/50 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
+                    <HardDrive className="size-3" />
+                    {formatSize(totalBytes)}
+                  </span>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="space-y-5 px-5">
+                {statsLoading ? (
+                  <>
+                    <Skeleton className="h-2.5 w-full rounded-full" />
+                    <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={`sk-pct-${i}`} className="space-y-1.5">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-2 w-14" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-1 sm:grid-cols-4">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={`sk-cnt-${i}`} className="space-y-2">
+                          <Skeleton className="h-2.5 w-12" />
+                          <Skeleton className="h-7 w-16" />
+                          <Skeleton className="h-2 w-10" />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <StackedStorageBar data={storageSegs} total={totalBytes} />
+                )}
+              </CardContent>
+            </Card>
 
-          <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
-            <CardHeader className="px-5">
-              <CardTitle className="text-sm">
-                {t("dashboard.activity.title")}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {t("dashboard.activity.sub")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 px-5">
-              {activity.length === 0 && (
-                <p className="text-xs text-muted-foreground">{t("files.noFilesHint")}</p>
-              )}
-              {activity.map((a, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
-                      a.actorType === "system"
-                        ? "bg-muted text-muted-foreground"
-                        : a.actorType === "you"
-                          ? "bg-foreground text-background"
-                          : "bg-muted",
-                    )}
-                  >
-                    {a.actorType === "system" ? (
-                      <Cpu className="size-4" />
-                    ) : a.actorType === "you" ? (
-                      <UserIcon className="size-4" />
-                    ) : (
-                      a.actor.charAt(0).toUpperCase()
-                    )}
+            <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
+              <CardHeader className="px-5">
+                <CardTitle className="text-sm">
+                  {t("dashboard.composition.title")}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("dashboard.composition.sub")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center px-5">
+                {statsLoading ? (
+                  <Skeleton className="size-40 rounded-full" />
+                ) : (
+                  <Donut
+                    segments={donutSegs}
+                    total={totalCount}
+                    size={160}
+                    stroke={18}
+                    label={t("dashboard.composition.centerLabel")}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ═════ ROW 2: Trend + Heatmap ═════ */}
+          {trendHeatmapRow}
+
+          {/* ═════ ROW 3: Recent + Activity ═════ */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <RecentUploadsCard
+              items={recent?.items ?? []}
+              isLoading={recentLoading}
+              locale={locale}
+              t={t}
+            />
+
+            <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
+              <CardHeader className="px-5">
+                <CardTitle className="text-sm">
+                  {t("dashboard.activity.title")}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {t("dashboard.activity.sub")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 px-5">
+                {activity.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t("files.noFilesHint")}</p>
+                )}
+                {activity.map((a, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div
+                      className={cn(
+                        "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                        a.actorType === "system"
+                          ? "bg-muted text-muted-foreground"
+                          : a.actorType === "you"
+                            ? "bg-foreground text-background"
+                            : "bg-muted",
+                      )}
+                    >
+                      {a.actorType === "system" ? (
+                        <Cpu className="size-4" />
+                      ) : a.actorType === "you" ? (
+                        <UserIcon className="size-4" />
+                      ) : (
+                        a.actor.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm leading-snug">
+                        <b className="font-medium">{a.actor}</b>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          {actionLabel(a.actionKey, locale)}{" "}
+                        </span>
+                        <span className="truncate">
+                          {locale === "zh" ? "「" : "\u201c"}
+                          {a.target}
+                          {locale === "zh" ? "」" : "\u201d"}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                        {formatRelativeTime(a.createdAt, locale)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug">
-                      <b className="font-medium">{a.actor}</b>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        {actionLabel(a.actionKey, locale)}{" "}
-                      </span>
-                      <span className="truncate">
-                        {locale === "zh" ? "「" : "\u201c"}
-                        {a.target}
-                        {locale === "zh" ? "」" : "\u201d"}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                      {formatRelativeTime(a.createdAt, locale)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1142,7 +1112,7 @@ function HealthMetric({
       >
         {value}
       </div>
-      <div className="mt-1.5 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-[3px] text-[11px] text-muted-foreground">{sub}</div>
     </div>
   );
 }
@@ -1273,7 +1243,7 @@ function ResourceBar({
 }) {
   return (
     <div className="mb-3 last:mb-0">
-      <div className="mb-1.5 flex items-baseline justify-between">
+      <div className="mb-[5px] flex items-baseline justify-between">
         <span className="text-xs text-muted-foreground">{name}</span>
         <span className="text-xs font-medium tabular-nums">
           {value}
@@ -1306,16 +1276,16 @@ function MiniStat({
   sub: string;
 }) {
   return (
-    <div className="rounded-md bg-muted/60 px-3 py-2">
+    <div className="rounded-md bg-muted/60 px-2.5 py-2">
       <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="mt-1 flex items-center gap-1.5">
+      <div className="mt-1 flex items-center gap-1">
         <span className="text-[17px] font-medium leading-none tabular-nums">
           {value}
         </span>
         {badge && (
           <span
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+              "rounded-[4px] px-[5px] py-px text-[10px] font-medium tabular-nums",
               badge.up
                 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                 : "bg-red-500/15 text-red-700 dark:text-red-400",
@@ -1325,7 +1295,7 @@ function MiniStat({
           </span>
         )}
       </div>
-      <div className="mt-1.5 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-[3px] text-[11px] text-muted-foreground">{sub}</div>
     </div>
   );
 }
@@ -1401,7 +1371,7 @@ function ResourceUsageCard({
     <Card className="gap-0 py-4 shadow-xs">
       <CardContent className="px-[18px]">
         <div className="mb-3.5 flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-sky-500" />
+          <span className="size-1.5 rounded-full bg-[#378ADD]" />
           {t("dashboard.systemStatus.resourceUsage")}
         </div>
 
@@ -1473,7 +1443,7 @@ function StorageBackendsCard({
   const remaining = Math.max(0, sorted.length - 3);
 
   return (
-    <Card className="gap-3 py-5 shadow-xs lg:col-span-3">
+    <Card className="gap-3 py-5 shadow-xs">
       <CardHeader className="px-5">
         <CardTitle className="text-sm">
           {t("dashboard.backends.title")}

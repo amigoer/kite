@@ -279,7 +279,6 @@ export interface TrendPoint {
 
 export function TrendCombo({
   data,
-  height = 220,
   uploadsLabel = "Uploads",
   accessesLabel = "Accesses",
 }: {
@@ -301,10 +300,7 @@ export function TrendCombo({
 
   if (!data.length) {
     return (
-      <div
-        className="flex items-center justify-center text-xs text-muted-foreground"
-        style={{ height }}
-      >
+      <div className="flex h-full min-h-[160px] items-center justify-center text-xs text-muted-foreground">
         —
       </div>
     );
@@ -317,7 +313,7 @@ export function TrendCombo({
   };
 
   return (
-    <div style={{ height }} className="w-full">
+    <div className="h-full w-full">
       <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
         <AreaChart
           accessibilityLayer
