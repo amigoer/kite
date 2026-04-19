@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
+  ArrowRight,
   ArrowUp,
   CheckCircle2,
   Cpu,
@@ -397,7 +398,7 @@ export default function DashboardPage() {
         label: t("dashboard.otherFiles"),
         count: s.others,
         bytes: byKind(s.others),
-        color: "hsl(var(--chart-5))",
+        color: "hsl(var(--chart-4))",
       },
     ];
   }, [stats, t]);
@@ -629,15 +630,24 @@ export default function DashboardPage() {
               </span>
             </CardAction>
           </CardHeader>
-          <CardContent className="space-y-4 px-5">
+          <CardContent className="space-y-5 px-5">
             {statsLoading ? (
               <>
-                <Skeleton className="h-3 w-full rounded-full" />
+                <Skeleton className="h-2.5 w-full rounded-full" />
                 <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="space-y-1.5">
+                    <div key={`sk-pct-${i}`} className="space-y-1.5">
                       <Skeleton className="h-3 w-20" />
                       <Skeleton className="h-2 w-14" />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-1 sm:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={`sk-cnt-${i}`} className="space-y-2">
+                      <Skeleton className="h-2.5 w-12" />
+                      <Skeleton className="h-7 w-16" />
+                      <Skeleton className="h-2 w-10" />
                     </div>
                   ))}
                 </div>
@@ -789,29 +799,29 @@ export default function DashboardPage() {
               {t("dashboard.activity.sub")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 px-5">
+          <CardContent className="space-y-4 px-5">
             {activity.map((a, i) => (
-              <div key={i} className="flex items-start gap-3 text-sm">
+              <div key={i} className="flex items-start gap-3">
                 <div
                   className={cn(
-                    "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
+                    "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                     a.who === "system"
                       ? "bg-muted text-muted-foreground"
                       : a.who === "you"
                         ? "bg-foreground text-background"
-                        : "bg-muted"
+                        : "bg-muted",
                   )}
                 >
                   {a.who === "system" ? (
-                    <Cpu className="size-3.5" />
+                    <Cpu className="size-4" />
                   ) : a.who === "you" ? (
-                    <UserIcon className="size-3.5" />
+                    <UserIcon className="size-4" />
                   ) : (
                     a.actor.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] leading-snug">
+                  <p className="text-sm leading-snug">
                     <b className="font-medium">{a.actor}</b>
                     <span className="text-muted-foreground">
                       {" "}
@@ -823,7 +833,7 @@ export default function DashboardPage() {
                       {locale === "zh" ? "」" : "\u201d"}
                     </span>
                   </p>
-                  <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
+                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
                     {relativeMinutes(a.minutes, locale)}
                   </p>
                 </div>
@@ -853,7 +863,7 @@ function RecentUploadsCard({
   t: (k: string) => string;
 }) {
   return (
-    <Card className="gap-3 py-5 shadow-xs lg:col-span-3">
+    <Card className="gap-4 py-5 shadow-xs lg:col-span-3">
       <CardHeader className="px-5">
         <CardTitle className="text-sm">
           {t("dashboard.recentUploads")}
@@ -861,19 +871,19 @@ function RecentUploadsCard({
         <CardDescription className="text-xs">
           {t("dashboard.recentUploadsDesc").replace(
             "{count}",
-            String(items.length)
+            String(items.length),
           )}
         </CardDescription>
-        <CardAction>
-          <Button
-            variant="ghost"
-            size="xs"
+        <div className="mt-2">
+          <button
+            type="button"
             onClick={onViewAll}
-            className="text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-md text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            {t("dashboard.viewAll")} →
-          </Button>
-        </CardAction>
+            {t("dashboard.viewAll")}
+            <ArrowRight className="size-3" />
+          </button>
+        </div>
       </CardHeader>
       <CardContent className="px-5">
         {isLoading ? (

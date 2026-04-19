@@ -2,10 +2,10 @@ import { memo } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  FileIcon,
+  FileText,
   Image as ImageIcon,
   Music,
-  Video,
+  Play,
 } from "lucide-react";
 import { cn, formatSize, formatRelativeTime } from "@/lib/utils";
 
@@ -94,7 +94,9 @@ export function HeroKPI({
 }
 
 /* ────────────────────────────────────────────────────────────
- * StackedStorageBar — horizontal bar + legend grid
+ * StackedStorageBar — single stacked bar + two-row breakdown:
+ *   • Row 1: compact legend (dot + name + %, bytes beneath)
+ *   • Row 2: count tiles (dot + name, big count number, bytes beneath)
  * ──────────────────────────────────────────────────────────── */
 export interface StorageSegment {
   kind: string;
@@ -113,41 +115,66 @@ export function StackedStorageBar({
 }) {
   const sum = total ?? data.reduce((a, b) => a + b.bytes, 0);
   const nonEmpty = data.filter((s) => s.bytes > 0);
+  const cols = data.length >= 5 ? "sm:grid-cols-5" : "sm:grid-cols-4";
+
   return (
-    <div className="space-y-3">
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/70">
-        {nonEmpty.length > 0 ? (
-          nonEmpty.map((seg) => (
-            <div
-              key={seg.kind}
-              style={{
-                width: `${sum > 0 ? (seg.bytes / sum) * 100 : 0}%`,
-                background: seg.color,
-              }}
-              className="transition-all hover:opacity-80"
-              title={`${seg.label} · ${formatSize(seg.bytes)}`}
-            />
-          ))
-        ) : null}
+    <div className="space-y-5">
+      {/* Stacked bar */}
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted/70">
+        {nonEmpty.map((seg) => (
+          <div
+            key={seg.kind}
+            style={{
+              width: `${sum > 0 ? (seg.bytes / sum) * 100 : 0}%`,
+              background: seg.color,
+            }}
+            className="transition-all hover:opacity-80"
+            title={`${seg.label} · ${formatSize(seg.bytes)}`}
+          />
+        ))}
       </div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-2 sm:grid-cols-4">
-        {data.map((seg) => (
-          <div key={seg.kind} className="flex items-center gap-2 text-xs">
-            <span
-              className="size-2 shrink-0 rounded-sm"
-              style={{ background: seg.color }}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-1">
+
+      {/* Row 1 — compact legend with % */}
+      <div className={cn("grid grid-cols-2 gap-x-5 gap-y-3", cols)}>
+        {data.map((seg) => {
+          const pct = sum > 0 ? Math.round((seg.bytes / sum) * 100) : 0;
+          return (
+            <div key={`pct-${seg.kind}`} className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{ background: seg.color }}
+                />
                 <span className="truncate text-foreground">{seg.label}</span>
-                <span className="tabular-nums text-muted-foreground">
-                  {sum > 0 ? Math.round((seg.bytes / sum) * 100) : 0}%
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {pct}%
                 </span>
               </div>
-              <div className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
+              <p className="mt-0.5 pl-3 text-[11px] tabular-nums text-muted-foreground">
                 {formatSize(seg.bytes)}
-              </div>
+              </p>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Row 2 — hero count tiles */}
+      <div className={cn("grid grid-cols-2 gap-x-5 gap-y-4 pt-1", cols)}>
+        {data.map((seg) => (
+          <div key={`cnt-${seg.kind}`} className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span
+                className="size-1.5 shrink-0 rounded-full"
+                style={{ background: seg.color }}
+              />
+              <span className="truncate">{seg.label}</span>
+            </div>
+            <div className="mt-1.5 text-[26px] font-semibold leading-none tabular-nums tracking-tight">
+              {seg.count.toLocaleString()}
+            </div>
+            <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
+              {formatSize(seg.bytes)}
+            </p>
           </div>
         ))}
       </div>
@@ -222,10 +249,10 @@ export function Donut({
         </g>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-[11px] font-medium text-muted-foreground">
           {label}
         </span>
-        <span className="text-xl font-semibold tabular-nums text-foreground">
+        <span className="mt-0.5 text-[26px] font-semibold leading-none tabular-nums tracking-tight text-foreground">
           {s.toLocaleString()}
         </span>
       </div>
@@ -506,19 +533,58 @@ export interface ThumbFile {
   created_at: string;
 }
 
-function renderFileKindIcon(type: string) {
-  const cls = "size-7";
-  const w = 1.5;
-  switch (type) {
+/** Background gradient + subtle dot-grid tint per file type. The tint keeps
+ *  placeholder tiles feeling intentional instead of flat gray. */
+const THUMB_TINT: Record<string, string> = {
+  image:
+    "bg-[linear-gradient(135deg,hsl(var(--chart-3)/0.18),hsl(var(--chart-3)/0.05))]",
+  video:
+    "bg-[linear-gradient(135deg,hsl(var(--chart-2)/0.22),hsl(var(--chart-2)/0.05))]",
+  audio:
+    "bg-[linear-gradient(135deg,hsl(var(--chart-1)/0.22),hsl(var(--chart-1)/0.05))]",
+  file: "bg-[linear-gradient(135deg,hsl(var(--muted)),hsl(var(--muted)/0.4))]",
+};
+
+/** 10-char uppercase badge: short extension if present, otherwise a type
+ *  abbreviation. Keeps the tile legible on any theme. */
+function badgeLabel(file: ThumbFile): string {
+  const m = file.original_name.match(/\.([A-Za-z0-9]{1,5})$/);
+  if (m) return m[1].toUpperCase();
+  switch (file.file_type) {
     case "image":
-      return <ImageIcon className={cls} strokeWidth={w} />;
+      return "IMG";
     case "video":
-      return <Video className={cls} strokeWidth={w} />;
+      return "VID";
     case "audio":
-      return <Music className={cls} strokeWidth={w} />;
+      return "AUD";
     default:
-      return <FileIcon className={cls} strokeWidth={w} />;
+      return "FILE";
   }
+}
+
+function PlaceholderIcon({ type }: { type: string }) {
+  // Videos & audios get a prominent circular play button, per design.
+  if (type === "video" || type === "audio") {
+    return (
+      <div className="flex size-11 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm backdrop-blur-sm">
+        {type === "video" ? (
+          <Play className="size-5 translate-x-px fill-current" />
+        ) : (
+          <Music className="size-5" strokeWidth={1.75} />
+        )}
+      </div>
+    );
+  }
+  // Documents get a small card-style icon. Images already render the thumb,
+  // so this branch only fires when the thumb URL is missing.
+  if (type === "image") {
+    return <ImageIcon className="size-8 text-muted-foreground/70" strokeWidth={1.5} />;
+  }
+  return (
+    <div className="flex size-11 items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground shadow-sm">
+      <FileText className="size-5" strokeWidth={1.5} />
+    </div>
+  );
 }
 
 export const FileThumb = memo(function FileThumb({
@@ -529,9 +595,16 @@ export const FileThumb = memo(function FileThumb({
   locale: string;
 }) {
   const hasThumb = file.file_type === "image" && (file.thumb_url || file.url);
+  const badge = badgeLabel(file);
+  const tint = THUMB_TINT[file.file_type] ?? THUMB_TINT.file;
   return (
-    <div className="group relative overflow-hidden rounded-lg border bg-muted/20 transition-colors hover:border-foreground/20">
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+    <div className="group relative overflow-hidden rounded-lg border bg-card transition-colors hover:border-foreground/20">
+      <div
+        className={cn(
+          "relative aspect-square w-full overflow-hidden",
+          !hasThumb && tint,
+        )}
+      >
         {hasThumb ? (
           <img
             src={file.thumb_url || file.url}
@@ -540,23 +613,30 @@ export const FileThumb = memo(function FileThumb({
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
-            {renderFileKindIcon(file.file_type)}
+          <div className="flex h-full w-full items-center justify-center">
+            <PlaceholderIcon type={file.file_type} />
           </div>
         )}
+        {/* subtle dot grid overlay on placeholder tiles (no overlay on real images) */}
+        {!hasThumb && (
+          <div className="dot-grid pointer-events-none absolute inset-0 opacity-30" />
+        )}
+        {/* type badge — bottom-left */}
+        <span className="absolute bottom-1.5 left-1.5 rounded-md bg-foreground/85 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-background backdrop-blur-sm">
+          {badge}
+        </span>
       </div>
-      <div className="px-2 py-1.5">
+      <div className="px-2.5 py-2">
         <div
-          className="truncate text-[11px] font-medium leading-tight"
+          className="truncate text-[12px] font-medium leading-tight"
           title={file.original_name}
         >
           {file.original_name}
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] tabular-nums text-muted-foreground">
-          <span>{formatSize(file.size_bytes)}</span>
-          <span className="truncate">
-            {formatRelativeTime(file.created_at, locale)}
-          </span>
+        <div className="mt-1 truncate text-[10.5px] tabular-nums text-muted-foreground">
+          {formatSize(file.size_bytes)}
+          <span className="mx-1 text-muted-foreground/60">·</span>
+          {formatRelativeTime(file.created_at, locale)}
         </div>
       </div>
     </div>
@@ -568,9 +648,9 @@ export const FileThumb = memo(function FileThumb({
  * ──────────────────────────────────────────────────────────── */
 export function FileThumbSkeleton() {
   return (
-    <div className="overflow-hidden rounded-lg border bg-muted/20">
+    <div className="overflow-hidden rounded-lg border bg-card">
       <div className="aspect-square w-full animate-pulse bg-muted" />
-      <div className="space-y-1 px-2 py-1.5">
+      <div className="space-y-1.5 px-2.5 py-2">
         <div className="h-2.5 w-3/4 animate-pulse rounded bg-muted" />
         <div className="h-2 w-1/2 animate-pulse rounded bg-muted" />
       </div>
