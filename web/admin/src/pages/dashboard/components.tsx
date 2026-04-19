@@ -7,7 +7,14 @@ import {
   Music,
   Play,
 } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { cn, formatSize, formatRelativeTime } from "@/lib/utils";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 /* ────────────────────────────────────────────────────────────
  * PageHero — backdrop + dot grid, used on dashboard
@@ -273,14 +280,25 @@ export interface TrendPoint {
 export function TrendCombo({
   data,
   height = 220,
-  todayLabel = "Today",
-  dayLabel = "d",
+  uploadsLabel = "Uploads",
+  accessesLabel = "Accesses",
 }: {
   data: TrendPoint[];
   height?: number;
-  todayLabel?: string;
-  dayLabel?: string;
+  uploadsLabel?: string;
+  accessesLabel?: string;
 }) {
+  const chartConfig = {
+    uploads: {
+      label: uploadsLabel,
+      color: "hsl(var(--chart-3))",
+    },
+    accesses: {
+      label: accessesLabel,
+      color: "hsl(var(--chart-2))",
+    },
+  } satisfies ChartConfig;
+
   if (!data.length) {
     return (
       <div
@@ -291,156 +309,69 @@ export function TrendCombo({
       </div>
     );
   }
-  const w = 640;
-  const padL = 32;
-  const padR = 8;
-  const padT = 10;
-  const padB = 22;
-  const uploads = data.map((d) => d.uploads);
-  const accesses = data.map((d) => d.accesses);
-  const maxU = Math.max(...uploads, 5);
-  const maxA = Math.max(...accesses, 5);
-  const barW = (w - padL - padR) / data.length - 2;
-  const yScaleU = (v: number) =>
-    height - padB - (v / maxU) * (height - padT - padB);
-  const xAt = (i: number) =>
-    padL + i * ((w - padL - padR) / data.length) + 1;
 
-  const linePts = data.map(
-    (d, i) =>
-      [
-        xAt(i) + barW / 2,
-        height - padB - (d.accesses / maxA) * (height - padT - padB),
-      ] as [number, number]
-  );
-  const linePath = linePts
-    .map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`))
-    .join(" ");
-  const area = `${linePath} L${xAt(data.length - 1) + barW / 2},${
-    height - padB
-  } L${xAt(0) + barW / 2},${height - padB} Z`;
-
-  const ticks = [0, 0.5, 1].map((t) => ({
-    y: height - padB - t * (height - padT - padB),
-    label: Math.round(maxU * t),
-  }));
-
-  const everyX = Math.max(1, Math.ceil(data.length / 6));
-  const dotEvery = Math.max(1, Math.ceil(data.length / 8));
+  const fmtDate = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
 
   return (
-    <svg
-      viewBox={`0 0 ${w} ${height}`}
-      className="h-full w-full"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id="trend-area" x1="0" x2="0" y1="0" y2="1">
-          <stop
-            offset="0%"
-            stopColor="hsl(var(--chart-2))"
-            stopOpacity="0.16"
+    <div style={{ height }} className="w-full">
+      <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+        <AreaChart
+          accessibilityLayer
+          data={data}
+          margin={{ left: 20, right: 8, top: 4, bottom: 0 }}
+        >
+          <CartesianGrid vertical={false} />
+          <YAxis
+            tickLine={false}
+            axisLine
+            orientation="left"
+            tickMargin={8}
+            width={44}
+            allowDecimals={false}
+            tickFormatter={(value) => Number(value).toLocaleString()}
           />
-          <stop
-            offset="100%"
-            stopColor="hsl(var(--chart-2))"
-            stopOpacity="0"
+          <XAxis
+            dataKey="day"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={28}
+            tickFormatter={fmtDate}
           />
-        </linearGradient>
-        <linearGradient id="bar-grad" x1="0" x2="0" y1="0" y2="1">
-          <stop
-            offset="0%"
-            stopColor="hsl(var(--chart-3))"
-            stopOpacity="0.95"
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                indicator="dot"
+                labelFormatter={(value) => fmtDate(String(value))}
+              />
+            }
           />
-          <stop
-            offset="100%"
-            stopColor="hsl(var(--chart-3))"
-            stopOpacity="0.55"
+          <Area
+            dataKey="uploads"
+            type="natural"
+            fill="var(--color-uploads)"
+            fillOpacity={0.35}
+            stroke="var(--color-uploads)"
+            strokeWidth={2}
+            stackId="traffic"
           />
-        </linearGradient>
-      </defs>
-      {/* gridlines */}
-      {ticks.map((t, i) => (
-        <g key={i}>
-          <line
-            x1={padL}
-            x2={w - padR}
-            y1={t.y}
-            y2={t.y}
-            className="chart-gridline"
+          <Area
+            dataKey="accesses"
+            type="natural"
+            fill="var(--color-accesses)"
+            fillOpacity={0.35}
+            stroke="var(--color-accesses)"
+            strokeWidth={2}
+            stackId="traffic"
           />
-          <text
-            x={padL - 4}
-            y={t.y + 3}
-            textAnchor="end"
-            fontSize="9"
-            fill="hsl(var(--muted-foreground))"
-          >
-            {t.label}
-          </text>
-        </g>
-      ))}
-      {/* bars — uploads */}
-      {data.map((d, i) => {
-        const y = yScaleU(d.uploads);
-        const bh = height - padB - y;
-        return (
-          <rect
-            key={i}
-            x={xAt(i)}
-            y={y}
-            width={Math.max(2, barW)}
-            height={Math.max(1, bh)}
-            rx="2"
-            fill="url(#bar-grad)"
-          >
-            <title>{`${d.day} · ${d.uploads}`}</title>
-          </rect>
-        );
-      })}
-      {/* access area + line */}
-      <path d={area} fill="url(#trend-area)" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="hsl(var(--chart-2))"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {linePts
-        .filter((_, i) => i % dotEvery === 0 || i === linePts.length - 1)
-        .map((p, i) => (
-          <circle
-            key={i}
-            cx={p[0]}
-            cy={p[1]}
-            r="2.5"
-            fill="hsl(var(--background))"
-            stroke="hsl(var(--chart-2))"
-            strokeWidth="1.5"
-          />
-        ))}
-      {/* x labels */}
-      {data.map((_d, i) => {
-        if (i % everyX !== 0 && i !== data.length - 1) return null;
-        return (
-          <text
-            key={i}
-            x={xAt(i) + barW / 2}
-            y={height - 6}
-            textAnchor="middle"
-            fontSize="9"
-            fill="hsl(var(--muted-foreground))"
-          >
-            {i === data.length - 1
-              ? todayLabel
-              : `${data.length - 1 - i}${dayLabel}`}
-          </text>
-        );
-      })}
-    </svg>
+        </AreaChart>
+      </ChartContainer>
+    </div>
   );
 }
 

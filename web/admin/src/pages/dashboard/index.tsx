@@ -785,8 +785,8 @@ export default function DashboardPage() {
                 <TrendCombo
                   data={days30}
                   height={220}
-                  todayLabel={t("dashboard.trend.today")}
-                  dayLabel={t("dashboard.trend.dayAbbr")}
+                  uploadsLabel={t("dashboard.uploads")}
+                  accessesLabel={t("dashboard.accesses")}
                 />
               )}
             </div>
