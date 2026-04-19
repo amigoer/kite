@@ -175,10 +175,10 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 			height = &dims.Height
 		}
 
-		thumbBuf, err := s.imageSvc.GenerateThumbnail(bytes.NewReader(data))
+		thumbBuf, thumbMime, err := s.imageSvc.GenerateThumbnail(bytes.NewReader(data), mimeType)
 		if err == nil {
 			thumbKey := "thumb/" + storageKey
-			if putErr := primary.Driver.Put(ctx, thumbKey, thumbBuf, int64(thumbBuf.Len()), "image/jpeg"); putErr == nil {
+			if putErr := primary.Driver.Put(ctx, thumbKey, thumbBuf, int64(thumbBuf.Len()), thumbMime); putErr == nil {
 				u := "/t/" + hashMD5[:8]
 				thumbURL = &u
 			}

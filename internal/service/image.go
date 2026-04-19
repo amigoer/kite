@@ -42,20 +42,46 @@ func (s *ImageService) GetDimensions(reader io.Reader) (*ImageDimensions, error)
 	return &ImageDimensions{Width: cfg.Width, Height: cfg.Height}, nil
 }
 
-// GenerateThumbnail 生成缩略图。
-// 按 thumbWidth 等比缩放，输出为 JPEG 格式。
-func (s *ImageService) GenerateThumbnail(reader io.Reader) (*bytes.Buffer, error) {
+// GenerateThumbnail 生成缩略图。按 thumbWidth 等比缩放。
+// 根据源图片类型选择输出格式：
+//   - PNG / WebP / GIF → 输出 PNG，保留 alpha 透明通道；
+//   - 其它（JPEG / BMP / TIFF 等）→ 输出 JPEG，体积更小。
+//
+// 返回 (buf, 实际输出的 mime)。调用方应使用返回的 mime 写入存储 Content-Type
+// 并在访问时返回相同的 Content-Type。
+func (s *ImageService) GenerateThumbnail(reader io.Reader, srcMime string) (*bytes.Buffer, string, error) {
 	src, err := imaging.Decode(reader, imaging.AutoOrientation(true))
 	if err != nil {
-		return nil, fmt.Errorf("decode image for thumbnail: %w", err)
+		return nil, "", fmt.Errorf("decode image for thumbnail: %w", err)
 	}
 
 	thumb := imaging.Resize(src, s.thumbWidth, 0, imaging.Lanczos)
 
 	buf := new(bytes.Buffer)
-	if err := imaging.Encode(buf, thumb, imaging.JPEG, imaging.JPEGQuality(s.thumbQuality)); err != nil {
-		return nil, fmt.Errorf("encode thumbnail: %w", err)
+	outMime := ThumbnailMimeFor(srcMime)
+	switch outMime {
+	case "image/png":
+		if err := imaging.Encode(buf, thumb, imaging.PNG); err != nil {
+			return nil, "", fmt.Errorf("encode png thumbnail: %w", err)
+		}
+	default:
+		if err := imaging.Encode(buf, thumb, imaging.JPEG, imaging.JPEGQuality(s.thumbQuality)); err != nil {
+			return nil, "", fmt.Errorf("encode jpeg thumbnail: %w", err)
+		}
 	}
 
-	return buf, nil
+	return buf, outMime, nil
+}
+
+// ThumbnailMimeFor 返回给定源图 MIME 类型对应的缩略图输出 MIME。
+// 透明类格式（PNG / WebP / GIF）映射到 image/png 以保留 alpha；
+// 其它格式（含未知）映射到 image/jpeg。
+// 导出供上传写入 Content-Type 以及 /t/:hash 访问处理程序读取 Content-Type 复用。
+func ThumbnailMimeFor(srcMime string) string {
+	switch srcMime {
+	case "image/png", "image/webp", "image/gif":
+		return "image/png"
+	default:
+		return "image/jpeg"
+	}
 }

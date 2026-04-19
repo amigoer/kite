@@ -237,17 +237,17 @@ function FileVisual({ file }: { file: FileItem }) {
   if (file.file_type === "image") {
     const src = file.thumb_url || file.url;
     if (src) {
-      // Transparency checkerboard behind the image — opaque images cover
-      // it entirely; transparent PNGs/SVGs show the grid through their
-      // transparent regions, making it obvious that the transparency is
-      // part of the source (not the tile bg bleeding through).
+      // Transparency checkerboard behind the image — `object-contain` fits
+      // the whole source inside the square so transparent PNGs/SVGs reveal
+      // the grid through their transparent regions (matching the preview
+      // modal behaviour) instead of hiding it behind a cropped `cover` fill.
       return (
         <div className="checker-bg h-full w-full">
           <img
             src={src}
             alt={file.original_name}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </div>
       );
@@ -1043,10 +1043,7 @@ export default function FilesPage() {
         viewMode === "grid" ? (
           <div
             ref={gridRef}
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            }}
+            className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]"
           >
             {Array.from({ length: pageSize }).map((_, i) => (
               <Skeleton key={i} className="aspect-square rounded-lg" />
@@ -1064,10 +1061,7 @@ export default function FilesPage() {
           {viewMode === "grid" ? (
             <div
               ref={gridRef}
-              className="grid gap-3"
-              style={{
-                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              }}
+              className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]"
             >
               {items.map((file) => (
                 <Tile

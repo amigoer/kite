@@ -383,10 +383,14 @@ func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 	}
 	defer reader.Close()
 
-	c.Header("Content-Type", "image/jpeg")
+	// 缩略图实际格式与源图一致：源图有透明通道（PNG/WebP/GIF）时输出 PNG，
+	// 否则输出 JPEG。此处必须与 ImageService.GenerateThumbnail 保持一致，
+	// 否则响应 Content-Type 与字节流不匹配，浏览器可能把 PNG 按 JPEG 解码失败。
+	thumbMime := service.ThumbnailMimeFor(file.MimeType)
+	c.Header("Content-Type", thumbMime)
 	c.Header("Cache-Control", "public, max-age=86400")
 	c.Header("ETag", file.HashMD5+"-thumb")
-	c.DataFromReader(http.StatusOK, size, "image/jpeg", reader, nil)
+	c.DataFromReader(http.StatusOK, size, thumbMime, reader, nil)
 	h.logAccess(file.ID, file.UserID, size)
 }
 

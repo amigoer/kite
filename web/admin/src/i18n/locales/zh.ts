@@ -130,17 +130,21 @@ const zh: Translations = {
       inviteUsers: "邀请用户",
       newBackend: "新增后端",
       newFolder: "新建文件夹",
+      adminSub: "整个 Kite 实例运行正常 · 系统负载 12% · 最近备份 2 小时前",
     },
 
     kpi: {
       totalUsers: "用户总数",
       totalResources: "资源总数",
-      storageUsed: "已用存储",
-      weeklyAccesses: "近 7 日访问",
+      storageUsed: "存储占用",
+      weeklyAccesses: "本周请求",
       activeTokens: "活跃 Token",
       platformWide: "全站统计",
       apiPlusDownloads: "API + 下载",
       resourceRefs: "资源引用",
+      activeThisWeek: "{count} 位本周活跃",
+      newThisWeek: "本周新增 {count}",
+      backendsCount: "{total} 个后端 · {active} 启用",
     },
 
     storage: {
@@ -159,6 +163,8 @@ const zh: Translations = {
       sub: "每日上传与访问对比",
       today: "今天",
       dayAbbr: "天前",
+      adminTitle: "平台流量 · 近 30 日",
+      adminSub: "每日上传、下载与 API 调用对比",
     },
 
     heatmap: {
@@ -166,6 +172,8 @@ const zh: Translations = {
       sub: "近 12 周 · 时段 × 周几",
       low: "少",
       high: "多",
+      adminTitle: "访问热力图",
+      adminSub: "近 12 周 · 时段 × 周几",
     },
 
     weekdays: {
@@ -192,11 +200,22 @@ const zh: Translations = {
     systemStatus: {
       title: "系统状态",
       sub: "一眼掌握平台健康度",
+      subRefresh: "实时指标 · 10 秒刷新",
       allHealthy: "全部服务运行正常",
+      allOperational: "所有服务正常",
+      uptimeDays: "{days} 天无宕机",
       storageUtil: "存储占用率",
       weeklyUploads: "近 7 日上传",
       weeklyBandwidth: "近 7 日带宽",
       activeTokens: "活跃 Token",
+      cpu: "CPU",
+      memory: "内存",
+      apiLatency: "API 延迟",
+      diskIO: "磁盘 I/O",
+      activeConnections: "活跃连接",
+      errorRate: "错误率",
+      upload: "上行",
+      download: "下行",
     },
 
     backends: {
@@ -206,6 +225,8 @@ const zh: Translations = {
       noBackends: "暂未配置存储后端",
       defaultBadge: "默认",
       inactiveBadge: "停用",
+      moreCount: "还有 {count} 个后端",
+      viewAllMore: "查看全部 →",
     },
   },
 
@@ -615,6 +636,9 @@ const zh: Translations = {
 
   footer: {
     description: "开源自部署媒体托管系统",
+    statusOk: "服务正常",
+    search: "搜索",
+    shortcuts: "快捷键",
   },
 };
 

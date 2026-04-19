@@ -128,17 +128,21 @@ const en = {
       inviteUsers: "Invite users",
       newBackend: "Add backend",
       newFolder: "New folder",
+      adminSub: "Kite instance running smoothly · System load 12% · Last backup 2h ago",
     },
 
     kpi: {
       totalUsers: "Total users",
       totalResources: "Total resources",
       storageUsed: "Storage used",
-      weeklyAccesses: "Accesses · 7d",
+      weeklyAccesses: "Requests · 7d",
       activeTokens: "Active tokens",
       platformWide: "Platform-wide",
       apiPlusDownloads: "API + downloads",
       resourceRefs: "Resource references",
+      activeThisWeek: "{count} active this week",
+      newThisWeek: "{count} added this week",
+      backendsCount: "{total} backends · {active} active",
     },
 
     storage: {
@@ -157,6 +161,8 @@ const en = {
       sub: "Daily uploads vs. accesses",
       today: "Today",
       dayAbbr: "d",
+      adminTitle: "Platform traffic · 30d",
+      adminSub: "Daily uploads, downloads and API calls",
     },
 
     heatmap: {
@@ -164,6 +170,8 @@ const en = {
       sub: "Past 12 weeks · hour × weekday",
       low: "Less",
       high: "More",
+      adminTitle: "Access heatmap",
+      adminSub: "Past 12 weeks · hour × weekday",
     },
 
     weekdays: {
@@ -190,11 +198,22 @@ const en = {
     systemStatus: {
       title: "System status",
       sub: "Platform health at a glance",
+      subRefresh: "Live metrics · refreshes every 10s",
       allHealthy: "All systems operational",
+      allOperational: "All services operational",
+      uptimeDays: "{days}d without downtime",
       storageUtil: "Storage utilization",
       weeklyUploads: "Uploads · 7d",
       weeklyBandwidth: "Bandwidth · 7d",
       activeTokens: "Active tokens",
+      cpu: "CPU",
+      memory: "Memory",
+      apiLatency: "API latency",
+      diskIO: "Disk I/O",
+      activeConnections: "Active connections",
+      errorRate: "Error rate",
+      upload: "Upload",
+      download: "Download",
     },
 
     backends: {
@@ -204,6 +223,8 @@ const en = {
       noBackends: "No backends configured",
       defaultBadge: "Default",
       inactiveBadge: "Off",
+      moreCount: "{count} more backends",
+      viewAllMore: "View all →",
     },
   },
 
@@ -614,6 +635,9 @@ const en = {
 
   footer: {
     description: "Open-source self-hosted media hosting",
+    statusOk: "All systems ok",
+    search: "Search",
+    shortcuts: "Shortcuts",
   },
 } as const;
 

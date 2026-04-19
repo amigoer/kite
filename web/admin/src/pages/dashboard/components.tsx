@@ -608,7 +608,7 @@ export const FileThumb = memo(function FileThumb({
           <img
             src={file.thumb_url || file.url}
             alt={file.original_name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
             loading="lazy"
           />
         ) : (

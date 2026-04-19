@@ -355,7 +355,7 @@ export default function AdminFilesPage() {
                         <img
                           src={previewUrl}
                           alt={file.original_name}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       ) : (
                         <div className={`flex size-12 items-center justify-center rounded-xl ${fi.bg}`}>

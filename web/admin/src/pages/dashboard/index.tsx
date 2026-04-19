@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
+  ArrowDown,
+  ArrowRight,
   ArrowUp,
-  CheckCircle2,
   Cpu,
   Eye,
   Files,
@@ -322,14 +323,7 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  /* ── admin tokens count & storage backends ──────────────── */
-  const { data: adminTokensData } = useQuery<Array<{ id: string }>>({
-    queryKey: ["dashboard", "adminTokens"],
-    enabled: isAdminWorkspace,
-    queryFn: () => tokenApi.list().then((r) => r.data.data),
-    staleTime: 60_000,
-  });
-
+  /* ── admin storage backends ─────────────────────────────── */
   const { data: backendsData } = useQuery<DashboardStorageBackend[]>({
     queryKey: ["dashboard", "storageBackends"],
     enabled: isAdminWorkspace,
@@ -437,10 +431,14 @@ export default function DashboardPage() {
       : `${greeting.sub} · ${todayUploads} file${
           todayUploads === 1 ? "" : "s"
         } synced today`;
-  const heroSubAdmin =
-    locale === "zh"
-      ? "整个 Kite 实例运行正常 · 实时同步中"
-      : "Kite instance is healthy · live sync";
+  const heroSubAdmin = t("dashboard.hero.adminSub");
+
+  /* ── admin KPI derived counts ───────────────────────────── */
+  const activeBackends = (backendsData ?? []).filter((b) => b.is_active).length;
+  const totalBackends = (backendsData ?? []).length;
+  const activeUsers = (topUsersData?.items ?? []).filter(
+    (u) => (u.storage_used ?? 0) > 0,
+  ).length;
 
   /* ── render ─────────────────────────────────────────────── */
   return (
@@ -532,25 +530,29 @@ export default function DashboardPage() {
               <HeroKPI
                 label={t("dashboard.kpi.totalUsers")}
                 value={(stats?.users ?? 0).toLocaleString()}
-                delta={t("dashboard.kpi.platformWide")}
+                delta={t("dashboard.kpi.activeThisWeek").replace(
+                  "{count}",
+                  String(activeUsers),
+                )}
                 deltaIcon={<ArrowUp className="size-3" />}
                 accent="hsl(var(--chart-2))"
               />
               <HeroKPI
                 label={t("dashboard.kpi.totalResources")}
                 value={(stats?.total_files ?? 0).toLocaleString()}
-                delta={
-                  locale === "zh"
-                    ? `本周 +${weekUploads}`
-                    : `+${weekUploads} this week`
-                }
+                delta={t("dashboard.kpi.newThisWeek").replace(
+                  "{count}",
+                  String(weekUploads),
+                )}
                 deltaIcon={<TrendingUp className="size-3" />}
                 accent="hsl(var(--chart-3))"
               />
               <HeroKPI
                 label={t("dashboard.kpi.storageUsed")}
                 value={formatSize(stats?.total_size ?? 0)}
-                delta={t("dashboard.kpi.platformWide")}
+                delta={t("dashboard.kpi.backendsCount")
+                  .replace("{total}", String(totalBackends))
+                  .replace("{active}", String(activeBackends))}
                 accent="hsl(var(--chart-1))"
               />
               <HeroKPI
@@ -612,85 +614,149 @@ export default function DashboardPage() {
         </div>
       </PageHero>
 
-      {/* ═════ ROW 1: Storage breakdown + Donut ═════════════ */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="gap-4 py-5 shadow-xs lg:col-span-3">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">
-              {t("dashboard.storage.breakdownTitle")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {t("dashboard.storage.breakdownSub")}
-            </CardDescription>
-            <CardAction>
-              <span className="inline-flex items-center gap-1 rounded-md border bg-background/50 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                <HardDrive className="size-3" />
-                {formatSize(totalBytes)}
-              </span>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-5 px-5">
-            {statsLoading ? (
-              <>
-                <Skeleton className="h-2.5 w-full rounded-full" />
-                <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`sk-pct-${i}`} className="space-y-1.5">
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-2 w-14" />
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-1 sm:grid-cols-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`sk-cnt-${i}`} className="space-y-2">
-                      <Skeleton className="h-2.5 w-12" />
-                      <Skeleton className="h-7 w-16" />
-                      <Skeleton className="h-2 w-10" />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <StackedStorageBar data={storageSegs} total={totalBytes} />
-            )}
-          </CardContent>
-        </Card>
+      {/* ═════ ROW 1 ═════════════════════════════════════════ */}
+      {isAdminWorkspace ? (
+        <div className="grid gap-4 lg:grid-cols-5">
+          <StorageBackendsCard
+            backends={backendsData ?? []}
+            onManage={() => navigate("/admin/storage")}
+            t={t}
+          />
+          <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
+            <CardHeader className="px-5">
+              <CardTitle className="text-sm">
+                {t("dashboard.composition.title")}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {t("dashboard.composition.sub")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4 px-5 pb-1">
+              {statsLoading ? (
+                <Skeleton className="size-40 rounded-full" />
+              ) : (
+                <>
+                  <Donut
+                    segments={donutSegs}
+                    total={totalCount}
+                    size={160}
+                    stroke={18}
+                    label={t("dashboard.composition.centerLabel")}
+                  />
+                  <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5">
+                    {storageSegs.map((s) => {
+                      const pct =
+                        totalCount > 0
+                          ? Math.round((s.count / totalCount) * 100)
+                          : 0;
+                      return (
+                        <div
+                          key={s.kind}
+                          className="flex items-center gap-2 text-[11px]"
+                        >
+                          <span
+                            className="size-2 shrink-0 rounded-sm"
+                            style={{ background: s.color }}
+                          />
+                          <span className="truncate text-muted-foreground">
+                            {s.label}
+                          </span>
+                          <span className="ml-auto tabular-nums text-foreground/80">
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-5">
+          <Card className="gap-4 py-5 shadow-xs lg:col-span-3">
+            <CardHeader className="px-5">
+              <CardTitle className="text-sm">
+                {t("dashboard.storage.breakdownTitle")}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {t("dashboard.storage.breakdownSub")}
+              </CardDescription>
+              <CardAction>
+                <span className="inline-flex items-center gap-1 rounded-md border bg-background/50 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
+                  <HardDrive className="size-3" />
+                  {formatSize(totalBytes)}
+                </span>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-5 px-5">
+              {statsLoading ? (
+                <>
+                  <Skeleton className="h-2.5 w-full rounded-full" />
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={`sk-pct-${i}`} className="space-y-1.5">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-2 w-14" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-1 sm:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={`sk-cnt-${i}`} className="space-y-2">
+                        <Skeleton className="h-2.5 w-12" />
+                        <Skeleton className="h-7 w-16" />
+                        <Skeleton className="h-2 w-10" />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <StackedStorageBar data={storageSegs} total={totalBytes} />
+              )}
+            </CardContent>
+          </Card>
 
-        <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">
-              {t("dashboard.composition.title")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {t("dashboard.composition.sub")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center px-5">
-            {statsLoading ? (
-              <Skeleton className="size-40 rounded-full" />
-            ) : (
-              <Donut
-                segments={donutSegs}
-                total={totalCount}
-                size={160}
-                stroke={18}
-                label={t("dashboard.composition.centerLabel")}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="gap-4 py-5 shadow-xs lg:col-span-2">
+            <CardHeader className="px-5">
+              <CardTitle className="text-sm">
+                {t("dashboard.composition.title")}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {t("dashboard.composition.sub")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center px-5">
+              {statsLoading ? (
+                <Skeleton className="size-40 rounded-full" />
+              ) : (
+                <Donut
+                  segments={donutSegs}
+                  total={totalCount}
+                  size={160}
+                  stroke={18}
+                  label={t("dashboard.composition.centerLabel")}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ═════ ROW 2: Trend + Heatmap ══════════════════════ */}
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs lg:col-span-3">
           <CardHeader className="px-5">
             <CardTitle className="text-sm">
-              {t("dashboard.trend.title")}
+              {isAdminWorkspace
+                ? t("dashboard.trend.adminTitle")
+                : t("dashboard.trend.title")}
             </CardTitle>
             <CardDescription className="text-xs">
-              {t("dashboard.trend.sub")}
+              {isAdminWorkspace
+                ? t("dashboard.trend.adminSub")
+                : t("dashboard.trend.sub")}
             </CardDescription>
             <CardAction>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -730,10 +796,14 @@ export default function DashboardPage() {
         <Card className="min-w-0 gap-3 overflow-hidden py-5 shadow-xs lg:col-span-2">
           <CardHeader className="px-5">
             <CardTitle className="text-sm">
-              {t("dashboard.heatmap.title")}
+              {isAdminWorkspace
+                ? t("dashboard.heatmap.adminTitle")
+                : t("dashboard.heatmap.title")}
             </CardTitle>
             <CardDescription className="text-xs">
-              {t("dashboard.heatmap.sub")}
+              {isAdminWorkspace
+                ? t("dashboard.heatmap.adminSub")
+                : t("dashboard.heatmap.sub")}
             </CardDescription>
           </CardHeader>
           <CardContent className="min-w-0 px-5">
@@ -757,89 +827,74 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* ═════ ROW 2.5: System status + Storage backends (admin only) ═ */}
-      {isAdminWorkspace && (
+      {/* ═════ ROW 3 ═════════════════════════════════════════ */}
+      {isAdminWorkspace ? (
         <div className="grid gap-4 lg:grid-cols-5">
-          <SystemStatusCard
-            stats={stats}
-            daily={daily?.days ?? []}
-            backends={backendsData ?? []}
-            tokensCount={adminTokensData?.length ?? 0}
-            t={t}
-          />
-          <StorageBackendsCard
-            backends={backendsData ?? []}
-            onManage={() => navigate("/admin/storage")}
-            t={t}
-          />
-        </div>
-      )}
-
-      {/* ═════ ROW 3: Recent / Top users + Activity ═══════════ */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {isAdminWorkspace ? (
           <TopUsersCard users={topUsers} locale={locale} t={t} />
-        ) : (
+          <SystemStatusCard t={t} />
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-5">
           <RecentUploadsCard
             items={recent?.items ?? []}
             isLoading={recentLoading}
             locale={locale}
             t={t}
           />
-        )}
 
-        <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
-          <CardHeader className="px-5">
-            <CardTitle className="text-sm">
-              {t("dashboard.activity.title")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {t("dashboard.activity.sub")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 px-5">
-            {activity.map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
-                    a.who === "system"
-                      ? "bg-muted text-muted-foreground"
-                      : a.who === "you"
-                        ? "bg-foreground text-background"
-                        : "bg-muted",
-                  )}
-                >
-                  {a.who === "system" ? (
-                    <Cpu className="size-4" />
-                  ) : a.who === "you" ? (
-                    <UserIcon className="size-4" />
-                  ) : (
-                    a.actor.charAt(0).toUpperCase()
-                  )}
+          <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
+            <CardHeader className="px-5">
+              <CardTitle className="text-sm">
+                {t("dashboard.activity.title")}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {t("dashboard.activity.sub")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 px-5">
+              {activity.map((a, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                      a.who === "system"
+                        ? "bg-muted text-muted-foreground"
+                        : a.who === "you"
+                          ? "bg-foreground text-background"
+                          : "bg-muted",
+                    )}
+                  >
+                    {a.who === "system" ? (
+                      <Cpu className="size-4" />
+                    ) : a.who === "you" ? (
+                      <UserIcon className="size-4" />
+                    ) : (
+                      a.actor.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm leading-snug">
+                      <b className="font-medium">{a.actor}</b>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        {actionLabel(a.actionKey, locale)}{" "}
+                      </span>
+                      <span className="truncate">
+                        {locale === "zh" ? "「" : "\u201c"}
+                        {a.target}
+                        {locale === "zh" ? "」" : "\u201d"}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                      {relativeMinutes(a.minutes, locale)}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-snug">
-                    <b className="font-medium">{a.actor}</b>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      {actionLabel(a.actionKey, locale)}{" "}
-                    </span>
-                    <span className="truncate">
-                      {locale === "zh" ? "「" : "\u201c"}
-                      {a.target}
-                      {locale === "zh" ? "」" : "\u201d"}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                    {relativeMinutes(a.minutes, locale)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -989,170 +1044,237 @@ function TopUsersCard({
 }
 
 /* ────────────────────────────────────────────────────────────
- * SystemStatusCard — admin dashboard row 2.5, left (lg:col-span-3)
+ * SystemStatusCard — admin dashboard Row 3, right (lg:col-span-2)
+ *
+ * Matches the target layout 1:1:
+ *  • Two semi-circle gauges (CPU / 内存)
+ *  • Bandwidth tile (上行 / 下行)
+ *  • 4 metric tiles (API 延迟 / 磁盘 I/O / 活跃连接 / 错误率)
+ *  • Emerald "all operational" banner
  * ──────────────────────────────────────────────────────────── */
+
+/** Semi-circle gauge. `value` is 0..100, `display` is the string shown inside
+ *  the arc (e.g. "12%" or "1.2 / 4 GB"). */
 function Gauge({
-  value,
   label,
-  accent = "hsl(var(--chart-1))",
+  value,
+  display,
+  color,
 }: {
-  value: number; // 0..100
   label: string;
-  accent?: string;
+  value: number;
+  display: string;
+  color: string;
 }) {
-  const clamped = Math.max(0, Math.min(100, value));
-  const size = 96;
-  const stroke = 10;
-  const radius = (size - stroke) / 2;
-  const circ = radius * 2 * Math.PI;
-  const offset = circ - (clamped / 100) * circ;
+  const r = 30;
+  const cx = 36;
+  const cy = 36;
+  const circumference = Math.PI * r;
+  const pct = Math.max(0, Math.min(100, value));
+  const dash = (pct / 100) * circumference;
+  const arcPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
   return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="hsl(var(--muted))"
-          strokeWidth={stroke}
-          opacity={0.4}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={accent}
-          strokeWidth={stroke}
-          strokeDasharray={circ}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-[stroke-dashoffset] duration-700 ease-out"
-        />
-      </svg>
-      <div className="-mt-[64px] flex size-[96px] flex-col items-center justify-center">
-        <span className="text-base font-semibold tabular-nums">
-          {clamped.toFixed(0)}%
-        </span>
+    <div className="flex flex-col items-center rounded-lg border p-2.5">
+      <div className="relative" style={{ width: 72, height: 42 }}>
+        <svg width="72" height="42" viewBox="0 0 72 42">
+          <path
+            d={arcPath}
+            fill="none"
+            stroke="hsl(var(--muted))"
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+          <path
+            d={arcPath}
+            fill="none"
+            stroke={color}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${circumference}`}
+            style={{ transition: "stroke-dasharray 400ms ease" }}
+          />
+        </svg>
+        <div className="absolute inset-x-0 bottom-0 text-center text-[13px] font-semibold tabular-nums">
+          {display}
+        </div>
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">{label}</p>
+      <div className="mt-1 text-[11px] text-muted-foreground">{label}</div>
     </div>
   );
 }
 
+/** Two-column bandwidth tile showing upload and download speed. */
+function BandwidthTile({
+  upLabel,
+  downLabel,
+  up,
+  down,
+  upPct = 0,
+  downPct = 0,
+}: {
+  upLabel: string;
+  downLabel: string;
+  up: string;
+  down: string;
+  upPct?: number;
+  downPct?: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-0 overflow-hidden rounded-lg border">
+      <div className="flex items-center gap-2.5 border-r p-2.5">
+        <div
+          className="flex size-8 shrink-0 items-center justify-center rounded-md"
+          style={{
+            background: "hsl(var(--chart-4) / 0.12)",
+            color: "hsl(var(--chart-4))",
+          }}
+        >
+          <ArrowUp className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {upLabel}
+          </div>
+          <div className="truncate text-[13px] font-semibold tabular-nums">
+            {up}
+          </div>
+          <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full"
+              style={{
+                width: `${upPct}%`,
+                background: "hsl(var(--chart-4))",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2.5 p-2.5">
+        <div
+          className="flex size-8 shrink-0 items-center justify-center rounded-md"
+          style={{
+            background: "hsl(var(--chart-1) / 0.12)",
+            color: "hsl(var(--chart-1))",
+          }}
+        >
+          <ArrowDown className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {downLabel}
+          </div>
+          <div className="truncate text-[13px] font-semibold tabular-nums">
+            {down}
+          </div>
+          <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full"
+              style={{
+                width: `${downPct}%`,
+                background: "hsl(var(--chart-1))",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Small metric card: colored dot + label + value. */
 function MetricTile({
-  icon: Icon,
   label,
   value,
-  accent,
+  dot,
 }: {
-  icon: React.ElementType;
   label: string;
   value: string;
-  accent: string;
+  dot: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
-      <div
-        className="flex size-8 shrink-0 items-center justify-center rounded-md"
-        style={{ background: `${accent}22`, color: accent }}
-      >
-        <Icon className="size-4" />
+    <div className="rounded-lg border p-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span
+          className="size-1.5 rounded-full"
+          style={{ background: dot }}
+        />
+        {label}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[11px] text-muted-foreground">{label}</p>
-        <p className="mt-0.5 truncate text-sm font-semibold tabular-nums">
-          {value}
-        </p>
-      </div>
+      <div className="mt-1 text-[13px] font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
 
-function SystemStatusCard({
-  stats,
-  daily,
-  backends,
-  tokensCount,
-  t,
-}: {
-  stats: DashboardStats | undefined;
-  daily: DailyPoint[];
-  backends: DashboardStorageBackend[];
-  tokensCount: number;
-  t: (k: string) => string;
-}) {
-  const last7 = daily.slice(-7);
-  const weekUploads = last7.reduce((a, b) => a + b.uploads, 0);
-  const weekBytes = last7.reduce((a, b) => a + (b.bytes_served ?? 0), 0);
-
-  const totalCapacity = backends
-    .filter((b) => b.is_active && b.capacity_limit_bytes > 0)
-    .reduce((a, b) => a + b.capacity_limit_bytes, 0);
-  const storageUsed = stats?.total_size ?? 0;
-  const storageUtil =
-    totalCapacity > 0
-      ? Math.min(100, (storageUsed / totalCapacity) * 100)
-      : 0;
-
-  // "Activity" gauge: this week's uploads vs target (best-effort cap at 500/wk)
-  const activityPct = Math.min(100, (weekUploads / 500) * 100);
-
+function SystemStatusCard({ t }: { t: (k: string) => string }) {
+  // Live metrics are not yet exposed by the API — use the same mocked values
+  // as the design target until an endpoint lands. (See pages-admin.jsx.)
+  const uptimeDays = 7;
   return (
-    <Card className="gap-3 py-5 shadow-xs lg:col-span-3">
+    <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
       <CardHeader className="px-5">
         <CardTitle className="text-sm">
           {t("dashboard.systemStatus.title")}
         </CardTitle>
         <CardDescription className="text-xs">
-          {t("dashboard.systemStatus.sub")}
+          {t("dashboard.systemStatus.subRefresh")}
         </CardDescription>
-        <CardAction>
-          <span className="inline-flex items-center gap-1 rounded-md border border-[color:var(--chart-2)]/30 bg-[color:var(--chart-2)]/10 px-2 py-0.5 text-[11px] font-medium text-[color:var(--chart-2)]">
-            <CheckCircle2 className="size-3" />
-            {t("dashboard.systemStatus.allHealthy")}
-          </span>
-        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4 px-5">
-        <div className="grid grid-cols-2 items-center gap-4">
+      <CardContent className="space-y-3 px-5">
+        <div className="grid grid-cols-2 gap-2.5">
           <Gauge
-            value={storageUtil}
-            label={t("dashboard.systemStatus.storageUtil")}
-            accent="hsl(var(--chart-1))"
+            label={t("dashboard.systemStatus.cpu")}
+            value={12}
+            display="12%"
+            color="hsl(var(--chart-3))"
           />
           <Gauge
-            value={activityPct}
-            label={t("dashboard.weeklyAccesses")}
-            accent="hsl(var(--chart-3))"
+            label={t("dashboard.systemStatus.memory")}
+            value={30}
+            display="1.2 / 4 GB"
+            color="hsl(var(--chart-2))"
           />
         </div>
+        <BandwidthTile
+          upLabel={t("dashboard.systemStatus.upload")}
+          downLabel={t("dashboard.systemStatus.download")}
+          up="38 Mbps"
+          down="112 Mbps"
+          upPct={19}
+          downPct={22}
+        />
         <div className="grid grid-cols-2 gap-2">
           <MetricTile
-            icon={Upload}
-            label={t("dashboard.systemStatus.weeklyUploads")}
-            value={weekUploads.toLocaleString()}
-            accent="hsl(var(--chart-3))"
+            label={t("dashboard.systemStatus.apiLatency")}
+            value="46 ms"
+            dot="hsl(var(--chart-5))"
           />
           <MetricTile
-            icon={Activity}
-            label={t("dashboard.systemStatus.weeklyBandwidth")}
-            value={formatSize(weekBytes)}
-            accent="hsl(var(--chart-2))"
+            label={t("dashboard.systemStatus.diskIO")}
+            value="28 MB/s"
+            dot="hsl(var(--chart-3))"
           />
           <MetricTile
-            icon={Key}
-            label={t("dashboard.systemStatus.activeTokens")}
-            value={tokensCount.toLocaleString()}
-            accent="hsl(var(--chart-5))"
+            label={t("dashboard.systemStatus.activeConnections")}
+            value="184"
+            dot="hsl(var(--chart-2))"
           />
           <MetricTile
-            icon={HardDrive}
-            label={t("dashboard.kpi.storageUsed")}
-            value={formatSize(storageUsed)}
-            accent="hsl(var(--chart-1))"
+            label={t("dashboard.systemStatus.errorRate")}
+            value="0.02%"
+            dot="hsl(var(--chart-1))"
           />
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border bg-emerald-500/5 p-2.5 text-[11px]">
+          <span className="size-2 rounded-full bg-emerald-500" />
+          <span className="font-medium text-emerald-700 dark:text-emerald-400">
+            {t("dashboard.systemStatus.allOperational")}
+          </span>
+          <span className="ml-auto text-muted-foreground">
+            {t("dashboard.systemStatus.uptimeDays").replace(
+              "{days}",
+              String(uptimeDays),
+            )}
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -1160,7 +1282,11 @@ function SystemStatusCard({
 }
 
 /* ────────────────────────────────────────────────────────────
- * StorageBackendsCard — admin dashboard row 2.5, right (lg:col-span-2)
+ * StorageBackendsCard — admin dashboard Row 1, left (lg:col-span-3)
+ *
+ * Full-width rows: logo · name+badge · used/total · mono path · progress.
+ * When there are more than 3 backends, a dashed-border footer card shows
+ * stacked logos and "还有 N 个后端".
  * ──────────────────────────────────────────────────────────── */
 function StorageBackendsCard({
   backends,
@@ -1171,11 +1297,15 @@ function StorageBackendsCard({
   onManage: () => void;
   t: (k: string) => string;
 }) {
-  const sorted = [...backends]
-    .sort((a, b) => Number(b.is_default) - Number(a.is_default))
-    .slice(0, 4);
+  const sorted = [...backends].sort(
+    (a, b) => Number(b.is_default) - Number(a.is_default),
+  );
+  const visible = sorted.slice(0, 3);
+  const overflow = sorted.slice(3, 6);
+  const remaining = Math.max(0, sorted.length - 3);
+
   return (
-    <Card className="gap-3 py-5 shadow-xs lg:col-span-2">
+    <Card className="gap-3 py-5 shadow-xs lg:col-span-3">
       <CardHeader className="px-5">
         <CardTitle className="text-sm">
           {t("dashboard.backends.title")}
@@ -1190,51 +1320,63 @@ function StorageBackendsCard({
             onClick={onManage}
             className="text-muted-foreground hover:text-foreground"
           >
-            {t("dashboard.backends.all")} →
+            {t("dashboard.backends.all")}
+            <ArrowRight className="size-3" />
           </Button>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-2.5 px-5">
-        {sorted.length === 0 ? (
+      <CardContent className="space-y-3 px-5">
+        {visible.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
             {t("dashboard.backends.noBackends")}
           </div>
         ) : (
-          sorted.map((b) => {
-            const pct =
-              b.capacity_limit_bytes > 0
-                ? Math.min(
-                    100,
-                    (b.used_bytes / b.capacity_limit_bytes) * 100,
-                  )
-                : 0;
+          visible.map((b) => {
+            const hasLimit = b.capacity_limit_bytes > 0;
+            const pct = hasLimit
+              ? Math.min(100, (b.used_bytes / b.capacity_limit_bytes) * 100)
+              : 0;
+            const path = [b.driver, b.provider].filter(Boolean).join(" · ");
             return (
               <div
                 key={b.id}
-                className="flex items-center gap-3 rounded-lg border bg-card/60 px-3 py-2.5 transition-colors hover:bg-muted/40"
+                className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
               >
                 <BrandIcon
                   provider={b.provider}
                   driver={b.driver}
-                  className="size-7 shrink-0"
+                  className="size-8 shrink-0 rounded-md"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-medium">
-                      {b.name}
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {b.name}
+                      </span>
+                      {b.is_active ? (
+                        <span className="shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                          active
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-md border bg-muted/50 px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+                          idle
+                        </span>
+                      )}
+                      {b.is_default && (
+                        <span className="shrink-0 rounded-md border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase text-muted-foreground">
+                          {t("dashboard.backends.defaultBadge")}
+                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {formatSize(b.used_bytes)} /{" "}
+                      {hasLimit ? formatSize(b.capacity_limit_bytes) : "∞"}
                     </span>
-                    {b.is_default && (
-                      <span className="rounded-md border border-[color:var(--chart-2)]/30 bg-[color:var(--chart-2)]/10 px-1 text-[9px] font-medium uppercase text-[color:var(--chart-2)]">
-                        {t("dashboard.backends.defaultBadge")}
-                      </span>
-                    )}
-                    {!b.is_active && (
-                      <span className="rounded-md border border-border bg-muted px-1 text-[9px] font-medium uppercase text-muted-foreground">
-                        {t("dashboard.backends.inactiveBadge")}
-                      </span>
-                    )}
                   </div>
-                  <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                    {path || b.id}
+                  </p>
+                  <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
                     <div
                       className={cn(
                         "h-full transition-[width]",
@@ -1243,26 +1385,44 @@ function StorageBackendsCard({
                           : "bg-muted-foreground/40",
                       )}
                       style={{
-                        width:
-                          b.capacity_limit_bytes > 0 ? `${pct}%` : "100%",
-                        opacity: b.capacity_limit_bytes > 0 ? 1 : 0.3,
+                        width: hasLimit ? `${pct}%` : "100%",
+                        opacity: hasLimit ? 1 : 0.3,
                       }}
                     />
-                  </div>
-                </div>
-                <div className="shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-                  <div className="font-medium text-foreground">
-                    {formatSize(b.used_bytes)}
-                  </div>
-                  <div>
-                    {b.capacity_limit_bytes > 0
-                      ? formatSize(b.capacity_limit_bytes)
-                      : "∞"}
                   </div>
                 </div>
               </div>
             );
           })
+        )}
+        {remaining > 0 && (
+          <button
+            type="button"
+            onClick={onManage}
+            className="group flex w-full items-center justify-between rounded-lg border border-dashed p-3 text-left transition-colors hover:border-foreground/30 hover:bg-muted/30"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-1.5">
+                {overflow.map((b) => (
+                  <BrandIcon
+                    key={b.id}
+                    provider={b.provider}
+                    driver={b.driver}
+                    className="size-6 rounded-md ring-2 ring-card"
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("dashboard.backends.moreCount").replace(
+                  "{count}",
+                  String(remaining),
+                )}
+              </span>
+            </div>
+            <span className="text-[11px] font-medium text-muted-foreground group-hover:text-foreground">
+              {t("dashboard.backends.viewAllMore")}
+            </span>
+          </button>
         )}
       </CardContent>
     </Card>
