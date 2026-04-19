@@ -1,37 +1,122 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-import { settingsApi } from "@/lib/api";
-import { useI18n } from "@/i18n";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Monitor,
-  Sun,
-  Moon,
+  Settings as SettingsIcon,
+  Shield,
+  HardDrive,
+  Mail,
   Check,
-  Paintbrush,
-  Globe,
-  ShieldCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useTheme } from "@/components/theme-provider";
-import { localeLabels, type Locale } from "@/i18n";
-import { PageHeader } from "@/components/page-header";
 import { toast } from "sonner";
 
-type Tab = "appearance" | "site" | "access";
+import { settingsApi, storageApi } from "@/lib/api";
+import { useI18n } from "@/i18n";
+import { cn, formatSize } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { StorageLogo, resolveLogoVendor } from "@/components/storage-logo";
 
+type Tab = "general" | "auth" | "storage" | "email";
+
+interface StorageListItem {
+  id: string;
+  name: string;
+  driver: string;
+  provider: string;
+  capacity_limit_bytes: number;
+  used_bytes: number;
+  files_count?: number;
+  priority: number;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Preference row — label+hint on the left, control on the right.
+ *  Uses `divide-y` on the parent Card content to get the
+ *  separator lines in the target design.
+ * ──────────────────────────────────────────────────────────── */
+function Preference({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        {hint && (
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>
+        )}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Pill-style Tabs — mirrors the target `Tabs` component
+ *  (inline-flex rounded bg-muted/70 with icon + label).
+ * ──────────────────────────────────────────────────────────── */
+function TabPills({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: { value: Tab; label: string; icon: React.ElementType }[];
+  value: Tab;
+  onChange: (v: Tab) => void;
+}) {
+  return (
+    <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted/70 p-1 text-muted-foreground">
+      {tabs.map((tab) => {
+        const active = value === tab.value;
+        return (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => onChange(tab.value)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all",
+              active
+                ? "bg-background text-foreground shadow-sm"
+                : "hover:text-foreground"
+            )}
+          >
+            <tab.icon className="size-3.5" strokeWidth={1.8} />
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+ * SettingsPage
+ * ──────────────────────────────────────────────────────────── */
 export default function SettingsPage() {
-  const { t, locale, setLocale } = useI18n();
-  const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<Tab>("general");
   const [form, setForm] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("appearance");
 
   const { data, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -62,250 +147,375 @@ export default function SettingsPage() {
       [key]: prev[key] === "true" ? "false" : "true",
     }));
 
+  const resetForm = () => {
+    if (data) setForm(data);
+  };
+
+  const boolOf = (key: string): boolean => form[key] === "true";
+
+  /* ── storage tab ─────────────────────────────────────── */
+  const { data: storageList } = useQuery<StorageListItem[]>({
+    queryKey: ["storage", "list"],
+    queryFn: () => storageApi.list().then((r) => r.data.data),
+    enabled: tab === "storage",
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: (id: string) => storageApi.setDefault(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["storage", "list"] });
+      toast.success(t("settings.saved"));
+    },
+    onError: () => toast.error(t("toast.error")),
+  });
+
+  /* ── early loading state ─────────────────────────────── */
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-96" />
-        <Skeleton className="h-64" />
+        <Skeleton className="h-9 w-80" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
 
-  const tabs: {
-    key: Tab;
-    label: string;
-    icon: React.ElementType;
-    description: string;
-  }[] = [
-    {
-      key: "appearance",
-      label: t("settings.appearance"),
-      icon: Paintbrush,
-      description: t("settings.appearanceDesc"),
-    },
-    {
-      key: "site",
-      label: t("settings.site"),
-      icon: Globe,
-      description: t("settings.siteDesc"),
-    },
-    {
-      key: "access",
-      label: t("settings.accessControl"),
-      icon: ShieldCheck,
-      description: t("settings.accessControlDesc"),
-    },
+  const tabs: { value: Tab; label: string; icon: React.ElementType }[] = [
+    { value: "general", label: t("settings.general"), icon: SettingsIcon },
+    { value: "auth", label: t("settings.auth"), icon: Shield },
+    { value: "storage", label: t("settings.storageTab"), icon: HardDrive },
+    { value: "email", label: t("settings.email"), icon: Mail },
   ];
 
-  const current = tabs.find((tab) => tab.key === activeTab)!;
-
+  /* ── render ──────────────────────────────────────────── */
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <PageHeader
         title={t("settings.title")}
         description={t("settings.description")}
       />
 
-      {/* Tabs rail */}
-      <div className="sticky top-0 z-10 -mx-4 overflow-x-auto border-b bg-background/80 px-4 backdrop-blur-md sm:mx-0 sm:rounded-lg sm:border sm:bg-card sm:px-1">
-        <div role="tablist" className="flex gap-1">
-          {tabs.map((tab) => {
-            const active = tab.key === activeTab;
-            return (
-              <button
-                key={tab.key}
-                role="tab"
-                aria-selected={active}
-                onClick={() => setActiveTab(tab.key)}
-                className={cn(
-                  "group relative flex min-w-fit shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors sm:rounded-md",
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <tab.icon className="size-4" />
-                <span>{tab.label}</span>
-                {active && (
-                  <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-foreground sm:inset-x-1 sm:bottom-0.5 sm:h-0.5" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <TabPills tabs={tabs} value={tab} onChange={setTab} />
 
-      <section
-        role="tabpanel"
-        aria-labelledby={`tab-${activeTab}`}
-        className="space-y-6"
-      >
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold tracking-tight">
-            {current.label}
-          </h3>
-          <p className="text-sm text-muted-foreground">{current.description}</p>
-        </div>
-
-        {activeTab === "appearance" && (
-          <div className="grid max-w-2xl gap-5">
-            <SettingRow label={t("settings.language")}>
-              <div className="flex rounded-lg bg-muted p-1">
-                {(Object.keys(localeLabels) as Locale[]).map((l) => (
-                  <button
-                    key={l}
-                    className={cn(
-                      "rounded-md px-4 py-1.5 text-[13px] font-medium transition-all",
-                      locale === l
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setLocale(l)}
-                  >
-                    {localeLabels[l]}
-                  </button>
-                ))}
-              </div>
-            </SettingRow>
-
-            <SettingRow label={t("settings.theme")}>
-              <div className="flex rounded-lg bg-muted p-1">
-                {(
-                  [
-                    {
-                      value: "light",
-                      icon: Sun,
-                      label: t("settings.themeLight"),
-                    },
-                    {
-                      value: "dark",
-                      icon: Moon,
-                      label: t("settings.themeDark"),
-                    },
-                    {
-                      value: "system",
-                      icon: Monitor,
-                      label: t("settings.themeSystem"),
-                    },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.value}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-all",
-                      theme === item.value
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setTheme(item.value)}
-                  >
-                    <item.icon className="size-3.5" />
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </SettingRow>
-          </div>
-        )}
-
-        {activeTab === "site" && (
-          <div className="grid max-w-xl gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="site_name">{t("settings.siteName")}</Label>
+      {/* ── General ──────────────────────────────────── */}
+      {tab === "general" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.generalDesc")}</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y">
+            <Preference
+              label={t("settings.siteName")}
+              hint={t("settings.siteNameHint")}
+            >
               <Input
-                id="site_name"
                 value={form.site_name ?? ""}
                 onChange={(e) => updateField("site_name", e.target.value)}
+                className="w-56"
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="site_url">{t("settings.siteUrl")}</Label>
+            </Preference>
+            <Preference
+              label={t("settings.siteUrl")}
+              hint={t("settings.siteUrlHint")}
+            >
               <Input
-                id="site_url"
                 value={form.site_url ?? ""}
                 onChange={(e) => updateField("site_url", e.target.value)}
                 placeholder={t("settings.siteUrlPlaceholder")}
+                className="w-64"
               />
-            </div>
-          </div>
-        )}
-
-        {activeTab === "access" && (
-          <div className="grid max-w-2xl gap-5">
-            <SettingToggle
+            </Preference>
+            <Preference
               label={t("settings.allowRegistration")}
-              description={t("settings.allowRegistrationDesc")}
-              checked={form.allow_registration === "true"}
-              onChange={() => toggleField("allow_registration")}
-            />
-            <SettingToggle
+              hint={t("settings.allowRegistrationHint")}
+            >
+              <Switch
+                checked={boolOf("allow_registration")}
+                onCheckedChange={() => toggleField("allow_registration")}
+              />
+            </Preference>
+            <Preference
+              label={t("settings.defaultQuota")}
+              hint={t("settings.defaultQuotaHint")}
+            >
+              <Input
+                value={form.default_quota ?? ""}
+                onChange={(e) => updateField("default_quota", e.target.value)}
+                placeholder="10 GB"
+                className="w-32"
+              />
+            </Preference>
+          </CardContent>
+          <CardFooter className="justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={resetForm}>
+              {t("settings.reset")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+            >
+              {saved ? (
+                <>
+                  <Check className="size-3.5" />
+                  {t("settings.saved")}
+                </>
+              ) : mutation.isPending ? (
+                t("settings.saving")
+              ) : (
+                t("settings.saveSettings")
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* ── Auth ─────────────────────────────────────── */}
+      {tab === "auth" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.authDesc")}</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y">
+            <Preference
+              label={t("settings.twoFactor")}
+              hint={t("settings.twoFactorHint")}
+            >
+              <Switch
+                checked={boolOf("two_factor_required")}
+                onCheckedChange={() => toggleField("two_factor_required")}
+              />
+            </Preference>
+            <Preference label={t("settings.passwordMinLength")}>
+              <Input
+                value={form.password_min_length ?? ""}
+                onChange={(e) =>
+                  updateField("password_min_length", e.target.value)
+                }
+                placeholder="10"
+                className="w-20"
+              />
+            </Preference>
+            <Preference
+              label={t("settings.sessionTimeout")}
+              hint={t("settings.sessionTimeoutHint")}
+            >
+              <Input
+                value={form.session_timeout ?? ""}
+                onChange={(e) =>
+                  updateField("session_timeout", e.target.value)
+                }
+                placeholder="7d"
+                className="w-24"
+              />
+            </Preference>
+            <Preference
+              label={t("settings.oauthLogin")}
+              hint={t("settings.oauthLoginHint")}
+            >
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={boolOf("oauth_github_enabled")}
+                  onCheckedChange={() => toggleField("oauth_github_enabled")}
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  GitHub
+                </span>
+                <Switch
+                  checked={boolOf("oauth_google_enabled")}
+                  onCheckedChange={() => toggleField("oauth_google_enabled")}
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  Google
+                </span>
+              </div>
+            </Preference>
+            <Preference
               label={t("settings.allowGuestUpload")}
-              description={t("settings.allowGuestUploadDesc")}
-              checked={form.allow_guest_upload === "true"}
-              onChange={() => toggleField("allow_guest_upload")}
-            />
-            <SettingToggle
+              hint={t("settings.allowGuestUploadHint")}
+            >
+              <Switch
+                checked={boolOf("allow_guest_upload")}
+                onCheckedChange={() => toggleField("allow_guest_upload")}
+              />
+            </Preference>
+            <Preference
               label={t("settings.allowPublicGallery")}
-              description={t("settings.allowPublicGalleryDesc")}
-              checked={form.allow_public_gallery === "true"}
-              onChange={() => toggleField("allow_public_gallery")}
-            />
-          </div>
-        )}
-      </section>
+              hint={t("settings.allowPublicGalleryHint")}
+            >
+              <Switch
+                checked={boolOf("allow_public_gallery")}
+                onCheckedChange={() => toggleField("allow_public_gallery")}
+              />
+            </Preference>
+          </CardContent>
+          <CardFooter className="justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={resetForm}>
+              {t("settings.reset")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+            >
+              {saved ? (
+                <>
+                  <Check className="size-3.5" />
+                  {t("settings.saved")}
+                </>
+              ) : mutation.isPending ? (
+                t("settings.saving")
+              ) : (
+                t("settings.saveSettings")
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
-      <div className="flex">
-        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {saved ? (
-            <>
-              <Check className="size-4" />
-              {t("settings.saved")}
-            </>
-          ) : mutation.isPending ? (
-            t("settings.saving")
-          ) : (
-            t("settings.saveSettings")
-          )}
-        </Button>
-      </div>
-    </div>
-  );
-}
+      {/* ── Default storage ──────────────────────────── */}
+      {tab === "storage" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.storageTabDesc")}</CardTitle>
+            <CardDescription>{t("settings.storageTabHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(storageList ?? []).map((d) => {
+              const vendor = resolveLogoVendor(d.provider, d.driver);
+              const checked = d.is_default;
+              return (
+                <label
+                  key={d.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+                    checked
+                      ? "border-foreground/30 bg-muted/30"
+                      : "hover:bg-muted/30"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="default-driver"
+                    checked={checked}
+                    disabled={!d.is_active || setDefaultMutation.isPending}
+                    onChange={() => {
+                      if (!checked && d.is_active)
+                        setDefaultMutation.mutate(d.id);
+                    }}
+                    className="size-4 accent-foreground"
+                  />
+                  <StorageLogo vendor={vendor} size={28} rounded="rounded-md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {d.name}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="h-4 px-1.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground"
+                      >
+                        {d.driver}
+                      </Badge>
+                      {!d.is_active && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        >
+                          {t("storage.idleBadge")}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="font-mono text-[10px] text-muted-foreground">
+                      P{d.priority}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                    {formatSize(d.used_bytes)}
+                  </span>
+                </label>
+              );
+            })}
+            {storageList != null && storageList.length === 0 && (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {t("storage.noStorage")}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-function SettingRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function SettingToggle({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0 space-y-0.5">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      {/* ── Email ────────────────────────────────────── */}
+      {tab === "email" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.emailDesc")}</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y">
+            <Preference label={t("settings.smtpServer")}>
+              <Input
+                value={form.smtp_host ?? ""}
+                onChange={(e) => updateField("smtp_host", e.target.value)}
+                placeholder="smtp.kite.dev"
+                className="w-64"
+              />
+            </Preference>
+            <Preference label={t("settings.smtpPort")}>
+              <Input
+                value={form.smtp_port ?? ""}
+                onChange={(e) => updateField("smtp_port", e.target.value)}
+                placeholder="587"
+                className="w-24"
+              />
+            </Preference>
+            <Preference label={t("settings.smtpTls")}>
+              <Switch
+                checked={boolOf("smtp_tls")}
+                onCheckedChange={() => toggleField("smtp_tls")}
+              />
+            </Preference>
+            <Preference label={t("settings.smtpFrom")}>
+              <Input
+                value={form.smtp_from ?? ""}
+                onChange={(e) => updateField("smtp_from", e.target.value)}
+                placeholder="no-reply@kite.dev"
+                className="w-64"
+              />
+            </Preference>
+          </CardContent>
+          <CardFooter className="justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.info(t("settings.testMailSent"))}
+            >
+              <Mail className="size-3.5" />
+              {t("settings.sendTestMail")}
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={resetForm}>
+                {t("settings.reset")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+              >
+                {saved ? (
+                  <>
+                    <Check className="size-3.5" />
+                    {t("settings.saved")}
+                  </>
+                ) : mutation.isPending ? (
+                  t("settings.saving")
+                ) : (
+                  t("settings.saveSettings")
+                )}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 }

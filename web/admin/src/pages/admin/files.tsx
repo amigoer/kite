@@ -360,7 +360,7 @@ export default function AdminFilesPage() {
       />
 
       {/* ── 4 Stat tiles: 图片 / 视频 / 音频 / 其它 ───────── */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile
           label={t("files.images")}
           value={(stats?.images ?? 0).toLocaleString()}
@@ -704,7 +704,7 @@ export default function AdminFilesPage() {
                   <img
                     src={detailFile.url}
                     alt={detailFile.original_name}
-                    className="max-h-64 w-full object-contain"
+                    className="max-h-48 w-full object-contain sm:max-h-64"
                   />
                 </div>
               )}
