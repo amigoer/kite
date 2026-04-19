@@ -59,6 +59,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
+import { getPrimaryModifierKeyLabel } from "@/lib/platform";
 
 const SIDEBAR_COLLAPSED_KEY = "kite_sidebar_collapsed";
 
@@ -99,6 +100,7 @@ export default function AppLayout() {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
   });
   const displayName = user?.nickname?.trim() || user?.username;
+  const modifierKeyLabel = getPrimaryModifierKeyLabel();
 
   const isAdminWorkspace = location.pathname.startsWith("/admin");
   const homePath = isAdminWorkspace ? "/admin/dashboard" : "/user/dashboard";
@@ -222,11 +224,13 @@ export default function AppLayout() {
         return;
       }
 
-      // ⌘U / Ctrl+U — quick upload
+      // ⌘U / Ctrl+U — quick upload (user workspace only: opens upload dialog
+      // via the ?upload=1 query param consumed by the files page)
       if (mod && event.key.toLowerCase() === "u") {
-        event.preventDefault();
         const isAdmin = location.pathname.startsWith("/admin");
-        navigate(isAdmin ? "/admin/files" : "/user/files");
+        if (isAdmin) return;
+        event.preventDefault();
+        navigate("/user/files?upload=1");
         return;
       }
 
@@ -412,7 +416,7 @@ export default function AppLayout() {
                   <span className="truncate">{t("common.search")}</span>
                 </span>
                 <Badge variant="secondary" className="ml-auto shrink-0">
-                  ⌘K
+                  {modifierKeyLabel === "⌘" ? "⌘K" : "Ctrl+K"}
                 </Badge>
               </button>
             </div>
@@ -689,7 +693,7 @@ export default function AppLayout() {
                 className="hidden items-center gap-1 transition-colors hover:text-foreground sm:inline-flex"
               >
                 <kbd className="rounded border bg-muted/60 px-1 font-mono text-[10px]">
-                  &#8984;
+                  {modifierKeyLabel}
                 </kbd>
                 <kbd className="rounded border bg-muted/60 px-1 font-mono text-[10px]">
                   K

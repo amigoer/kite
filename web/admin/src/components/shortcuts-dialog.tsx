@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useI18n } from "@/i18n";
+import { getPrimaryModifierKeyLabel } from "@/lib/platform";
 
 interface ShortcutItem {
   keys: string[];
@@ -30,10 +31,10 @@ const GROUPS: ShortcutGroup[] = [
   {
     labelKey: "shortcuts.groupActions",
     items: [
-      { keys: ["⌘", "K"], descKey: "shortcuts.openSearch" },
-      { keys: ["⌘", "U"], descKey: "shortcuts.uploadFile" },
-      { keys: ["⌘", "B"], descKey: "shortcuts.toggleSidebar" },
-      { keys: ["⌘", "."], descKey: "shortcuts.toggleTheme" },
+      { keys: ["MOD", "K"], descKey: "shortcuts.openSearch" },
+      { keys: ["MOD", "U"], descKey: "shortcuts.uploadFile" },
+      { keys: ["MOD", "B"], descKey: "shortcuts.toggleSidebar" },
+      { keys: ["MOD", "."], descKey: "shortcuts.toggleTheme" },
     ],
   },
   {
@@ -60,6 +61,7 @@ interface ShortcutsDialogProps {
 
 export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
   const { t } = useI18n();
+  const modifierKeyLabel = getPrimaryModifierKeyLabel();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(85vh,640px)] w-[min(92vw,640px)] gap-0 overflow-hidden border-border/80 p-0 shadow-2xl [&>button]:hidden">
@@ -98,7 +100,7 @@ export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
                     <span className="flex items-center gap-1">
                       {it.keys.map((k, j) => (
                         <Fragment key={j}>
-                          <kbd>{k}</kbd>
+                          <kbd>{k === "MOD" ? modifierKeyLabel : k}</kbd>
                           {j < it.keys.length - 1 && (
                             <span className="text-[10px] text-muted-foreground">
                               +

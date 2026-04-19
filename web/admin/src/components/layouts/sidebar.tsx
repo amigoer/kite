@@ -37,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getPrimaryModifierKeyLabel } from "@/lib/platform";
 
 interface NavEntry {
   to: string;
@@ -96,6 +97,7 @@ export function Sidebar({ onClose, collapsed = false, onOpenShortcuts }: Sidebar
   const location = useLocation();
   const navigate = useNavigate();
   const displayName = user?.nickname?.trim() || user?.username || "";
+  const modifierKeyLabel = getPrimaryModifierKeyLabel();
 
   const isAdminWorkspace = location.pathname.startsWith("/admin");
   const navItems = isAdminWorkspace ? adminNavItems : userNavItems;
@@ -144,7 +146,10 @@ export function Sidebar({ onClose, collapsed = false, onOpenShortcuts }: Sidebar
   };
 
   const handleQuickUpload = () => {
-    navigate(isAdminWorkspace ? "/admin/files" : "/user/files");
+    // Admin workspace no longer surfaces the quick-upload button; for the user
+    // workspace we navigate to the files page with ?upload=1 so it auto-opens
+    // the upload dialog on arrival.
+    navigate("/user/files?upload=1");
     onClose?.();
   };
 
@@ -224,38 +229,51 @@ export function Sidebar({ onClose, collapsed = false, onOpenShortcuts }: Sidebar
           </div>
         )}
 
-        {/* ── Quick upload ────────────────────────────────────── */}
-        <div className={cn("pt-3", collapsed ? "flex justify-center px-2" : "px-3")}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="default"
-                  size="icon-sm"
-                  className="size-10 rounded-xl"
-                  onClick={handleQuickUpload}
-                  aria-label={t("files.uploadFile")}
-                >
-                  <Upload className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{t("files.uploadFile")}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              size="sm"
-              className="w-full justify-center gap-2"
-              onClick={handleQuickUpload}
-            >
-              <Upload className="size-3.5" />
-              {t("common.upload")}
-              <span className="ml-auto flex items-center gap-0.5 opacity-70">
-                <kbd>⌘</kbd>
-                <kbd>U</kbd>
-              </span>
-            </Button>
-          )}
-        </div>
+        {/* ── Quick upload (user workspace only) ──────────────── */}
+        {!isAdminWorkspace && (
+          <div
+            className={cn(
+              "pt-3",
+              collapsed ? "flex justify-center px-2" : "px-3"
+            )}
+          >
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="icon-sm"
+                    className="size-10 rounded-xl"
+                    onClick={handleQuickUpload}
+                    aria-label={t("files.uploadFile")}
+                  >
+                    <Upload className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {t("files.uploadFile")}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                size="sm"
+                className="w-full justify-center gap-2"
+                onClick={handleQuickUpload}
+              >
+                <Upload className="size-3.5" />
+                {t("common.upload")}
+                <span className="ml-auto hidden items-center gap-1 md:flex">
+                  <kbd className="min-w-[1.35rem] rounded-md border border-border/80 bg-background/80 px-1.5 py-0.5 text-[13px] font-bold leading-none text-foreground/90 shadow-sm">
+                    {modifierKeyLabel}
+                  </kbd>
+                  <kbd className="min-w-[1.2rem] rounded-md border border-border/80 bg-background/80 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-foreground/85 shadow-sm">
+                    U
+                  </kbd>
+                </span>
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* ── Grouped nav ─────────────────────────────────────── */}
         <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3">

@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Upload,
@@ -501,6 +501,7 @@ function Tile({
 export default function FilesPage() {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
@@ -515,6 +516,15 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchParams.get("upload") !== "1") return;
+    setUploadOpen(true);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("upload");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const {
     gridRef,
