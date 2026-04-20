@@ -208,6 +208,48 @@ function FolderCard({
   );
 }
 
+// ─── AlbumFileThumb ──────────────────────────────────────────────────────────
+
+function AlbumFileThumb({ file }: { file: FileItem }) {
+  const initial = file.thumb_url || file.url || "";
+  const [src, setSrc] = useState(initial);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setSrc(initial);
+    setFailed(false);
+  }, [initial]);
+
+  const showImg = src && !failed;
+
+  return (
+    <div
+      className={cn(
+        "flex h-14 w-full items-center justify-center overflow-hidden rounded-lg",
+        showImg ? "checker-bg" : "bg-muted",
+      )}
+    >
+      {showImg ? (
+        <img
+          src={src}
+          alt={file.original_name}
+          className="h-full w-full object-contain"
+          draggable={false}
+          onError={() => {
+            if (src !== file.url && file.url) {
+              setSrc(file.url);
+              return;
+            }
+            setFailed(true);
+          }}
+        />
+      ) : (
+        <FileTypeIcon type={file.file_type} className="size-7" />
+      )}
+    </div>
+  );
+}
+
 // ─── FileCard ────────────────────────────────────────────────────────────────
 
 function FileCard({
@@ -238,23 +280,8 @@ function FileCard({
       className="group relative flex flex-col items-center gap-1.5 rounded-xl border bg-card p-3 cursor-grab select-none transition-all hover:border-primary/30 hover:shadow-sm active:cursor-grabbing"
     >
       {/* thumbnail or icon */}
-      <div
-        className={cn(
-          "flex h-14 w-full items-center justify-center overflow-hidden rounded-lg",
-          file.thumb_url ? "checker-bg" : "bg-muted",
-        )}
-      >
-        {file.thumb_url ? (
-          <img
-            src={file.thumb_url}
-            alt={file.original_name}
-            className="h-full w-full object-contain"
-            draggable={false}
-          />
-        ) : (
-          <FileTypeIcon type={file.file_type} className="size-7" />
-        )}
-      </div>
+      <AlbumFileThumb file={file} />
+
 
       {/* name */}
       <span className="w-full text-center text-[11px] leading-tight line-clamp-2 break-all">

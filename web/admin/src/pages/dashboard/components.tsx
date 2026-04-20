@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -523,7 +523,17 @@ export const FileThumb = memo(function FileThumb({
   file: ThumbFile;
   locale: string;
 }) {
-  const hasThumb = file.file_type === "image" && (file.thumb_url || file.url);
+  const initialSrc =
+    file.file_type === "image" ? file.thumb_url || file.url || "" : "";
+  const [imgSrc, setImgSrc] = useState(initialSrc);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(initialSrc);
+    setImgFailed(false);
+  }, [initialSrc]);
+
+  const hasThumb = file.file_type === "image" && imgSrc && !imgFailed;
   const badge = badgeLabel(file);
   const tint = THUMB_TINT[file.file_type] ?? THUMB_TINT.file;
   return (
@@ -536,10 +546,17 @@ export const FileThumb = memo(function FileThumb({
       >
         {hasThumb ? (
           <img
-            src={file.thumb_url || file.url}
+            src={imgSrc}
             alt={file.original_name}
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
             loading="lazy"
+            onError={() => {
+              if (imgSrc !== file.url && file.url) {
+                setImgSrc(file.url);
+                return;
+              }
+              setImgFailed(true);
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

@@ -394,6 +394,53 @@ func (s *FileService) GetThumbContent(ctx context.Context, file *model.File) (io
 	return driver.Get(ctx, "thumb/"+file.StorageKey)
 }
 
+// RegenerateThumbnail rebuilds the thumbnail for an image file from its source bytes and
+// persists it back to the same storage. Used as a self-healing fallback when GetThumbContent
+// fails — the thumb file may have been deleted out-of-band, or the original upload may have
+// left an orphaned thumb_url without actually writing the thumb.
+// Returns a reader positioned at the start of the freshly encoded thumbnail.
+func (s *FileService) RegenerateThumbnail(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
+	if file.FileType != model.FileTypeImage {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: not an image")
+	}
+
+	driver, err := s.storageMgr.Get(file.StorageConfigID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: get storage driver: %w", err)
+	}
+
+	srcReader, _, err := driver.Get(ctx, file.StorageKey)
+	if err != nil {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: read source: %w", err)
+	}
+	defer srcReader.Close()
+
+	srcBytes, err := io.ReadAll(srcReader)
+	if err != nil {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: load source: %w", err)
+	}
+
+	thumbBuf, thumbMime, err := s.imageSvc.GenerateThumbnail(bytes.NewReader(srcBytes), file.MimeType)
+	if err != nil {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: encode: %w", err)
+	}
+
+	thumbBytes := thumbBuf.Bytes()
+	thumbKey := "thumb/" + file.StorageKey
+	if err := driver.Put(ctx, thumbKey, bytes.NewReader(thumbBytes), int64(len(thumbBytes)), thumbMime); err != nil {
+		return nil, 0, fmt.Errorf("regenerate thumbnail: write: %w", err)
+	}
+
+	if file.ThumbURL == nil {
+		url := "/t/" + file.HashMD5[:8]
+		if err := s.fileRepo.UpdateThumbURL(ctx, file.ID, &url); err == nil {
+			file.ThumbURL = &url
+		}
+	}
+
+	return io.NopCloser(bytes.NewReader(thumbBytes)), int64(len(thumbBytes)), nil
+}
+
 // GetFileByHash resolves a file by its MD5 hash prefix, used for public access links.
 func (s *FileService) GetFileByHash(ctx context.Context, hashPrefix string) (*model.File, error) {
 	file, err := s.fileRepo.GetByHashPrefix(ctx, hashPrefix)

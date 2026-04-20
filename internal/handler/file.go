@@ -362,6 +362,9 @@ func (h *FileHandler) ServeDownload(c *gin.Context) {
 }
 
 // ServeThumbnail streams a thumbnail from the storage backend over a short link.
+// If the thumbnail is missing (never written, deleted out-of-band, or pointed at by
+// an orphaned thumb_url), it is regenerated from the source file on demand so the
+// next request can be served directly from storage.
 func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 	hash := c.Param("hash")
 
@@ -370,15 +373,18 @@ func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 		NotFound(c, "file not found")
 		return
 	}
-	if file.ThumbURL == nil {
+	if file.FileType != model.FileTypeImage {
 		NotFound(c, "thumbnail not found")
 		return
 	}
 
 	reader, size, err := h.fileSvc.GetThumbContent(c.Request.Context(), file)
 	if err != nil {
-		NotFound(c, "thumbnail not found")
-		return
+		reader, size, err = h.fileSvc.RegenerateThumbnail(c.Request.Context(), file)
+		if err != nil {
+			NotFound(c, "thumbnail not found")
+			return
+		}
 	}
 	defer reader.Close()
 

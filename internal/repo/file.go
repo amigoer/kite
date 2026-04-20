@@ -169,6 +169,16 @@ func (r *FileRepo) SetAlbum(ctx context.Context, fileID string, albumID *string)
 	return nil
 }
 
+// UpdateThumbURL sets the file's thumbnail short-link. Pass nil to clear it.
+func (r *FileRepo) UpdateThumbURL(ctx context.Context, fileID string, thumbURL *string) error {
+	if err := r.db.WithContext(ctx).Model(&model.File{}).
+		Where("id = ?", fileID).
+		Update("thumb_url", thumbURL).Error; err != nil {
+		return fmt.Errorf("update thumb url: %w", err)
+	}
+	return nil
+}
+
 // BatchSoftDelete soft-deletes multiple files at once.
 func (r *FileRepo) BatchSoftDelete(ctx context.Context, ids []string) error {
 	if err := r.db.WithContext(ctx).
