@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB" alt="React 19" />
     <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="Vite 8" />
     <img src="https://img.shields.io/badge/License-MIT-16A34A" alt="MIT License" />
-    <img src="https://img.shields.io/badge/Storage-Local%20%7C%20S3%20%7C%20OSS%20%7C%20COS%20%7C%20OBS%20%7C%20BOS%20%7C%20FTP-111827" alt="Storage Drivers" />
+    <img src="https://img.shields.io/badge/Storage-Local%20%7C%20S3%20%7C%20FTP-111827" alt="Storage Drivers" />
   </p>
   <p>
     <a href="README.zh-CN.md">简体中文</a> | English
@@ -33,7 +33,7 @@ Kite ships with a Go backend, an embedded React admin panel, and a storage abstr
 
 - **Backend**: Go, Gin, GORM, SQLite/MySQL/PostgreSQL
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Radix UI
-- **Storage**: Local, FTP, S3, MinIO, Cloudflare R2, OSS, COS, OBS, BOS
+- **Storage**: Local, S3, FTP
 - **Media**: Image thumbnailing, static file serving, public upload endpoints
 
 ## 🚀 Quick Start
