@@ -300,17 +300,6 @@ export default function DashboardPage() {
     }));
   }, [daily?.days]);
 
-  // Trim leading all-zero days so the chart doesn't waste space on empty history.
-  // Always keep at least 14 points so the line still reads as a trend.
-  const trendDays = useMemo(() => {
-    const firstActive = days30.findIndex(
-      (d) => d.uploads > 0 || d.accesses > 0,
-    );
-    if (firstActive <= 0) return days30;
-    const start = Math.min(firstActive, Math.max(0, days30.length - 14));
-    return days30.slice(start);
-  }, [days30]);
-
   const last7 = useMemo(() => days30.slice(-7), [days30]);
   const weekUploads = last7.reduce((a, b) => a + b.uploads, 0);
   const weekAccesses = last7.reduce((a, b) => a + b.accesses, 0);
@@ -459,7 +448,7 @@ export default function DashboardPage() {
               <Skeleton className="h-full w-full" />
             ) : (
               <TrendCombo
-                data={trendDays}
+                data={days30}
                 height={220}
                 uploadsLabel={t("dashboard.uploads")}
                 accessesLabel={t("dashboard.accesses")}
