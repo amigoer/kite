@@ -1,11 +1,11 @@
-package api
+package handler
 
 import (
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// UserHandler 用户管理的 HTTP 处理器（管理员专用）。
+// UserHandler handles admin-only user management HTTP requests.
 type UserHandler struct {
 	userRepo      *repo.UserRepo
 	fileRepo      *repo.FileRepo
@@ -25,7 +25,7 @@ func NewUserHandler(userRepo *repo.UserRepo, fileRepo *repo.FileRepo, accessLogR
 	return &UserHandler{userRepo: userRepo, fileRepo: fileRepo, accessLogRepo: accessLogRepo, authSvc: authSvc}
 }
 
-// List 获取所有用户列表。
+// List returns a paginated list of all users.
 func (h *UserHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
@@ -38,11 +38,11 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	users, total, err := h.userRepo.List(c.Request.Context(), page, size)
 	if err != nil {
-		serverError(c, "failed to list users")
+		ServerError(c, "failed to list users")
 		return
 	}
 
-	paged(c, users, total, page, size)
+	Paged(c, users, total, page, size)
 }
 
 type createUserRequest struct {
@@ -54,11 +54,11 @@ type createUserRequest struct {
 	StorageLimit *int64 `json:"storage_limit"`
 }
 
-// Create 管理员创建用户。
+// Create creates a new user as an admin.
 func (h *UserHandler) Create(c *gin.Context) {
 	var req createUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid user data: "+err.Error())
+		BadRequest(c, "invalid user data: "+err.Error())
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	}
 
 	if err != nil {
-		serverError(c, "failed to create user: "+err.Error())
+		ServerError(c, "failed to create user: "+err.Error())
 		return
 	}
 
@@ -81,13 +81,13 @@ func (h *UserHandler) Create(c *gin.Context) {
 		if nickname != "" {
 			createdUser.Nickname = &nickname
 			if err := h.userRepo.Update(c.Request.Context(), createdUser); err != nil {
-				serverError(c, "failed to save user nickname")
+				ServerError(c, "failed to save user nickname")
 				return
 			}
 		}
 	}
 
-	created(c, user)
+	Created(c, user)
 }
 
 type updateUserRequest struct {
@@ -99,19 +99,19 @@ type updateUserRequest struct {
 	StorageLimit *int64  `json:"storage_limit"`
 }
 
-// Update 管理员更新用户信息。
+// Update updates a user's profile as an admin.
 func (h *UserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 
 	user, err := h.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "user not found")
+		NotFound(c, "user not found")
 		return
 	}
 
 	var req updateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid user data: "+err.Error())
+		BadRequest(c, "invalid user data: "+err.Error())
 		return
 	}
 
@@ -129,11 +129,11 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if req.Email != nil {
 		conflict, conflictErr := h.userRepo.ExistsByUsernameOrEmailExcept(c.Request.Context(), user.Username, *req.Email, user.ID)
 		if conflictErr != nil {
-			serverError(c, "failed to validate user email")
+			ServerError(c, "failed to validate user email")
 			return
 		}
 		if conflict {
-			fail(c, 409, 40900, service.ErrUserExists.Error())
+			Fail(c, 409, 40900, service.ErrUserExists.Error())
 			return
 		}
 		user.Email = *req.Email
@@ -141,7 +141,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if req.Password != nil && strings.TrimSpace(*req.Password) != "" {
 		hash, hashErr := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 		if hashErr != nil {
-			serverError(c, "failed to hash password")
+			ServerError(c, "failed to hash password")
 			return
 		}
 		user.PasswordHash = string(hash)
@@ -154,36 +154,36 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.userRepo.Update(c.Request.Context(), user); err != nil {
-		serverError(c, "failed to update user")
+		ServerError(c, "failed to update user")
 		return
 	}
 
-	success(c, user)
+	Success(c, user)
 }
 
-// Delete 管理员删除用户（禁用）。
+// Delete deactivates a user as an admin.
 func (h *UserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := h.userRepo.Delete(c.Request.Context(), id); err != nil {
-		serverError(c, "failed to delete user")
+		ServerError(c, "failed to delete user")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }
 
-// Stats 获取当前登录用户的使用统计（仅自己的数据）。
-// 管理员若需全站数据，应调用 AdminStats。
+// Stats returns usage statistics scoped to the current user.
+// Admins wanting site-wide data should call AdminStats instead.
 func (h *UserHandler) Stats(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 	stats, err := h.fileRepo.GetUserStats(c.Request.Context(), userID)
 	if err != nil {
-		serverError(c, "failed to get stats")
+		ServerError(c, "failed to get stats")
 		return
 	}
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"total_files": stats.TotalFiles,
 		"total_size":  stats.TotalSize,
 		"images":      stats.ImageCount,
@@ -197,17 +197,17 @@ func (h *UserHandler) Stats(c *gin.Context) {
 	})
 }
 
-// AdminStats 获取全站使用统计（仅管理员可调用）。
+// AdminStats returns site-wide usage statistics; admin only.
 func (h *UserHandler) AdminStats(c *gin.Context) {
 	stats, err := h.fileRepo.GetStats(c.Request.Context())
 	if err != nil {
-		serverError(c, "failed to get stats")
+		ServerError(c, "failed to get stats")
 		return
 	}
 
 	userCount, _ := h.userRepo.Count(c.Request.Context())
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"users":       userCount,
 		"total_files": stats.TotalFiles,
 		"total_size":  stats.TotalSize,
@@ -222,23 +222,23 @@ func (h *UserHandler) AdminStats(c *gin.Context) {
 	})
 }
 
-// DailyStats 获取当前用户按天分组的上传数、访问数、带宽统计。
-// 返回连续 N 天（默认 7）的时间序列，缺失日期补零。
+// DailyStats returns per-day upload counts, access counts, and bandwidth for the current user.
+// The response is a continuous N-day series (default 7) with zero-filled gaps.
 func (h *UserHandler) DailyStats(c *gin.Context) {
 	h.dailyStats(c, c.GetString(middleware.ContextKeyUserID))
 }
 
-// HeatmapStats 获取当前用户热力图统计（近 N 周，周几 × 小时）。
+// HeatmapStats returns a weekday-by-hour activity heatmap for the current user over the last N weeks.
 func (h *UserHandler) HeatmapStats(c *gin.Context) {
 	h.heatmapStats(c, c.GetString(middleware.ContextKeyUserID))
 }
 
-// AdminDailyStats 获取全站按天分组的上传数、访问数、带宽统计（仅管理员可调用）。
+// AdminDailyStats returns site-wide per-day upload, access, and bandwidth stats; admin only.
 func (h *UserHandler) AdminDailyStats(c *gin.Context) {
 	h.dailyStats(c, "")
 }
 
-// AdminHeatmapStats 获取全站热力图统计（近 N 周，周几 × 小时，仅管理员可调用）。
+// AdminHeatmapStats returns a site-wide weekday-by-hour heatmap over the last N weeks; admin only.
 func (h *UserHandler) AdminHeatmapStats(c *gin.Context) {
 	h.heatmapStats(c, "")
 }
@@ -255,12 +255,12 @@ func (h *UserHandler) dailyStats(c *gin.Context, userID string) {
 
 	uploads, err := h.fileRepo.GetDailyUploadStats(c.Request.Context(), userID, start, end)
 	if err != nil {
-		serverError(c, "failed to get upload stats")
+		ServerError(c, "failed to get upload stats")
 		return
 	}
 	accesses, err := h.accessLogRepo.GetDailyAccessStats(c.Request.Context(), userID, start, end)
 	if err != nil {
-		serverError(c, "failed to get access stats")
+		ServerError(c, "failed to get access stats")
 		return
 	}
 
@@ -294,7 +294,7 @@ func (h *UserHandler) dailyStats(c *gin.Context, userID string) {
 		})
 	}
 
-	success(c, gin.H{"days": series})
+	Success(c, gin.H{"days": series})
 }
 
 func (h *UserHandler) heatmapStats(c *gin.Context, userID string) {
@@ -309,12 +309,12 @@ func (h *UserHandler) heatmapStats(c *gin.Context, userID string) {
 
 	uploads, err := h.fileRepo.GetHourlyUploadHeatmapStats(c.Request.Context(), userID, start, end)
 	if err != nil {
-		serverError(c, "failed to get upload heatmap stats")
+		ServerError(c, "failed to get upload heatmap stats")
 		return
 	}
 	accesses, err := h.accessLogRepo.GetHourlyAccessHeatmapStats(c.Request.Context(), userID, start, end)
 	if err != nil {
-		serverError(c, "failed to get access heatmap stats")
+		ServerError(c, "failed to get access heatmap stats")
 		return
 	}
 
@@ -336,7 +336,7 @@ func (h *UserHandler) heatmapStats(c *gin.Context, userID string) {
 		}
 	}
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"weeks": weeks,
 		"grid":  grid,
 	})

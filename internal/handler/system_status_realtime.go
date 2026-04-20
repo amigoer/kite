@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"net/http"
@@ -354,7 +354,7 @@ func (h *SystemStatusRealtimeHandler) IssueWSTicket(c *gin.Context) {
 	h.cleanupExpiredLocked()
 	h.ticketMu.Unlock()
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"ticket":      ticket,
 		"expires_at":  expiresAt.Unix(),
 		"expires_in":  30,

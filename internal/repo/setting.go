@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// SettingRepo 系统设置数据访问层。
+// SettingRepo is the data access layer for system settings.
 type SettingRepo struct {
 	db *gorm.DB
 }
@@ -18,7 +18,7 @@ func NewSettingRepo(db *gorm.DB) *SettingRepo {
 	return &SettingRepo{db: db}
 }
 
-// Get 获取指定 key 的配置值。
+// Get returns the value stored under key.
 func (r *SettingRepo) Get(ctx context.Context, key string) (string, error) {
 	var setting model.Setting
 	if err := r.db.WithContext(ctx).Where("key = ?", key).First(&setting).Error; err != nil {
@@ -27,7 +27,7 @@ func (r *SettingRepo) Get(ctx context.Context, key string) (string, error) {
 	return setting.Value, nil
 }
 
-// Set 设置指定 key 的值，不存在则创建。
+// Set upserts the value for key.
 func (r *SettingRepo) Set(ctx context.Context, key, value string) error {
 	setting := model.Setting{Key: key, Value: value}
 	if err := r.db.WithContext(ctx).
@@ -40,7 +40,7 @@ func (r *SettingRepo) Set(ctx context.Context, key, value string) error {
 	return nil
 }
 
-// GetAll 获取所有配置。
+// GetAll returns every setting as a key/value map.
 func (r *SettingRepo) GetAll(ctx context.Context) (map[string]string, error) {
 	var settings []model.Setting
 	if err := r.db.WithContext(ctx).Find(&settings).Error; err != nil {
@@ -53,7 +53,7 @@ func (r *SettingRepo) GetAll(ctx context.Context) (map[string]string, error) {
 	return result, nil
 }
 
-// SetBatch 批量设置配置。
+// SetBatch upserts multiple settings in a single transaction.
 func (r *SettingRepo) SetBatch(ctx context.Context, settings map[string]string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for key, value := range settings {
@@ -69,7 +69,7 @@ func (r *SettingRepo) SetBatch(ctx context.Context, settings map[string]string) 
 	})
 }
 
-// Delete 删除指定 key 的配置。
+// Delete removes the setting identified by key.
 func (r *SettingRepo) Delete(ctx context.Context, key string) error {
 	if err := r.db.WithContext(ctx).Where("key = ?", key).Delete(&model.Setting{}).Error; err != nil {
 		return fmt.Errorf("delete setting %q: %w", key, err)

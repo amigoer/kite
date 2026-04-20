@@ -2,8 +2,8 @@ package model
 
 import "time"
 
-// User 用户模型。
-// 支持管理员和普通用户两种角色，普通用户可通过注册页面自行创建账号。
+// User is a registered account. The role column distinguishes admins from
+// regular users; regular users self-register through the sign-up page.
 type User struct {
 	ID                 string    `gorm:"column:id;primaryKey" json:"id"`
 	Username           string    `gorm:"column:username;uniqueIndex;not null" json:"username"`
@@ -12,17 +12,17 @@ type User struct {
 	AvatarURL          *string   `gorm:"column:avatar_url" json:"avatar_url,omitempty"`
 	PasswordHash       string    `gorm:"column:password_hash;not null" json:"-"`
 	Role               string    `gorm:"column:role;default:user" json:"role"`                          // admin / user
-	StorageLimit       int64     `gorm:"column:storage_limit;default:10737418240" json:"storage_limit"` // 默认 10GB，-1 无限
+	StorageLimit       int64     `gorm:"column:storage_limit;default:10737418240" json:"storage_limit"` // 10GB default; -1 means unlimited
 	StorageUsed        int64     `gorm:"column:storage_used;default:0" json:"storage_used"`
 	IsActive           bool      `gorm:"column:is_active;default:true" json:"is_active"`
-	PasswordMustChange bool      `gorm:"column:password_must_change;default:false" json:"password_must_change"` // 首次登录必须重置账号密码
+	PasswordMustChange bool      `gorm:"column:password_must_change;default:false" json:"password_must_change"` // forces account reset on first login
 	CreatedAt          time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
 func (User) TableName() string { return "users" }
 
-// HasStorageSpace 检查用户是否有足够的存储空间上传指定大小的文件。
+// HasStorageSpace reports whether the user has room to store fileSize more bytes.
 func (u *User) HasStorageSpace(fileSize int64) bool {
 	if u.StorageLimit == -1 {
 		return true

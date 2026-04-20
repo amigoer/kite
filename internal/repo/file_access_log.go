@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// FileAccessLogRepo 文件访问日志的数据访问层。
+// FileAccessLogRepo is the data access layer for file access logs.
 type FileAccessLogRepo struct {
 	db *gorm.DB
 }
@@ -18,7 +18,7 @@ func NewFileAccessLogRepo(db *gorm.DB) *FileAccessLogRepo {
 	return &FileAccessLogRepo{db: db}
 }
 
-// Create 记录一次文件访问。
+// Create records a single file access.
 func (r *FileAccessLogRepo) Create(ctx context.Context, log *model.FileAccessLog) error {
 	if err := r.db.WithContext(ctx).Create(log).Error; err != nil {
 		return fmt.Errorf("create file access log: %w", err)
@@ -26,25 +26,25 @@ func (r *FileAccessLogRepo) Create(ctx context.Context, log *model.FileAccessLog
 	return nil
 }
 
-// DailyAccessStat 每日访问量/带宽统计。
+// DailyAccessStat captures per-day access count and bandwidth.
 type DailyAccessStat struct {
 	Day         string `json:"day"`          // YYYY-MM-DD
-	AccessCount int64  `json:"access_count"` // 当日访问次数
-	BytesServed int64  `json:"bytes_served"` // 当日输出字节数
+	AccessCount int64  `json:"access_count"` // number of accesses that day
+	BytesServed int64  `json:"bytes_served"` // bytes served that day
 }
 
-// HourlyWeekdayAccessStat 按周几与小时聚合的访问统计。
-// Weekday: 0=Sunday ... 6=Saturday（SQLite strftime('%w') 约定）
-// Hour: 0..23
+// HourlyWeekdayAccessStat aggregates access counts by weekday and hour.
+// Weekday: 0=Sunday ... 6=Saturday (SQLite strftime('%w') convention).
+// Hour: 0..23.
 type HourlyWeekdayAccessStat struct {
 	Weekday int   `json:"weekday"`
 	Hour    int   `json:"hour"`
 	Count   int64 `json:"count"`
 }
 
-// GetDailyAccessStats 获取指定时间范围内每日访问量和带宽。
-// start/end 为 UTC 日期边界（start 含、end 不含）。
-// userID 为空时返回全站聚合（管理员视角）；非空时仅统计该用户所属文件。
+// GetDailyAccessStats returns per-day access counts and bandwidth in [start, end).
+// start/end are UTC day boundaries (start inclusive, end exclusive).
+// An empty userID returns site-wide aggregates (admin view); otherwise results are scoped to that user's files.
 func (r *FileAccessLogRepo) GetDailyAccessStats(ctx context.Context, userID string, start, end time.Time) ([]DailyAccessStat, error) {
 	var rows []DailyAccessStat
 	db := r.db.WithContext(ctx).
@@ -60,9 +60,9 @@ func (r *FileAccessLogRepo) GetDailyAccessStats(ctx context.Context, userID stri
 	return rows, nil
 }
 
-// GetHourlyAccessHeatmapStats 获取指定时间范围内按周几与小时聚合的访问热力图统计。
-// start/end 为时间边界（start 含、end 不含）。
-// userID 为空时返回全站聚合（管理员视角）；非空时仅统计该用户所属文件访问。
+// GetHourlyAccessHeatmapStats returns access counts grouped by weekday and hour within [start, end).
+// start/end are time boundaries (start inclusive, end exclusive).
+// An empty userID returns site-wide aggregates (admin view); otherwise results are scoped to accesses of that user's files.
 func (r *FileAccessLogRepo) GetHourlyAccessHeatmapStats(ctx context.Context, userID string, start, end time.Time) ([]HourlyWeekdayAccessStat, error) {
 	var rows []HourlyWeekdayAccessStat
 	db := r.db.WithContext(ctx).

@@ -2,9 +2,9 @@ package model
 
 import "time"
 
-// UploadSession tus 断点续传会话模型。
-// 记录大文件上传的进度，支持客户端断点续传。
-// 会话有 24 小时有效期，过期后由后台任务清理。
+// UploadSession is the tus resumable-upload session model.
+// It tracks the progress of large uploads so clients can resume after an interruption.
+// Sessions live for 24 hours and are cleaned up by a background task once expired.
 type UploadSession struct {
 	ID         string    `gorm:"column:id;primaryKey" json:"id"`           // tus upload ID
 	UserID     string    `gorm:"column:user_id;index;not null" json:"user_id"`
@@ -20,7 +20,7 @@ type UploadSession struct {
 
 func (UploadSession) TableName() string { return "upload_sessions" }
 
-// Upload session 状态常量。
+// Upload-session status constants.
 const (
 	UploadStatusPending   = "pending"
 	UploadStatusUploading = "uploading"

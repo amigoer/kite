@@ -30,7 +30,7 @@ var (
 	ErrDuplicateFile  = errors.New("file already exists")
 )
 
-// FileService 文件处理核心业务逻辑。
+// FileService implements the core file-handling business logic.
 type FileService struct {
 	fileRepo    *repo.FileRepo
 	userRepo    *repo.UserRepo
@@ -64,27 +64,27 @@ func NewFileService(
 	}
 }
 
-// UploadParams 上传参数。
+// UploadParams carries the parameters for an upload.
 type UploadParams struct {
 	UserID   string
 	AlbumID  *string
 	Filename string
 	Reader   io.Reader
 	Size     int64
-	IsGuest  bool   // 游客上传模式，跳过用户配额检查
-	BaseURL  string // 请求来源（如 "https://demo.kite.plus"），用于生成完整链接
+	IsGuest  bool   // when true, skip per-user quota checks (anonymous uploads)
+	BaseURL  string // request origin (e.g. "https://demo.kite.plus") used to build absolute links
 }
 
-// UploadResult 上传结果。
+// UploadResult is the outcome of an upload.
 type UploadResult struct {
 	File  *model.File
 	Links FileLinks
 }
 
-// FileLinks 各种格式的访问链接（兼容兰空格式）。
+// FileLinks bundles access links in assorted formats, matching the Lsky schema.
 type FileLinks struct {
-	URL              string `json:"url"`                  // 短链接，形如 /i/{hash}
-	SourceURL        string `json:"source_url,omitempty"` // 原始存储 URL，指向存储后端中的真实路径
+	URL              string `json:"url"`                  // short link, e.g. /i/{hash}
+	SourceURL        string `json:"source_url,omitempty"` // raw storage URL pointing at the backing path
 	HTML             string `json:"html"`
 	BBCode           string `json:"bbcode"`
 	Markdown         string `json:"markdown"`
@@ -92,14 +92,14 @@ type FileLinks struct {
 	ThumbnailURL     string `json:"thumbnail_url,omitempty"`
 }
 
-// Upload 处理文件上传的完整流程。
+// Upload runs the full upload pipeline.
 func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadResult, error) {
-	// 1. 检查文件大小
+	// 1. Enforce the per-file size limit.
 	if params.Size > s.cfg.MaxFileSize {
 		return nil, ErrFileTooLarge
 	}
 
-	// 2. 检查用户存储配额（游客模式跳过）
+	// 2. Enforce the per-user storage quota (skipped for guests).
 	if !params.IsGuest {
 		user, err := s.userRepo.GetByID(ctx, params.UserID)
 		if err != nil {
@@ -110,29 +110,29 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		}
 	}
 
-	// 3. 读取全部内容到内存以进行 MIME 检测和 MD5 计算
+	// 3. Read the entire body into memory for MIME detection and MD5 hashing.
 	data, err := io.ReadAll(params.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("upload read file: %w", err)
 	}
 
-	// 4. 检测真实 MIME 类型
+	// 4. Detect the real MIME type.
 	mtype := mimetype.Detect(data)
 	mimeType := mtype.String()
 
-	// 5. 检查文件类型是否允许
+	// 5. Reject disallowed file types.
 	if err := s.checkFileType(mimeType, params.Filename); err != nil {
 		return nil, err
 	}
 
-	// 6. 判断文件类型分类
+	// 6. Classify the file type.
 	fileType := classifyFileType(mimeType)
 
-	// 7. 计算 MD5
+	// 7. Compute the MD5 hash.
 	hash := md5.Sum(data)
 	hashMD5 := hex.EncodeToString(hash[:])
 
-	// 8. 去重检查
+	// 8. Deduplicate against existing uploads.
 	if !s.cfg.AllowDuplicate {
 		existing, err := s.fileRepo.GetByHashMD5(ctx, params.UserID, hashMD5)
 		if err == nil && existing != nil {
@@ -143,13 +143,13 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		}
 	}
 
-	// 9. 规划上传目标（根据策略 single / primary_fallback / round_robin / mirror）
+	// 9. Pick upload targets according to the policy (single / primary_fallback / round_robin / mirror).
 	plan, err := s.router.Plan(ctx, int64(len(data)))
 	if err != nil {
 		return nil, ErrStorageFull
 	}
 
-	// 10. 生成存储 key
+	// 10. Build the storage key.
 	ext := strings.TrimPrefix(filepath.Ext(params.Filename), ".")
 	if ext == "" {
 		ext = mtype.Extension()
@@ -158,13 +158,13 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 	fileID := uuid.New().String()
 	storageKey := s.generateStorageKey(hashMD5, fileID, ext)
 
-	// 11. 根据策略写入主存储
+	// 11. Write to the primary storage according to the policy.
 	primary, replicaTargets, err := s.writePrimary(ctx, plan, storageKey, data, mimeType)
 	if err != nil {
 		return nil, fmt.Errorf("upload put file: %w", err)
 	}
 
-	// 12. 如果是图片，获取尺寸并生成缩略图（缩略图只写入主存储）
+	// 12. For images, capture dimensions and generate a thumbnail on the primary storage only.
 	var width, height *int
 	var thumbURL *string
 
@@ -185,10 +185,10 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		}
 	}
 
-	// 13. 生成访问 URL
+	// 13. Build the access URL.
 	accessURL := s.buildAccessURL(fileType, hashMD5[:8])
 
-	// 14. 创建文件记录
+	// 14. Create the file record.
 	file := &model.File{
 		ID:              fileID,
 		UserID:          params.UserID,
@@ -207,20 +207,20 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 	}
 
 	if err := s.fileRepo.Create(ctx, file); err != nil {
-		// 回滚：删除已上传的文件
+		// Roll back by deleting the uploaded bytes.
 		_ = primary.Driver.Delete(ctx, storageKey)
 		return nil, fmt.Errorf("upload create record: %w", err)
 	}
 
-	// 15. 如果是 mirror 模式，预写 replica 记录并启动后台协程并发同步副本
+	// 15. In mirror mode, pre-insert replica records and kick off concurrent background replication.
 	if plan.Mode == storage.PolicyMirror && len(replicaTargets) > 0 {
 		s.scheduleReplicas(file, data, mimeType, replicaTargets)
 	}
 
-	// 16. 更新用户已用存储量（游客模式跳过）
+	// 16. Update the user's storage usage (skipped for guests).
 	if !params.IsGuest {
 		if err := s.userRepo.UpdateStorageUsed(ctx, params.UserID, int64(len(data))); err != nil {
-			// 非致命错误，记录日志即可
+			// Non-fatal; log and continue.
 			_ = err
 		}
 	}
@@ -231,10 +231,11 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 	}, nil
 }
 
-// writePrimary 按照策略写入主存储，返回实际写入成功的目标和待异步复制的副本目标。
-// 对 primary_fallback：依次尝试直到某个成功，其余视为未使用的 fallback 不做异步。
-// 对 mirror：Targets[0] 是主，Targets[1:] 需要异步复制。
-// 对 single / round_robin：Targets[0] 是主，无副本。
+// writePrimary writes to the primary storage per the policy and returns the successful target and any
+// replica targets to copy asynchronously.
+// primary_fallback: try targets in order until one succeeds; the rest are unused fallbacks and are not replicated.
+// mirror: Targets[0] is the primary, Targets[1:] must be replicated asynchronously.
+// single / round_robin: Targets[0] is the primary and no replicas are produced.
 func (s *FileService) writePrimary(
 	ctx context.Context,
 	plan *storage.Plan,
@@ -279,8 +280,9 @@ func (s *FileService) writePrimary(
 	}
 }
 
-// scheduleReplicas 为 mirror 模式的每个副本先写入 pending 记录，然后启动后台协程并发同步。
-// 协程使用独立 context（不继承请求 context），并发上限等于副本数；失败只记录 status=failed 与错误，不影响主请求。
+// scheduleReplicas pre-inserts a pending row for each mirror replica, then spawns concurrent background workers.
+// Workers use an independent context (not derived from the request) and run one per replica; failures are
+// recorded as status=failed with an error message and do not affect the main request.
 func (s *FileService) scheduleReplicas(file *model.File, data []byte, mimeType string, targets []storage.Target) {
 	ctx := context.Background()
 
@@ -320,7 +322,7 @@ func (s *FileService) scheduleReplicas(file *model.File, data []byte, mimeType s
 	}
 }
 
-// GetFile 获取文件详情。
+// GetFile fetches a file by ID.
 func (s *FileService) GetFile(ctx context.Context, id string) (*model.File, error) {
 	file, err := s.fileRepo.GetByID(ctx, id)
 	if err != nil {
@@ -329,14 +331,14 @@ func (s *FileService) GetFile(ctx context.Context, id string) (*model.File, erro
 	return file, nil
 }
 
-// DeleteFile 删除文件（软删除）。
+// DeleteFile soft-deletes a file.
 func (s *FileService) DeleteFile(ctx context.Context, fileID, userID, role string) error {
 	file, err := s.fileRepo.GetByID(ctx, fileID)
 	if err != nil {
 		return ErrFileNotFound
 	}
 
-	// 非管理员只能删除自己的文件
+	// Non-admins may only delete their own files.
 	if role != "admin" && file.UserID != userID {
 		return ErrNotFileOwner
 	}
@@ -345,18 +347,18 @@ func (s *FileService) DeleteFile(ctx context.Context, fileID, userID, role strin
 		return fmt.Errorf("delete file: %w", err)
 	}
 
-	// 更新用户已用存储量
+	// Update the user's storage usage.
 	_ = s.userRepo.UpdateStorageUsed(ctx, file.UserID, -file.SizeBytes)
 
 	return nil
 }
 
-// ListFiles 查询文件列表。
+// ListFiles queries the file list.
 func (s *FileService) ListFiles(ctx context.Context, params repo.FileListParams) ([]model.File, int64, error) {
 	return s.fileRepo.List(ctx, params)
 }
 
-// GetSourceURL 返回文件在存储后端中的源站 URL。
+// GetSourceURL returns the file's origin URL on its storage backend.
 func (s *FileService) GetSourceURL(file *model.File, baseURL string) string {
 	driver, err := s.storageMgr.Get(file.StorageConfigID)
 	if err != nil {
@@ -373,7 +375,7 @@ func (s *FileService) GetSourceURL(file *model.File, baseURL string) string {
 	return sourceURL
 }
 
-// GetFileContent 获取文件内容流（用于文件访问/下载）。
+// GetFileContent opens the file content stream, used for access and download.
 func (s *FileService) GetFileContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
 	driver, err := s.storageMgr.Get(file.StorageConfigID)
 	if err != nil {
@@ -382,8 +384,8 @@ func (s *FileService) GetFileContent(ctx context.Context, file *model.File) (io.
 	return driver.Get(ctx, file.StorageKey)
 }
 
-// GetThumbContent 获取缩略图内容流（用于 /t/:hash 短链服务）。
-// 缩略图的存储 key 固定为 "thumb/" + file.StorageKey。
+// GetThumbContent opens the thumbnail stream for the /t/:hash short-link endpoint.
+// The thumbnail storage key is always "thumb/" + file.StorageKey.
 func (s *FileService) GetThumbContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
 	driver, err := s.storageMgr.Get(file.StorageConfigID)
 	if err != nil {
@@ -392,7 +394,7 @@ func (s *FileService) GetThumbContent(ctx context.Context, file *model.File) (io
 	return driver.Get(ctx, "thumb/"+file.StorageKey)
 }
 
-// GetFileByHash 通过 MD5 哈希前缀查找文件（用于公开访问链接）。
+// GetFileByHash resolves a file by its MD5 hash prefix, used for public access links.
 func (s *FileService) GetFileByHash(ctx context.Context, hashPrefix string) (*model.File, error) {
 	file, err := s.fileRepo.GetByHashPrefix(ctx, hashPrefix)
 	if err != nil {
@@ -406,7 +408,7 @@ func (s *FileService) GetFileByHash(ctx context.Context, hashPrefix string) (*mo
 }
 
 func (s *FileService) checkFileType(mimeType, filename string) error {
-	// 检查禁止的扩展名
+	// Reject forbidden extensions.
 	ext := strings.ToLower(filepath.Ext(filename))
 	for _, forbidden := range s.cfg.ForbiddenExts {
 		if ext == forbidden {
@@ -414,7 +416,7 @@ func (s *FileService) checkFileType(mimeType, filename string) error {
 		}
 	}
 
-	// 检查允许的 MIME 类型
+	// Enforce the allow-list of MIME types, if any.
 	if len(s.cfg.AllowedTypes) > 0 {
 		allowed := false
 		for _, prefix := range s.cfg.AllowedTypes {
@@ -484,7 +486,7 @@ func (s *FileService) generateLinks(file *model.File, baseURL string) FileLinks 
 	return links
 }
 
-// classifyFileType 根据 MIME 类型判断文件分类。
+// classifyFileType derives the file category from its MIME type.
 func classifyFileType(mimeType string) string {
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):

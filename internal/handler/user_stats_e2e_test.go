@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/gin-gonic/gin"

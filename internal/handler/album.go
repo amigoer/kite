@@ -1,16 +1,16 @@
-package api
+package handler
 
 import (
 	"strconv"
 
-	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-// AlbumHandler 相册管理的 HTTP 处理器。
+// AlbumHandler handles album (folder) management HTTP requests.
 type AlbumHandler struct {
 	albumRepo *repo.AlbumRepo
 	fileRepo  *repo.FileRepo
@@ -36,11 +36,11 @@ type albumListData struct {
 	Ancestors     []model.Album `json:"ancestors,omitempty"`
 }
 
-// Create 创建相册。
+// Create creates a new album.
 func (h *AlbumHandler) Create(c *gin.Context) {
 	var req createAlbumRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid album data: "+err.Error())
+		BadRequest(c, "invalid album data: "+err.Error())
 		return
 	}
 
@@ -56,21 +56,21 @@ func (h *AlbumHandler) Create(c *gin.Context) {
 	if req.ParentID != "" {
 		parent, err := h.albumRepo.GetByID(c.Request.Context(), req.ParentID)
 		if err != nil || parent.UserID != userID {
-			badRequest(c, "invalid parent folder")
+			BadRequest(c, "invalid parent folder")
 			return
 		}
 		album.ParentID = &req.ParentID
 	}
 
 	if err := h.albumRepo.Create(c.Request.Context(), album); err != nil {
-		serverError(c, "failed to create album")
+		ServerError(c, "failed to create album")
 		return
 	}
 
-	created(c, album)
+	Created(c, album)
 }
 
-// List 获取当前用户在指定目录下的文件夹列表。
+// List returns the current user's folders under the given parent directory.
 func (h *AlbumHandler) List(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -90,24 +90,24 @@ func (h *AlbumHandler) List(c *gin.Context) {
 		parentIDPtr = &parentID
 		folder, err := h.albumRepo.GetByID(c.Request.Context(), parentID)
 		if err != nil || folder.UserID != userID {
-			notFound(c, "folder not found")
+			NotFound(c, "folder not found")
 			return
 		}
 		currentFolder = folder
 		ancestors, err = h.albumRepo.ListAncestors(c.Request.Context(), userID, parentID)
 		if err != nil {
-			serverError(c, "failed to load folder path")
+			ServerError(c, "failed to load folder path")
 			return
 		}
 	}
 
 	albums, total, err := h.albumRepo.ListByUser(c.Request.Context(), userID, parentIDPtr, page, size)
 	if err != nil {
-		serverError(c, "failed to list albums")
+		ServerError(c, "failed to list albums")
 		return
 	}
 
-	// 填充每个文件夹的子文件夹数量和文件数量
+	// Populate per-folder counts of child folders and files.
 	for i := range albums {
 		count, _ := h.fileRepo.CountByAlbum(c.Request.Context(), albums[i].ID)
 		albums[i].FileCount = count
@@ -115,7 +115,7 @@ func (h *AlbumHandler) List(c *gin.Context) {
 		albums[i].FolderCount = folderCount
 	}
 
-	success(c, albumListData{
+	Success(c, albumListData{
 		Items:         albums,
 		Total:         total,
 		Page:          page,
@@ -132,25 +132,25 @@ type updateAlbumRequest struct {
 	ParentID    *string `json:"parent_id"`
 }
 
-// Update 更新相册。
+// Update modifies an album.
 func (h *AlbumHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	album, err := h.albumRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "album not found")
+		NotFound(c, "album not found")
 		return
 	}
 
 	if album.UserID != userID {
-		forbidden(c, "not the owner of this album")
+		Forbidden(c, "not the owner of this album")
 		return
 	}
 
 	var req updateAlbumRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid album data: "+err.Error())
+		BadRequest(c, "invalid album data: "+err.Error())
 		return
 	}
 
@@ -168,22 +168,22 @@ func (h *AlbumHandler) Update(c *gin.Context) {
 			album.ParentID = nil
 		} else {
 			if *req.ParentID == album.ID {
-				badRequest(c, "folder cannot be its own parent")
+				BadRequest(c, "folder cannot be its own parent")
 				return
 			}
 			parent, err := h.albumRepo.GetByID(c.Request.Context(), *req.ParentID)
 			if err != nil || parent.UserID != userID {
-				badRequest(c, "invalid parent folder")
+				BadRequest(c, "invalid parent folder")
 				return
 			}
 			ancestors, err := h.albumRepo.ListAncestors(c.Request.Context(), userID, *req.ParentID)
 			if err != nil {
-				badRequest(c, "invalid parent folder")
+				BadRequest(c, "invalid parent folder")
 				return
 			}
 			for _, ancestor := range ancestors {
 				if ancestor.ID == album.ID {
-					badRequest(c, "cannot move folder into its descendant")
+					BadRequest(c, "cannot move folder into its descendant")
 					return
 				}
 			}
@@ -192,33 +192,33 @@ func (h *AlbumHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.albumRepo.Update(c.Request.Context(), album); err != nil {
-		serverError(c, "failed to update album")
+		ServerError(c, "failed to update album")
 		return
 	}
 
-	success(c, album)
+	Success(c, album)
 }
 
-// Delete 删除文件夹。
+// Delete removes a folder.
 func (h *AlbumHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	album, err := h.albumRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "album not found")
+		NotFound(c, "album not found")
 		return
 	}
 
 	if album.UserID != userID {
-		forbidden(c, "not the owner of this album")
+		Forbidden(c, "not the owner of this album")
 		return
 	}
 
 	if err := h.albumRepo.Delete(c.Request.Context(), id); err != nil {
-		serverError(c, "failed to delete album")
+		ServerError(c, "failed to delete album")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }

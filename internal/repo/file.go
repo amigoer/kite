@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// allowedOrderByFields 文件列表允许的排序字段白名单，防止 SQL 注入。
+// allowedOrderByFields is the whitelist of sort columns for the file list, used to prevent SQL injection.
 var allowedOrderByFields = map[string]bool{
 	"created_at":    true,
 	"updated_at":    true,
@@ -37,7 +37,7 @@ func sanitizeOrder(v string) string {
 	}
 }
 
-// FileRepo 文件数据访问层。
+// FileRepo is the data access layer for files.
 type FileRepo struct {
 	db *gorm.DB
 }
@@ -46,7 +46,7 @@ func NewFileRepo(db *gorm.DB) *FileRepo {
 	return &FileRepo{db: db}
 }
 
-// Create 创建文件记录。
+// Create inserts a new file record.
 func (r *FileRepo) Create(ctx context.Context, file *model.File) error {
 	if err := r.db.WithContext(ctx).Create(file).Error; err != nil {
 		return fmt.Errorf("create file: %w", err)
@@ -54,7 +54,7 @@ func (r *FileRepo) Create(ctx context.Context, file *model.File) error {
 	return nil
 }
 
-// GetByID 通过 ID 查询文件。
+// GetByID fetches a file by its ID.
 func (r *FileRepo) GetByID(ctx context.Context, id string) (*model.File, error) {
 	var file model.File
 	if err := r.db.WithContext(ctx).
@@ -65,7 +65,7 @@ func (r *FileRepo) GetByID(ctx context.Context, id string) (*model.File, error) 
 	return &file, nil
 }
 
-// GetByHashMD5 通过 MD5 哈希查询文件（用于去重）。
+// GetByHashMD5 fetches a file by its MD5 hash, used for deduplication.
 func (r *FileRepo) GetByHashMD5(ctx context.Context, userID, hashMD5 string) (*model.File, error) {
 	var file model.File
 	if err := r.db.WithContext(ctx).
@@ -76,12 +76,12 @@ func (r *FileRepo) GetByHashMD5(ctx context.Context, userID, hashMD5 string) (*m
 	return &file, nil
 }
 
-// minHashPrefixLen 短链 hash 前缀的最小长度。
-// 8 hex 字符 = 32 bit，足够避免枚举攻击，同时与 path_pattern 中的 {md5_8} 对齐。
+// minHashPrefixLen is the minimum length of the short-link hash prefix.
+// 8 hex characters (32 bits) is enough to avoid enumeration and matches {md5_8} in path_pattern.
 const minHashPrefixLen = 8
 
-// GetByHashPrefix 通过 MD5 哈希前缀查询文件，用于短链访问。
-// 要求前缀至少 minHashPrefixLen 个字符，且结果按 id 排序保证确定性。
+// GetByHashPrefix fetches a file by its MD5 hash prefix for short-link access.
+// The prefix must be at least minHashPrefixLen characters, and results are ordered by id for determinism.
 func (r *FileRepo) GetByHashPrefix(ctx context.Context, prefix string) (*model.File, error) {
 	if len(prefix) < minHashPrefixLen {
 		return nil, fmt.Errorf("hash prefix too short")
@@ -96,20 +96,20 @@ func (r *FileRepo) GetByHashPrefix(ctx context.Context, prefix string) (*model.F
 	return &file, nil
 }
 
-// FileListParams 文件列表查询参数。
+// FileListParams holds the query parameters for listing files.
 type FileListParams struct {
 	UserID   string
-	AlbumID  string // 为空则不按相册过滤
-	NoAlbum  bool   // 为 true 时查询未归属任何文件夹的文件（album_id IS NULL）
-	FileType string // 为空则不按类型过滤
-	Keyword  string // 搜索原始文件名
+	AlbumID  string // empty skips the album filter
+	NoAlbum  bool   // true selects files not in any folder (album_id IS NULL)
+	FileType string // empty skips the type filter
+	Keyword  string // substring match against the original filename
 	Page     int
 	PageSize int
-	OrderBy  string // 排序字段，默认 created_at
-	Order    string // ASC / DESC，默认 DESC
+	OrderBy  string // sort column; defaults to created_at
+	Order    string // ASC / DESC; defaults to DESC
 }
 
-// List 分页查询文件列表。
+// List returns a paginated slice of files.
 func (r *FileRepo) List(ctx context.Context, params FileListParams) ([]model.File, int64, error) {
 	files := make([]model.File, 0)
 	var total int64
@@ -148,7 +148,7 @@ func (r *FileRepo) List(ctx context.Context, params FileListParams) ([]model.Fil
 	return files, total, nil
 }
 
-// SoftDelete 软删除文件。
+// SoftDelete marks a file as deleted without removing the row.
 func (r *FileRepo) SoftDelete(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.File{}).
@@ -159,7 +159,7 @@ func (r *FileRepo) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-// SetAlbum 设置或清除文件的文件夹（album_id）。albumID 为 nil 时清除归属。
+// SetAlbum assigns or clears the folder of a file. A nil albumID clears the association.
 func (r *FileRepo) SetAlbum(ctx context.Context, fileID string, albumID *string) error {
 	if err := r.db.WithContext(ctx).Model(&model.File{}).
 		Where("id = ? AND is_deleted = ?", fileID, false).
@@ -169,7 +169,7 @@ func (r *FileRepo) SetAlbum(ctx context.Context, fileID string, albumID *string)
 	return nil
 }
 
-// BatchSoftDelete 批量软删除文件。
+// BatchSoftDelete soft-deletes multiple files at once.
 func (r *FileRepo) BatchSoftDelete(ctx context.Context, ids []string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.File{}).
@@ -180,7 +180,7 @@ func (r *FileRepo) BatchSoftDelete(ctx context.Context, ids []string) error {
 	return nil
 }
 
-// CountByUser 统计用户的文件数量。
+// CountByUser returns the number of files owned by a user.
 func (r *FileRepo) CountByUser(ctx context.Context, userID string) (int64, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.File{}).
@@ -191,7 +191,7 @@ func (r *FileRepo) CountByUser(ctx context.Context, userID string) (int64, error
 	return count, nil
 }
 
-// SumSizeByUser 统计用户的文件总大小。
+// SumSizeByUser returns the total byte size of a user's files.
 func (r *FileRepo) SumSizeByUser(ctx context.Context, userID string) (int64, error) {
 	var total *int64
 	if err := r.db.WithContext(ctx).Model(&model.File{}).
@@ -206,7 +206,7 @@ func (r *FileRepo) SumSizeByUser(ctx context.Context, userID string) (int64, err
 	return *total, nil
 }
 
-// SumSizeByStorageConfig 统计指定存储配置下所有未删除文件的总大小。
+// SumSizeByStorageConfig returns the total byte size of non-deleted files stored under the given storage config.
 func (r *FileRepo) SumSizeByStorageConfig(ctx context.Context, storageConfigID string) (int64, error) {
 	var total *int64
 	if err := r.db.WithContext(ctx).Model(&model.File{}).
@@ -221,7 +221,7 @@ func (r *FileRepo) SumSizeByStorageConfig(ctx context.Context, storageConfigID s
 	return *total, nil
 }
 
-// CountByAlbum 统计相册中的文件数量。
+// CountByAlbum returns the number of files in an album.
 func (r *FileRepo) CountByAlbum(ctx context.Context, albumID string) (int64, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.File{}).
@@ -232,7 +232,7 @@ func (r *FileRepo) CountByAlbum(ctx context.Context, albumID string) (int64, err
 	return count, nil
 }
 
-// UpdateAlbumID 修改文件所属相册。
+// UpdateAlbumID reassigns a file to a different album.
 func (r *FileRepo) UpdateAlbumID(ctx context.Context, fileID string, albumID *string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.File{}).
@@ -243,7 +243,7 @@ func (r *FileRepo) UpdateAlbumID(ctx context.Context, fileID string, albumID *st
 	return nil
 }
 
-// Stats 全站文件统计。
+// FileStats holds site-wide or per-user file statistics.
 type FileStats struct {
 	TotalFiles int64 `json:"total_files"`
 	TotalSize  int64 `json:"total_size"`
@@ -257,7 +257,7 @@ type FileStats struct {
 	OtherSize  int64 `json:"other_size"`
 }
 
-// GetStats 获取全站文件统计数据。
+// GetStats returns site-wide file statistics.
 func (r *FileRepo) GetStats(ctx context.Context) (*FileStats, error) {
 	var stats FileStats
 	db := r.db.WithContext(ctx).Model(&model.File{}).Where("is_deleted = ?", false)
@@ -296,7 +296,7 @@ func (r *FileRepo) GetStats(ctx context.Context) (*FileStats, error) {
 	return &stats, nil
 }
 
-// GetUserStats 获取指定用户的文件统计。
+// GetUserStats returns file statistics scoped to a single user.
 func (r *FileRepo) GetUserStats(ctx context.Context, userID string) (*FileStats, error) {
 	var stats FileStats
 	db := r.db.WithContext(ctx).Model(&model.File{}).Where("user_id = ? AND is_deleted = ?", userID, false)
@@ -337,24 +337,24 @@ func (r *FileRepo) GetUserStats(ctx context.Context, userID string) (*FileStats,
 	return &stats, nil
 }
 
-// DailyUploadStat 每日上传量统计。
+// DailyUploadStat captures the per-day upload count.
 type DailyUploadStat struct {
 	Day         string `json:"day"`          // YYYY-MM-DD
-	UploadCount int64  `json:"upload_count"` // 当日新增文件数
+	UploadCount int64  `json:"upload_count"` // files added that day
 }
 
-// HourlyWeekdayStat 按周几与小时聚合的统计。
-// Weekday: 0=Sunday ... 6=Saturday（SQLite strftime('%w') 约定）
-// Hour: 0..23
+// HourlyWeekdayStat aggregates counts by weekday and hour.
+// Weekday: 0=Sunday ... 6=Saturday (SQLite strftime('%w') convention).
+// Hour: 0..23.
 type HourlyWeekdayStat struct {
 	Weekday int   `json:"weekday"`
 	Hour    int   `json:"hour"`
 	Count   int64 `json:"count"`
 }
 
-// GetDailyUploadStats 获取指定时间范围内每日上传量。
-// start/end 为 UTC 日期边界（start 含、end 不含）。
-// userID 为空时返回全站聚合（管理员视角）；非空时仅统计该用户的上传。
+// GetDailyUploadStats returns per-day upload counts in [start, end).
+// start/end are UTC day boundaries (start inclusive, end exclusive).
+// An empty userID returns site-wide aggregates (admin view); otherwise results are scoped to that user's uploads.
 func (r *FileRepo) GetDailyUploadStats(ctx context.Context, userID string, start, end time.Time) ([]DailyUploadStat, error) {
 	var rows []DailyUploadStat
 	db := r.db.WithContext(ctx).
@@ -370,9 +370,9 @@ func (r *FileRepo) GetDailyUploadStats(ctx context.Context, userID string, start
 	return rows, nil
 }
 
-// GetHourlyUploadHeatmapStats 获取指定时间范围内按周几与小时聚合的上传热力图统计。
-// start/end 为时间边界（start 含、end 不含）。
-// userID 为空时返回全站聚合（管理员视角）；非空时仅统计该用户上传。
+// GetHourlyUploadHeatmapStats returns upload counts grouped by weekday and hour within [start, end).
+// start/end are time boundaries (start inclusive, end exclusive).
+// An empty userID returns site-wide aggregates (admin view); otherwise results are scoped to that user's uploads.
 func (r *FileRepo) GetHourlyUploadHeatmapStats(ctx context.Context, userID string, start, end time.Time) ([]HourlyWeekdayStat, error) {
 	var rows []HourlyWeekdayStat
 	db := r.db.WithContext(ctx).

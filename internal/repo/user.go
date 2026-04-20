@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRepo 用户数据访问层。
+// UserRepo is the data access layer for users.
 type UserRepo struct {
 	db *gorm.DB
 }
@@ -17,7 +17,7 @@ func NewUserRepo(db *gorm.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
-// Create 创建新用户。
+// Create inserts a new user.
 func (r *UserRepo) Create(ctx context.Context, user *model.User) error {
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
 		return fmt.Errorf("create user: %w", err)
@@ -25,7 +25,7 @@ func (r *UserRepo) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-// GetByID 通过 ID 查询用户。
+// GetByID fetches a user by ID.
 func (r *UserRepo) GetByID(ctx context.Context, id string) (*model.User, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error; err != nil {
@@ -34,7 +34,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (*model.User, error) 
 	return &user, nil
 }
 
-// GetByUsername 通过用户名查询用户。
+// GetByUsername fetches a user by username.
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
@@ -43,7 +43,7 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.U
 	return &user, nil
 }
 
-// GetByEmail 通过邮箱查询用户。
+// GetByEmail fetches a user by email.
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
@@ -52,7 +52,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*model.User, e
 	return &user, nil
 }
 
-// Update 更新用户信息。
+// Update persists changes to a user.
 func (r *UserRepo) Update(ctx context.Context, user *model.User) error {
 	if err := r.db.WithContext(ctx).Save(user).Error; err != nil {
 		return fmt.Errorf("update user: %w", err)
@@ -60,7 +60,7 @@ func (r *UserRepo) Update(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-// UpdateStorageUsed 增减用户已用存储量。delta 可为负值。
+// UpdateStorageUsed adjusts the user's used storage counter; delta may be negative.
 func (r *UserRepo) UpdateStorageUsed(ctx context.Context, userID string, delta int64) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.User{}).
@@ -71,7 +71,7 @@ func (r *UserRepo) UpdateStorageUsed(ctx context.Context, userID string, delta i
 	return nil
 }
 
-// Delete 删除用户（软删除：设置 is_active = false）。
+// Delete soft-deletes a user by flipping is_active to false.
 func (r *UserRepo) Delete(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.User{}).
@@ -82,7 +82,7 @@ func (r *UserRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// List 分页查询用户列表。
+// List returns a page of users ordered by creation time descending.
 func (r *UserRepo) List(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
 	var users []model.User
 	var total int64
@@ -101,7 +101,7 @@ func (r *UserRepo) List(ctx context.Context, page, pageSize int) ([]model.User, 
 	return users, total, nil
 }
 
-// ExistsByUsernameOrEmail 检查用户名或邮箱是否已存在。
+// ExistsByUsernameOrEmail reports whether any row has the given username or email.
 func (r *UserRepo) ExistsByUsernameOrEmail(ctx context.Context, username, email string) (bool, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.User{}).
@@ -112,8 +112,8 @@ func (r *UserRepo) ExistsByUsernameOrEmail(ctx context.Context, username, email 
 	return count > 0, nil
 }
 
-// ExistsByUsernameOrEmailExcept 检查除指定用户外是否有其他用户名或邮箱冲突。
-// 用于用户更新自身资料时的冲突检测。
+// ExistsByUsernameOrEmailExcept reports whether any row (other than excludeID) collides on
+// username or email. Used when a user edits their own profile.
 func (r *UserRepo) ExistsByUsernameOrEmailExcept(ctx context.Context, username, email, excludeID string) (bool, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.User{}).
@@ -124,7 +124,7 @@ func (r *UserRepo) ExistsByUsernameOrEmailExcept(ctx context.Context, username, 
 	return count > 0, nil
 }
 
-// Count 返回用户总数（用于判断是否需要初始化安装）。
+// Count returns the total user count; used by the setup flow to detect fresh installs.
 func (r *UserRepo) Count(ctx context.Context) (int64, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.User{}).Count(&count).Error; err != nil {

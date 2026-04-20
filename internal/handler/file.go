@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// FileHandler 文件上传、查询、删除、访问的 HTTP 处理器。
+// FileHandler handles file upload, listing, deletion, and access HTTP requests.
 type FileHandler struct {
 	fileSvc       *service.FileService
 	fileRepo      *repo.FileRepo
@@ -29,14 +29,13 @@ func NewFileHandler(fileSvc *service.FileService, fileRepo *repo.FileRepo, album
 	return &FileHandler{fileSvc: fileSvc, fileRepo: fileRepo, albumRepo: albumRepo, accessLogRepo: accessLogRepo}
 }
 
-// Upload 处理文件上传。
-// 支持 multipart/form-data，兼容兰空 v2 上传接口。
+// Upload handles file uploads via multipart/form-data, compatible with the Lsky v2 upload API.
 func (h *FileHandler) Upload(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		badRequest(c, "file is required")
+		BadRequest(c, "file is required")
 		return
 	}
 	defer file.Close()
@@ -52,23 +51,23 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		Filename: header.Filename,
 		Reader:   file,
 		Size:     header.Size,
-		BaseURL:  requestBaseURL(c),
+		BaseURL:  RequestBaseURL(c),
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFileTooLarge):
-			fail(c, http.StatusRequestEntityTooLarge, 41300, err.Error())
+			Fail(c, http.StatusRequestEntityTooLarge, 41300, err.Error())
 		case errors.Is(err, service.ErrFileTypeDenied):
-			fail(c, http.StatusUnsupportedMediaType, 41500, err.Error())
+			Fail(c, http.StatusUnsupportedMediaType, 41500, err.Error())
 		case errors.Is(err, service.ErrStorageFull):
-			fail(c, http.StatusInsufficientStorage, 50700, err.Error())
+			Fail(c, http.StatusInsufficientStorage, 50700, err.Error())
 		default:
-			serverError(c, "upload failed")
+			ServerError(c, "upload failed")
 		}
 		return
 	}
 
-	// 兰空兼容格式响应
+	// Respond in the Lsky-compatible shape.
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "success",
@@ -85,11 +84,11 @@ func (h *FileHandler) Upload(c *gin.Context) {
 	})
 }
 
-// GuestUpload 处理游客文件上传（无需登录）。
+// GuestUpload handles anonymous uploads that do not require login.
 func (h *FileHandler) GuestUpload(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		badRequest(c, "file is required")
+		BadRequest(c, "file is required")
 		return
 	}
 	defer file.Close()
@@ -100,16 +99,16 @@ func (h *FileHandler) GuestUpload(c *gin.Context) {
 		Filename: header.Filename,
 		Reader:   file,
 		Size:     header.Size,
-		BaseURL:  requestBaseURL(c),
+		BaseURL:  RequestBaseURL(c),
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFileTooLarge):
-			fail(c, http.StatusRequestEntityTooLarge, 41300, err.Error())
+			Fail(c, http.StatusRequestEntityTooLarge, 41300, err.Error())
 		case errors.Is(err, service.ErrFileTypeDenied):
-			fail(c, http.StatusUnsupportedMediaType, 41500, err.Error())
+			Fail(c, http.StatusUnsupportedMediaType, 41500, err.Error())
 		default:
-			serverError(c, "upload failed")
+			ServerError(c, "upload failed")
 		}
 		return
 	}
@@ -130,8 +129,8 @@ func (h *FileHandler) GuestUpload(c *gin.Context) {
 	})
 }
 
-// List 获取当前用户的文件列表。
-// 管理员可以查看全部文件。
+// List returns files owned by the current user.
+// Admins may see all files.
 func (h *FileHandler) List(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -157,14 +156,14 @@ func (h *FileHandler) List(c *gin.Context) {
 
 	files, total, err := h.fileSvc.ListFiles(c.Request.Context(), params)
 	if err != nil {
-		serverError(c, "failed to list files")
+		ServerError(c, "failed to list files")
 		return
 	}
 
-	paged(c, h.enrichFiles(files, requestBaseURL(c)), total, page, size)
+	Paged(c, h.EnrichFiles(files, RequestBaseURL(c)), total, page, size)
 }
 
-// AdminList 管理员查看全站文件列表（不限制用户）。
+// AdminList returns the site-wide file list unconstrained by user; admin only.
 func (h *FileHandler) AdminList(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
@@ -176,7 +175,7 @@ func (h *FileHandler) AdminList(c *gin.Context) {
 	}
 
 	params := repo.FileListParams{
-		UserID:   c.Query("user_id"), // 可选按用户筛选
+		UserID:   c.Query("user_id"), // optional per-user filter
 		FileType: c.Query("file_type"),
 		Keyword:  c.Query("keyword"),
 		Page:     page,
@@ -187,14 +186,14 @@ func (h *FileHandler) AdminList(c *gin.Context) {
 
 	files, total, err := h.fileSvc.ListFiles(c.Request.Context(), params)
 	if err != nil {
-		serverError(c, "failed to list files")
+		ServerError(c, "failed to list files")
 		return
 	}
 
-	paged(c, h.enrichFiles(files, requestBaseURL(c)), total, page, size)
+	Paged(c, h.EnrichFiles(files, RequestBaseURL(c)), total, page, size)
 }
 
-// enrichedFile 在 model.File 基础上添加源站 URL 和完整链接。
+// enrichedFile augments model.File with a source URL and fully qualified links.
 type enrichedFile struct {
 	model.File
 	URL       string  `json:"url"`
@@ -202,7 +201,7 @@ type enrichedFile struct {
 	SourceURL string  `json:"source_url,omitempty"`
 }
 
-func (h *FileHandler) enrichFiles(files []model.File, baseURL string) []enrichedFile {
+func (h *FileHandler) EnrichFiles(files []model.File, baseURL string) []enrichedFile {
 	base := strings.TrimRight(baseURL, "/")
 	items := make([]enrichedFile, len(files))
 	for i := range files {
@@ -221,67 +220,67 @@ func (h *FileHandler) enrichFiles(files []model.File, baseURL string) []enriched
 	return items
 }
 
-// AdminDelete 管理员删除任意文件（不检查所属用户）。
+// AdminDelete deletes any file without checking ownership; admin only.
 func (h *FileHandler) AdminDelete(c *gin.Context) {
 	id := c.Param("id")
 	file, err := h.fileSvc.GetFile(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
 
 	if err := h.fileSvc.DeleteFile(c.Request.Context(), file.ID, file.UserID, "admin"); err != nil {
-		serverError(c, "failed to delete file")
+		ServerError(c, "failed to delete file")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }
 
-// Detail 获取文件详情。
+// Detail returns the details of a single file.
 func (h *FileHandler) Detail(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)
 	file, err := h.fileSvc.GetFile(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
 	if file.UserID != userID {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
-	success(c, file)
+	Success(c, file)
 }
 
-// Delete 删除文件。
+// Delete removes a file owned by the current user.
 func (h *FileHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	if err := h.fileSvc.DeleteFile(c.Request.Context(), id, userID, "user"); err != nil {
 		if errors.Is(err, service.ErrFileNotFound) {
-			notFound(c, "file not found")
+			NotFound(c, "file not found")
 			return
 		}
 		if errors.Is(err, service.ErrNotFileOwner) {
-			forbidden(c, "not the owner of this file")
+			Forbidden(c, "not the owner of this file")
 			return
 		}
-		serverError(c, "failed to delete file")
+		ServerError(c, "failed to delete file")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }
 
-// BatchDelete 批量删除文件。
+// BatchDelete removes multiple files in one request.
 func (h *FileHandler) BatchDelete(c *gin.Context) {
 	var req struct {
 		IDs []string `json:"ids" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "ids is required")
+		BadRequest(c, "ids is required")
 		return
 	}
 
@@ -295,97 +294,97 @@ func (h *FileHandler) BatchDelete(c *gin.Context) {
 	}
 
 	if len(errs) > 0 {
-		success(c, gin.H{"errors": errs, "deleted": len(req.IDs) - len(errs)})
+		Success(c, gin.H{"errors": errs, "deleted": len(req.IDs) - len(errs)})
 		return
 	}
 
-	success(c, gin.H{"deleted": len(req.IDs)})
+	Success(c, gin.H{"deleted": len(req.IDs)})
 }
 
-// MoveFile 移动文件到指定文件夹（设置 album_id）。folder_id 为 null 时移出所有文件夹。
+// MoveFile moves a file into the given folder by setting album_id; a nil folder_id moves it back to the root.
 func (h *FileHandler) MoveFile(c *gin.Context) {
 	id := c.Param("id")
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	var req struct {
-		FolderID *string `json:"folder_id"` // null = 移到根目录
+		FolderID *string `json:"folder_id"` // null = move to root
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid request")
+		BadRequest(c, "invalid request")
 		return
 	}
 
 	file, err := h.fileRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
 	if file.UserID != userID {
-		forbidden(c, "not the owner of this file")
+		Forbidden(c, "not the owner of this file")
 		return
 	}
 
 	if req.FolderID != nil && *req.FolderID != "" {
 		folder, err := h.albumRepo.GetByID(c.Request.Context(), *req.FolderID)
 		if err != nil || folder.UserID != userID {
-			badRequest(c, "invalid target folder")
+			BadRequest(c, "invalid target folder")
 			return
 		}
 	}
 
 	if err := h.fileRepo.SetAlbum(c.Request.Context(), id, req.FolderID); err != nil {
-		serverError(c, "failed to move file")
+		ServerError(c, "failed to move file")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }
 
-// ServeImage 通过短链提供图片访问（内联预览）。
+// ServeImage serves an image over a short link for inline preview.
 func (h *FileHandler) ServeImage(c *gin.Context) {
 	h.serveFile(c, model.FileTypeImage, false)
 }
 
-// ServeVideo 通过短链提供视频访问（支持 Range）。
+// ServeVideo serves a video over a short link with Range support.
 func (h *FileHandler) ServeVideo(c *gin.Context) {
 	h.serveFile(c, model.FileTypeVideo, false)
 }
 
-// ServeAudio 通过短链提供音频访问（支持 Range）。
+// ServeAudio serves audio over a short link with Range support.
 func (h *FileHandler) ServeAudio(c *gin.Context) {
 	h.serveFile(c, model.FileTypeAudio, false)
 }
 
-// ServeDownload 通过短链提供文件下载。
+// ServeDownload serves a file download over a short link.
 func (h *FileHandler) ServeDownload(c *gin.Context) {
 	forceDownload := c.Query("dl") == "1"
 	h.serveFile(c, "", forceDownload)
 }
 
-// ServeThumbnail 通过短链从存储后端流式输出缩略图。
+// ServeThumbnail streams a thumbnail from the storage backend over a short link.
 func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 	hash := c.Param("hash")
 
 	file, err := h.fileRepo.GetByHashPrefix(c.Request.Context(), hash)
 	if err != nil {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
 	if file.ThumbURL == nil {
-		notFound(c, "thumbnail not found")
+		NotFound(c, "thumbnail not found")
 		return
 	}
 
 	reader, size, err := h.fileSvc.GetThumbContent(c.Request.Context(), file)
 	if err != nil {
-		notFound(c, "thumbnail not found")
+		NotFound(c, "thumbnail not found")
 		return
 	}
 	defer reader.Close()
 
-	// 缩略图实际格式与源图一致：源图有透明通道（PNG/WebP/GIF）时输出 PNG，
-	// 否则输出 JPEG。此处必须与 ImageService.GenerateThumbnail 保持一致，
-	// 否则响应 Content-Type 与字节流不匹配，浏览器可能把 PNG 按 JPEG 解码失败。
+	// Thumbnail format mirrors the source: PNG/WebP/GIF sources keep their alpha and are
+	// encoded as PNG, everything else becomes JPEG. This must match ImageService.GenerateThumbnail
+	// or the Content-Type will not agree with the bytes and the browser may fail to decode a PNG as JPEG.
 	thumbMime := service.ThumbnailMimeFor(file.MimeType)
 	c.Header("Content-Type", thumbMime)
 	c.Header("Cache-Control", "public, max-age=86400")
@@ -394,8 +393,9 @@ func (h *FileHandler) ServeThumbnail(c *gin.Context) {
 	h.logAccess(file.ID, file.UserID, size)
 }
 
-// logAccess 异步记录一次文件访问；失败不影响请求。
-// userID 为文件所有者（游客文件为 "guest" 或空），用于按用户维度统计访问量。
+// logAccess records a file access asynchronously; failures do not affect the request.
+// userID is the owner of the file (empty or "guest" for anonymous uploads) and is used
+// to aggregate access counts per user.
 func (h *FileHandler) logAccess(fileID, userID string, bytes int64) {
 	if h.accessLogRepo == nil {
 		return
@@ -415,17 +415,17 @@ func (h *FileHandler) logAccess(fileID, userID string, bytes int64) {
 func (h *FileHandler) serveFile(c *gin.Context, _ string, forceDownload bool) {
 	hash := c.Param("hash")
 
-	// 查找匹配 hash 前缀的文件
+	// Look up the file matching the hash prefix.
 	file, err := h.findFileByHash(c, hash)
 	if err != nil {
-		notFound(c, "file not found")
+		NotFound(c, "file not found")
 		return
 	}
 
-	// 获取文件内容
+	// Fetch the file contents.
 	reader, size, err := h.fileSvc.GetFileContent(c.Request.Context(), file)
 	if err != nil {
-		serverError(c, "failed to read file")
+		ServerError(c, "failed to read file")
 		return
 	}
 	defer reader.Close()
@@ -455,7 +455,7 @@ func (h *FileHandler) findFileByHash(c *gin.Context, hash string) (*model.File, 
 	return h.fileRepo.GetByHashPrefix(c.Request.Context(), hash)
 }
 
-func requestBaseURL(c *gin.Context) string {
+func RequestBaseURL(c *gin.Context) string {
 	scheme := "https"
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		scheme = proto

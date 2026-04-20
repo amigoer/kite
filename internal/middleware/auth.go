@@ -1,3 +1,5 @@
+// Package middleware provides reusable Gin middleware for authentication,
+// authorization, CORS, request logging and rate limiting.
 package middleware
 
 import (
@@ -8,13 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Context keys written by [Auth] and consumed by downstream handlers.
 const (
 	ContextKeyUserID   = "user_id"
 	ContextKeyUsername = "username"
 	ContextKeyRole     = "role"
 )
 
-// Auth 认证中间件，支持 JWT 和 API Token 两种认证方式。
+// Auth returns a Gin middleware that authenticates the request using either a
+// JWT access token or a long-lived API token. JWT is tried first; on failure
+// the token is validated as an API token. On success the user ID, username
+// (JWT only) and role are written to the request context.
 func Auth(authSvc *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractToken(c)
@@ -28,7 +34,7 @@ func Auth(authSvc *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// 优先尝试 JWT 认证
+		// Try JWT first.
 		claims, err := authSvc.ValidateToken(token)
 		if err == nil {
 			c.Set(ContextKeyUserID, claims.UserID)
@@ -38,7 +44,7 @@ func Auth(authSvc *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// JWT 失败则尝试 API Token 认证
+		// Fall back to API token.
 		userID, err := authSvc.ValidateAPIToken(c.Request.Context(), token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -51,12 +57,13 @@ func Auth(authSvc *service.AuthService) gin.HandlerFunc {
 		}
 
 		c.Set(ContextKeyUserID, userID)
-		c.Set(ContextKeyRole, "user") // API Token 默认 user 角色
+		c.Set(ContextKeyRole, "user") // API tokens default to the user role.
 		c.Next()
 	}
 }
 
-// AdminOnly 管理员权限检查中间件，必须在 Auth 之后使用。
+// AdminOnly returns a middleware that rejects the request unless the role in
+// the context (set by [Auth]) is "admin". It must be chained after [Auth].
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get(ContextKeyRole)
@@ -73,17 +80,16 @@ func AdminOnly() gin.HandlerFunc {
 	}
 }
 
-// extractToken 从请求中提取 token。
-// 仅支持 Authorization header 和 cookie。
-// 不支持 query 参数，避免 token 泄露到浏览器历史、访问日志、Referer 头。
+// extractToken returns the bearer token from the Authorization header or the
+// access_token cookie, in that order. Query-string tokens are intentionally
+// unsupported to avoid leaking credentials through browser history, access
+// logs or Referer headers.
 func extractToken(c *gin.Context) string {
-	// Authorization: Bearer <token>
 	auth := c.GetHeader("Authorization")
 	if strings.HasPrefix(auth, "Bearer ") {
 		return strings.TrimPrefix(auth, "Bearer ")
 	}
 
-	// Cookie
 	if cookie, err := c.Cookie("access_token"); err == nil && cookie != "" {
 		return cookie
 	}

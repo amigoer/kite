@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-// LocalDriver 本地文件系统存储驱动。
-// 文件存储在服务器本地磁盘，通过 HTTP 服务直接提供访问。
+// LocalDriver is the storage driver backed by the local filesystem.
+// Files live on the server's disk and are served directly over HTTP.
 type LocalDriver struct {
-	basePath string // 文件存储根目录（绝对路径）
-	baseURL  string // 访问 URL 前缀
+	basePath string // absolute root directory for stored files
+	baseURL  string // access URL prefix
 }
 
-// NewLocalDriver 创建本地存储驱动实例。
+// NewLocalDriver builds a LocalDriver from the given LocalConfig.
 func NewLocalDriver(cfg LocalConfig) (*LocalDriver, error) {
 	if cfg.BasePath == "" {
 		return nil, fmt.Errorf("local driver: base_path is required")
 	}
-	// 确保存储目录存在
+	// Ensure the storage directory exists.
 	absPath, err := filepath.Abs(cfg.BasePath)
 	if err != nil {
 		return nil, fmt.Errorf("local driver: resolve base_path: %w", err)
@@ -37,8 +37,8 @@ func NewLocalDriver(cfg LocalConfig) (*LocalDriver, error) {
 	}, nil
 }
 
-// resolveKey 将外部 key 解析为位于 basePath 之内的绝对路径。
-// 拒绝包含 ".." 等导致路径穿越的输入。
+// resolveKey resolves an external key to an absolute path inside basePath.
+// Inputs containing "..", absolute paths, or other traversal sequences are rejected.
 func (d *LocalDriver) resolveKey(key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("local driver: empty key")
@@ -55,21 +55,21 @@ func (d *LocalDriver) resolveKey(key string) (string, error) {
 	return fullPath, nil
 }
 
-// Put 将文件写入本地磁盘。
-// 自动创建 key 路径中的中间目录。
+// Put writes a file to the local disk.
+// Intermediate directories in the key path are created on demand.
 func (d *LocalDriver) Put(_ context.Context, key string, reader io.Reader, _ int64, _ string) error {
 	fullPath, err := d.resolveKey(key)
 	if err != nil {
 		return err
 	}
 
-	// 创建父目录
+	// Create the parent directory.
 	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("local put mkdir %q: %w", dir, err)
 	}
 
-	// 先写入临时文件，再原子重命名，避免写入一半时被读取到
+	// Write to a temp file first and atomically rename so readers never see a partial write.
 	tmpFile, err := os.CreateTemp(dir, ".kite-upload-*")
 	if err != nil {
 		return fmt.Errorf("local put create temp: %w", err)
@@ -96,8 +96,8 @@ func (d *LocalDriver) Put(_ context.Context, key string, reader io.Reader, _ int
 	return nil
 }
 
-// Get 从本地磁盘读取文件。
-// 返回的 ReadCloser 由调用方负责关闭。
+// Get reads a file from the local disk.
+// The caller must close the returned ReadCloser.
 func (d *LocalDriver) Get(_ context.Context, key string) (io.ReadCloser, int64, error) {
 	fullPath, err := d.resolveKey(key)
 	if err != nil {
@@ -118,8 +118,8 @@ func (d *LocalDriver) Get(_ context.Context, key string) (io.ReadCloser, int64, 
 	return file, info.Size(), nil
 }
 
-// Delete 从本地磁盘删除文件。
-// 文件不存在时返回 nil（幂等删除）。
+// Delete removes a file from the local disk.
+// Missing files return nil so the operation is idempotent.
 func (d *LocalDriver) Delete(_ context.Context, key string) error {
 	fullPath, err := d.resolveKey(key)
 	if err != nil {
@@ -132,7 +132,7 @@ func (d *LocalDriver) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-// Exists 检查本地磁盘上文件是否存在。
+// Exists reports whether the given key exists on the local disk.
 func (d *LocalDriver) Exists(_ context.Context, key string) (bool, error) {
 	fullPath, err := d.resolveKey(key)
 	if err != nil {
@@ -149,8 +149,8 @@ func (d *LocalDriver) Exists(_ context.Context, key string) (bool, error) {
 	return true, nil
 }
 
-// URL 生成文件的访问 URL。
-// 未配置 baseURL 时返回 /uploads/{key}，通过 Go 服务内置的静态文件路由访问。
+// URL returns the file's access URL.
+// When baseURL is unset it falls back to /uploads/{key}, served by the built-in static route.
 func (d *LocalDriver) URL(key string) string {
 	if d.baseURL == "" {
 		return "/uploads/" + key
@@ -158,7 +158,7 @@ func (d *LocalDriver) URL(key string) string {
 	return d.baseURL + "/" + key
 }
 
-// SignedURL 本地存储不支持预签名 URL，直接返回普通 URL。
+// SignedURL is not supported on local storage; it returns the plain URL unchanged.
 func (d *LocalDriver) SignedURL(_ context.Context, key string, _ time.Duration) (string, error) {
 	return d.URL(key), nil
 }

@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Album 文件夹模型，沿用 albums 表存储文件夹层级。
+// Album is a folder record stored in the albums table; the table is reused to represent folder hierarchies.
 type Album struct {
 	ID          string    `gorm:"column:id;primaryKey" json:"id"`
 	UserID      string    `gorm:"column:user_id;index;not null" json:"user_id"`
@@ -11,7 +11,7 @@ type Album struct {
 	Description string    `gorm:"column:description" json:"description"`
 	IsPublic    bool      `gorm:"column:is_public;default:false" json:"is_public"`
 	CoverURL    *string   `gorm:"column:cover_url" json:"cover_url,omitempty"`
-	FileCount   int64     `gorm:"-" json:"file_count,omitempty"` // 非数据库字段，查询时计算
+	FileCount   int64     `gorm:"-" json:"file_count,omitempty"` // not persisted; computed at query time
 	FolderCount int64     `gorm:"-" json:"folder_count,omitempty"`
 	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`

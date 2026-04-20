@@ -6,21 +6,21 @@ import (
 	"sync/atomic"
 )
 
-// 上传策略常量。存储在 settings 表的 `storage.upload_policy` 键下。
+// Upload-policy constants. Stored in the settings table under the key `storage.upload_policy`.
 const (
-	PolicySingle          = "single"           // 只用默认存储，失败即失败
-	PolicyPrimaryFallback = "primary_fallback" // 按 priority 遍历，容量满/写失败时降级下一个
-	PolicyRoundRobin      = "round_robin"      // 在所有活跃存储间轮询
-	PolicyMirror          = "mirror"           // 主存储同步写入，副本后台并发
+	PolicySingle          = "single"           // use only the default storage; failure is terminal
+	PolicyPrimaryFallback = "primary_fallback" // walk storages by priority, falling back when full or on write error
+	PolicyRoundRobin      = "round_robin"      // round-robin across all active storages
+	PolicyMirror          = "mirror"           // write the primary synchronously and replicate to the rest in the background
 )
 
-// UsageFn 返回指定存储配置当前已用字节数（由 repo 层实现注入）。
+// UsageFn returns the current used bytes for a storage configuration; the repo layer provides the implementation.
 type UsageFn func(ctx context.Context, configID string) (int64, error)
 
-// PolicyFn 返回当前上传策略字符串（从 settings 表读取）。
+// PolicyFn returns the current upload-policy string read from the settings table.
 type PolicyFn func(ctx context.Context) (string, error)
 
-// Router 基于 Manager 的驱动缓存和运行时策略，决定一次上传应该写入哪些存储。
+// Router decides which storages receive an upload based on the Manager's driver cache and the runtime policy.
 type Router struct {
 	mgr      *Manager
 	usageFn  UsageFn
@@ -28,30 +28,30 @@ type Router struct {
 	rrCursor atomic.Uint64
 }
 
-// NewRouter 创建一个路由器。
-// usageFn 用于容量过滤；policyFn 用于读取策略；两者都必填。
+// NewRouter builds a Router.
+// usageFn drives capacity filtering and policyFn reads the upload policy; both are required.
 func NewRouter(mgr *Manager, usageFn UsageFn, policyFn PolicyFn) *Router {
 	return &Router{mgr: mgr, usageFn: usageFn, policyFn: policyFn}
 }
 
-// Target 一个上传目标：包含元数据和对应的驱动实例。
+// Target is a single upload target consisting of metadata and its driver instance.
 type Target struct {
 	Meta   ConfigMeta
 	Driver StorageDriver
 }
 
-// Plan 单次上传的路由计划。
-// Mode 决定上层如何消费 Targets：
-//   - single / round_robin: 写 Targets[0]，失败即失败
-//   - primary_fallback: 依次尝试 Targets[0..n]，首个成功即视为成功
-//   - mirror: Targets[0] 为主节点必须成功；Targets[1..] 为副本，后台并发
+// Plan is the routing plan for a single upload.
+// Mode dictates how callers consume Targets:
+//   - single / round_robin: write to Targets[0]; failure is terminal.
+//   - primary_fallback: try Targets[0..n] in order; the first success wins.
+//   - mirror: Targets[0] is the primary and must succeed; Targets[1..] are replicas written concurrently in the background.
 type Plan struct {
 	Mode    string
 	Targets []Target
 }
 
-// Plan 根据当前策略、优先级和容量，为一次 size 字节的上传挑选目标。
-// 若没有任何符合容量要求的活跃存储，返回错误。
+// Plan picks targets for a size-byte upload according to the current policy, priority, and capacity.
+// Returns an error when no active storage has enough remaining capacity.
 func (r *Router) Plan(ctx context.Context, size int64) (*Plan, error) {
 	mode, err := r.policyFn(ctx)
 	if err != nil || mode == "" {
@@ -65,13 +65,13 @@ func (r *Router) Plan(ctx context.Context, size int64) (*Plan, error) {
 
 	switch mode {
 	case PolicyMirror:
-		// 所有活跃存储都是目标，主节点优先选容量够的，其他按 priority 排列。
+		// Every active storage is a target; the primary is the first eligible one and the rest follow priority order.
 		all := r.buildTargets(metas)
 		eligible := r.filterByCapacity(ctx, all, size)
 		if len(eligible) == 0 {
 			return nil, fmt.Errorf("no storage has enough capacity for %d bytes", size)
 		}
-		// 保证主节点（Targets[0]）是容量够的那一个；副本可以包含容量够的其他节点。
+		// Guarantee the primary (Targets[0]) has capacity; replicas include the remaining eligible storages.
 		primary := eligible[0]
 		var replicas []Target
 		for _, t := range eligible[1:] {
@@ -106,7 +106,8 @@ func (r *Router) Plan(ctx context.Context, size int64) (*Plan, error) {
 			return nil, err
 		}
 		meta, _ := r.mgr.Meta(defID)
-		// single 策略仍然尊重容量上限：超过时直接失败，不静默换别的存储，避免行为不可预期。
+		// The single policy still honours the capacity cap: exceeding it fails fast rather than silently
+		// switching to another storage, avoiding unpredictable behaviour.
 		if meta.CapacityLimitBytes > 0 {
 			used, _ := r.usageFn(ctx, defID)
 			if used+size > meta.CapacityLimitBytes {
@@ -117,7 +118,7 @@ func (r *Router) Plan(ctx context.Context, size int64) (*Plan, error) {
 	}
 }
 
-// buildTargets 将 metas 解析为 (meta, driver) 对；已反映 priority 排序。
+// buildTargets turns metas into (meta, driver) pairs; the input order already reflects priority sorting.
 func (r *Router) buildTargets(metas []ConfigMeta) []Target {
 	out := make([]Target, 0, len(metas))
 	for _, m := range metas {
@@ -130,8 +131,8 @@ func (r *Router) buildTargets(metas []ConfigMeta) []Target {
 	return out
 }
 
-// filterByCapacity 过滤掉已满的存储；CapacityLimitBytes==0 视为无上限。
-// 用量查询失败时保守放行（不因为临时查询错误阻塞上传）。
+// filterByCapacity drops storages that are full; CapacityLimitBytes==0 means unlimited.
+// A usage-query failure is treated as "allow" so that transient errors do not block uploads.
 func (r *Router) filterByCapacity(ctx context.Context, targets []Target, size int64) []Target {
 	out := make([]Target, 0, len(targets))
 	for _, t := range targets {

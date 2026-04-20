@@ -1,0 +1,102 @@
+// Package router builds the gin.Engine by wiring middleware, instantiating
+// handlers from injected dependencies and delegating route registration to
+// per-domain files (auth, file, album, token, user, storage, settings,
+// system_status, public, landing, static).
+//
+// A single [Setup] call constructs every route. No handler or repository is
+// created outside this package.
+package router
+
+import (
+	"io/fs"
+	"time"
+
+	"github.com/amigoer/kite/internal/handler"
+	"github.com/amigoer/kite/internal/middleware"
+	"github.com/amigoer/kite/internal/repo"
+	"github.com/amigoer/kite/internal/service"
+	"github.com/amigoer/kite/internal/storage"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+// Config carries all dependencies required to build the HTTP server. It is
+// populated by the cmd entry point before calling [Setup].
+type Config struct {
+	DB            *gorm.DB
+	StorageMgr    *storage.Manager
+	AuthSvc       *service.AuthService
+	FileSvc       *service.FileService
+	AdminFS       fs.FS  // Embedded SPA assets (web/admin/dist).
+	TemplateFS    fs.FS  // Embedded Go templates (web/template).
+	DataDir       string // Data directory backing the local storage driver.
+	ReloadStorage func() // Rebuilds the storage manager after CRUD on storage configs.
+}
+
+// Setup constructs a fully wired gin.Engine: it creates the realtime metrics
+// collector, installs global middleware, instantiates handlers from cfg and
+// registers every route through the per-domain helpers in this package.
+func Setup(cfg Config) *gin.Engine {
+	r := gin.New()
+
+	realtimeCollector := handler.NewRealtimeSystemStatusCollector()
+	r.Use(middleware.Recovery())
+	r.Use(middleware.AccessLog())
+	r.Use(middleware.CORS())
+	r.Use(realtimeCollector.Middleware())
+
+	userRepo := repo.NewUserRepo(cfg.DB)
+	fileRepo := repo.NewFileRepo(cfg.DB)
+	albumRepo := repo.NewAlbumRepo(cfg.DB)
+	tokenRepo := repo.NewAPITokenRepo(cfg.DB)
+	storageRepo := repo.NewStorageConfigRepo(cfg.DB)
+	settingRepo := repo.NewSettingRepo(cfg.DB)
+	accessLogRepo := repo.NewFileAccessLogRepo(cfg.DB)
+
+	authHandler := handler.NewAuthHandler(cfg.AuthSvc, userRepo)
+	fileHandler := handler.NewFileHandler(cfg.FileSvc, fileRepo, albumRepo, accessLogRepo)
+	albumHandler := handler.NewAlbumHandler(albumRepo, fileRepo)
+	tokenHandler := handler.NewTokenHandler(cfg.AuthSvc, tokenRepo)
+	storageHandler := handler.NewStorageHandler(storageRepo, fileRepo, cfg.StorageMgr, cfg.ReloadStorage)
+	settingsHandler := handler.NewSettingsHandler(settingRepo)
+	userHandler := handler.NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
+	setupHandler := handler.NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)
+	systemStatusHandler := handler.NewSystemStatusRealtimeHandler(realtimeCollector)
+
+	// Public short links and top-level non-API routes.
+	registerFilePublicServe(r, fileHandler)
+
+	v1 := r.Group("/api/v1")
+	registerHealth(v1)
+	registerSystemStatusStream(v1, systemStatusHandler)
+	registerAuthPublic(v1, authHandler)
+	registerSetup(v1, setupHandler)
+	registerPublic(v1, fileHandler, fileRepo, settingRepo)
+
+	authed := v1.Group("")
+	authed.Use(middleware.Auth(cfg.AuthSvc))
+	registerAuthAuthed(authed, authHandler)
+	registerFileAuthed(authed, fileHandler)
+	registerAlbumRoutes(authed, albumHandler)
+	registerTokenRoutes(authed, tokenHandler)
+	registerUserStatsRoutes(authed, userHandler)
+
+	admin := authed.Group("")
+	admin.Use(middleware.AdminOnly())
+	registerSystemStatusAdmin(admin, systemStatusHandler)
+	registerStorageAdmin(admin, storageHandler)
+	registerSettingsAdmin(admin, settingsHandler)
+	registerUserAdmin(admin, userHandler, fileHandler)
+
+	registerLanding(r, cfg, userRepo)
+	registerStatic(r, cfg)
+
+	return r
+}
+
+// authRateLimit returns the rate limit used on unauthenticated auth endpoints
+// (login, register, refresh, guest upload): a fixed number of requests per IP
+// per minute. Kept as a function so callers read uniformly.
+func authRateLimit(max int) gin.HandlerFunc {
+	return middleware.RateLimit(max, time.Minute)
+}

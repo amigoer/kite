@@ -8,8 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RateLimit 基于令牌桶的简单速率限制中间件。
-// 每个 IP 地址独立限流，不依赖 Redis。
+// RateLimit returns a middleware that enforces a fixed-window rate limit of
+// maxRequests per window, keyed by client IP. State is kept in process memory
+// so the limit is per instance; a janitor goroutine evicts idle buckets every
+// 2*window to bound memory.
 func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
 	type bucket struct {
 		tokens    int
@@ -19,7 +21,6 @@ func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
 	var mu sync.Mutex
 	buckets := make(map[string]*bucket)
 
-	// 定期清理过期条目
 	go func() {
 		for {
 			time.Sleep(window * 2)

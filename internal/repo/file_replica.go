@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// FileReplicaRepo 文件副本（mirror 模式）数据访问层。
+// FileReplicaRepo is the data access layer for file replicas (mirror mode).
 type FileReplicaRepo struct {
 	db *gorm.DB
 }
@@ -17,7 +17,7 @@ func NewFileReplicaRepo(db *gorm.DB) *FileReplicaRepo {
 	return &FileReplicaRepo{db: db}
 }
 
-// Create 新增副本记录，一般在上传流程中以 pending 状态预写入。
+// Create inserts a replica record, typically pre-written as pending during the upload flow.
 func (r *FileReplicaRepo) Create(ctx context.Context, replica *model.FileReplica) error {
 	if err := r.db.WithContext(ctx).Create(replica).Error; err != nil {
 		return fmt.Errorf("create file replica: %w", err)
@@ -25,7 +25,7 @@ func (r *FileReplicaRepo) Create(ctx context.Context, replica *model.FileReplica
 	return nil
 }
 
-// ListByFile 返回指定文件的所有副本记录。
+// ListByFile returns all replica records for the given file.
 func (r *FileReplicaRepo) ListByFile(ctx context.Context, fileID string) ([]model.FileReplica, error) {
 	var replicas []model.FileReplica
 	if err := r.db.WithContext(ctx).
@@ -36,7 +36,7 @@ func (r *FileReplicaRepo) ListByFile(ctx context.Context, fileID string) ([]mode
 	return replicas, nil
 }
 
-// UpdateStatus 更新副本写入结果。
+// UpdateStatus records the outcome of a replica write.
 func (r *FileReplicaRepo) UpdateStatus(ctx context.Context, id, status, errMsg string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.FileReplica{}).
@@ -50,7 +50,7 @@ func (r *FileReplicaRepo) UpdateStatus(ctx context.Context, id, status, errMsg s
 	return nil
 }
 
-// DeleteByFile 删除指定文件的所有副本记录。
+// DeleteByFile removes all replica records for the given file.
 func (r *FileReplicaRepo) DeleteByFile(ctx context.Context, fileID string) error {
 	if err := r.db.WithContext(ctx).
 		Where("file_id = ?", fileID).

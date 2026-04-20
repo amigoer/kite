@@ -5,8 +5,9 @@ import (
 	"fmt"
 )
 
-// ParseConfig 根据 driver 将原始 JSON 反序列化为 StorageConfig。
-// main 启动加载和 api CRUD 共用此逻辑，避免 driver 分支不同步导致 oss/cos/ftp 启动时被跳过。
+// ParseConfig deserialises the raw JSON payload into a StorageConfig for the given driver.
+// Startup loading and the admin CRUD handlers share this logic so the driver switch cannot
+// drift and silently drop oss/cos/ftp configurations at boot time.
 func ParseConfig(driver string, raw json.RawMessage) (StorageConfig, error) {
 	scfg := StorageConfig{Driver: driver}
 	switch driver {

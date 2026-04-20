@@ -2,9 +2,10 @@ package model
 
 import "time"
 
-// FileReplica 文件的副本记录。
-// 仅在上传策略为 mirror（双备份/多备份）时产生；主位置仍记在 files.storage_config_id。
-// storage_key 与 files.storage_key 相同，副本在不同存储后端使用同一路径。
+// FileReplica is a replica record for a file.
+// Rows exist only when the upload policy is mirror (dual- or multi-copy writes); the primary
+// location is still tracked on files.storage_config_id. The replica shares files.storage_key,
+// so every backend uses the same object path.
 type FileReplica struct {
 	ID              string    `gorm:"column:id;primaryKey" json:"id"`
 	FileID          string    `gorm:"column:file_id;index;not null" json:"file_id"`
@@ -17,7 +18,7 @@ type FileReplica struct {
 
 func (FileReplica) TableName() string { return "file_replicas" }
 
-// 副本状态常量。
+// Replica-status constants.
 const (
 	ReplicaStatusPending = "pending"
 	ReplicaStatusOK      = "ok"

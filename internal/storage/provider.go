@@ -5,8 +5,9 @@ import (
 	"strings"
 )
 
-// DetectProvider 返回一个稳定的厂商标识，前端据此渲染品牌 logo。
-// driver 为本地/FTP 时直接返回 driver；S3 兼容驱动则解析 endpoint 推断。
+// DetectProvider returns a stable vendor identifier that the frontend uses to render a brand logo.
+// For local/FTP drivers it returns the driver name directly; for S3-compatible drivers it infers the
+// provider from the endpoint.
 func DetectProvider(driver string, rawConfig string) string {
 	switch driver {
 	case DriverLocal, DriverFTP:

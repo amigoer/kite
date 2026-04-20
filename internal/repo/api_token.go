@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// APITokenRepo API Token 数据访问层。
+// APITokenRepo is the data access layer for API tokens.
 type APITokenRepo struct {
 	db *gorm.DB
 }
@@ -18,7 +18,7 @@ func NewAPITokenRepo(db *gorm.DB) *APITokenRepo {
 	return &APITokenRepo{db: db}
 }
 
-// Create 创建 API Token 记录。
+// Create inserts a new API-token record.
 func (r *APITokenRepo) Create(ctx context.Context, token *model.APIToken) error {
 	if err := r.db.WithContext(ctx).Create(token).Error; err != nil {
 		return fmt.Errorf("create api token: %w", err)
@@ -26,7 +26,7 @@ func (r *APITokenRepo) Create(ctx context.Context, token *model.APIToken) error 
 	return nil
 }
 
-// GetByTokenHash 通过 token hash 查询（用于认证验证）。
+// GetByTokenHash looks up a token by its hash; used to validate inbound API requests.
 func (r *APITokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.APIToken, error) {
 	var token model.APIToken
 	if err := r.db.WithContext(ctx).
@@ -37,7 +37,7 @@ func (r *APITokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*m
 	return &token, nil
 }
 
-// ListByUser 查询用户的所有 API Token。
+// ListByUser returns every API token owned by the user.
 func (r *APITokenRepo) ListByUser(ctx context.Context, userID string) ([]model.APIToken, error) {
 	var tokens []model.APIToken
 	if err := r.db.WithContext(ctx).
@@ -49,7 +49,7 @@ func (r *APITokenRepo) ListByUser(ctx context.Context, userID string) ([]model.A
 	return tokens, nil
 }
 
-// Delete 删除 API Token。
+// Delete removes an API token scoped to the owning user.
 func (r *APITokenRepo) Delete(ctx context.Context, id, userID string) error {
 	result := r.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).Delete(&model.APIToken{})
 	if result.Error != nil {
@@ -61,7 +61,7 @@ func (r *APITokenRepo) Delete(ctx context.Context, id, userID string) error {
 	return nil
 }
 
-// UpdateLastUsed 更新 Token 最后使用时间。
+// UpdateLastUsed refreshes the token's last-used timestamp.
 func (r *APITokenRepo) UpdateLastUsed(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).
 		Model(&model.APIToken{}).

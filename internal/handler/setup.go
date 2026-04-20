@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// SetupHandler 首次安装向导的 HTTP 处理器。
+// SetupHandler handles the first-install wizard HTTP requests.
 type SetupHandler struct {
 	userRepo      *repo.UserRepo
 	settingRepo   *repo.SettingRepo
@@ -43,65 +43,65 @@ func NewSetupHandler(
 }
 
 type setupRequest struct {
-	// 站点配置
+	// Site configuration.
 	SiteName string `json:"site_name" binding:"required"`
 	SiteURL  string `json:"site_url" binding:"required"`
 
-	// 管理员账号
+	// Admin account.
 	AdminUsername string `json:"admin_username" binding:"required,min=3,max=32"`
 	AdminEmail    string `json:"admin_email" binding:"required,email"`
 	AdminPassword string `json:"admin_password" binding:"required,min=6,max=64"`
 
-	// 存储配置
+	// Storage configuration.
 	StorageDriver string          `json:"storage_driver" binding:"required,oneof=local s3"`
 	StorageConfig json.RawMessage `json:"storage_config" binding:"required"`
 }
 
-// Setup 处理首次安装请求。
+// Setup handles the first-install request.
 func (h *SetupHandler) Setup(c *gin.Context) {
-	// 检查是否已初始化
+	// Check whether the system is already initialized.
 	count, err := h.userRepo.Count(c.Request.Context())
 	if err == nil && count > 0 {
-		badRequest(c, "system is already initialized")
+		BadRequest(c, "system is already initialized")
 		return
 	}
 
 	var req setupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid setup data: "+err.Error())
+		BadRequest(c, "invalid setup data: "+err.Error())
 		return
 	}
 
 	ctx := c.Request.Context()
 
-	// 1. 保存站点配置
+	// 1. Persist site settings.
 	settings := map[string]string{
 		"site_name":    req.SiteName,
 		"site_url":     req.SiteURL,
 		"is_installed": "true",
 	}
 	if err := h.settingRepo.SetBatch(ctx, settings); err != nil {
-		serverError(c, "failed to save site settings")
+		ServerError(c, "failed to save site settings")
 		return
 	}
 
-	// 2. 创建管理员账号
+	// 2. Create the admin account.
 	admin, err := h.authSvc.CreateAdminUser(ctx, req.AdminUsername, req.AdminEmail, req.AdminPassword, false)
 	if err != nil {
-		serverError(c, "failed to create admin user: "+err.Error())
+		ServerError(c, "failed to create admin user: "+err.Error())
 		return
 	}
 
-	// 3. 创建默认存储配置
+	// 3. Create the default storage configuration.
 	scfg, err := storage.ParseConfig(req.StorageDriver, req.StorageConfig)
 	if err != nil {
-		badRequest(c, "invalid "+req.StorageDriver+" storage config: "+err.Error())
+		BadRequest(c, "invalid "+req.StorageDriver+" storage config: "+err.Error())
 		return
 	}
 
-	// 验证存储配置
+	// Validate the storage configuration.
 	if _, err := storage.NewDriver(scfg); err != nil {
-		badRequest(c, "storage config validation failed: "+err.Error())
+		BadRequest(c, "storage config validation failed: "+err.Error())
 		return
 	}
 
@@ -116,28 +116,28 @@ func (h *SetupHandler) Setup(c *gin.Context) {
 	}
 
 	if err := h.storageRepo.Create(ctx, storageCfg); err != nil {
-		serverError(c, "failed to create storage config")
+		ServerError(c, "failed to create storage config")
 		return
 	}
 
-	// 重载存储管理器，读取默认存储 + 所有活跃配置
+	// Reload the storage manager so it picks up the default and all active configs.
 	h.reloadStorage()
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"message":  "setup completed successfully",
 		"admin_id": admin.ID,
 	})
 }
 
-// CheckSetup 检查系统是否已完成初始化。
+// CheckSetup reports whether the system has completed first-install.
 func (h *SetupHandler) CheckSetup(c *gin.Context) {
 	count, err := h.userRepo.Count(c.Request.Context())
 	if err != nil {
-		serverError(c, "failed to check setup status")
+		ServerError(c, "failed to check setup status")
 		return
 	}
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"is_installed": count > 0,
 	})
 }

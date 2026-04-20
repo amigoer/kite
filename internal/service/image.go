@@ -14,7 +14,7 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-// ImageService 图片处理服务，负责缩略图生成和图片尺寸获取。
+// ImageService handles image processing such as thumbnail generation and dimension inspection.
 type ImageService struct {
 	thumbWidth   int
 	thumbQuality int
@@ -27,13 +27,13 @@ func NewImageService(thumbWidth, thumbQuality int) *ImageService {
 	}
 }
 
-// ImageDimensions 图片尺寸信息。
+// ImageDimensions holds an image's width and height.
 type ImageDimensions struct {
 	Width  int
 	Height int
 }
 
-// GetDimensions 获取图片的宽高。
+// GetDimensions returns the image's width and height.
 func (s *ImageService) GetDimensions(reader io.Reader) (*ImageDimensions, error) {
 	cfg, _, err := image.DecodeConfig(reader)
 	if err != nil {
@@ -42,13 +42,13 @@ func (s *ImageService) GetDimensions(reader io.Reader) (*ImageDimensions, error)
 	return &ImageDimensions{Width: cfg.Width, Height: cfg.Height}, nil
 }
 
-// GenerateThumbnail 生成缩略图。按 thumbWidth 等比缩放。
-// 根据源图片类型选择输出格式：
-//   - PNG / WebP / GIF → 输出 PNG，保留 alpha 透明通道；
-//   - 其它（JPEG / BMP / TIFF 等）→ 输出 JPEG，体积更小。
+// GenerateThumbnail produces a thumbnail scaled proportionally to thumbWidth.
+// The output format depends on the source:
+//   - PNG / WebP / GIF -> PNG, preserving the alpha channel.
+//   - Everything else (JPEG / BMP / TIFF, ...) -> JPEG for smaller files.
 //
-// 返回 (buf, 实际输出的 mime)。调用方应使用返回的 mime 写入存储 Content-Type
-// 并在访问时返回相同的 Content-Type。
+// It returns (buf, actual output mime). The caller should use the returned mime for the storage
+// Content-Type and serve the same Content-Type on access.
 func (s *ImageService) GenerateThumbnail(reader io.Reader, srcMime string) (*bytes.Buffer, string, error) {
 	src, err := imaging.Decode(reader, imaging.AutoOrientation(true))
 	if err != nil {
@@ -73,10 +73,10 @@ func (s *ImageService) GenerateThumbnail(reader io.Reader, srcMime string) (*byt
 	return buf, outMime, nil
 }
 
-// ThumbnailMimeFor 返回给定源图 MIME 类型对应的缩略图输出 MIME。
-// 透明类格式（PNG / WebP / GIF）映射到 image/png 以保留 alpha；
-// 其它格式（含未知）映射到 image/jpeg。
-// 导出供上传写入 Content-Type 以及 /t/:hash 访问处理程序读取 Content-Type 复用。
+// ThumbnailMimeFor returns the thumbnail output MIME for a given source image MIME.
+// Formats that support transparency (PNG / WebP / GIF) map to image/png to preserve alpha;
+// everything else (including unknown inputs) maps to image/jpeg.
+// Exported so both the upload pipeline and the /t/:hash handler can agree on the Content-Type.
 func ThumbnailMimeFor(srcMime string) string {
 	switch srcMime {
 	case "image/png", "image/webp", "image/gif":

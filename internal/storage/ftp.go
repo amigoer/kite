@@ -11,8 +11,9 @@ import (
 	"github.com/jlaffaye/ftp"
 )
 
-// FTPDriver 基于 FTP 协议的存储驱动。
-// 每次操作建立独立连接，避免连接保持期间的超时和中断问题。
+// FTPDriver is a storage driver backed by the FTP protocol.
+// Each operation opens its own connection so long-lived sessions cannot time out or
+// drop between calls.
 type FTPDriver struct {
 	addr     string
 	username string
@@ -21,8 +22,8 @@ type FTPDriver struct {
 	baseURL  string
 }
 
-// NewFTPDriver 根据 FTPConfig 创建一个 FTP 存储驱动实例。
-// 创建时会尝试连接并登录一次，验证配置有效。
+// NewFTPDriver builds an FTPDriver from the given FTPConfig.
+// The constructor dials and logs in once up front to validate the configuration.
 func NewFTPDriver(cfg FTPConfig) (*FTPDriver, error) {
 	if cfg.Host == "" {
 		return nil, fmt.Errorf("ftp driver: host is required")
@@ -53,7 +54,7 @@ func NewFTPDriver(cfg FTPConfig) (*FTPDriver, error) {
 	return d, nil
 }
 
-// dial 建立 FTP 连接并完成登录。
+// dial opens an FTP connection and performs login.
 func (d *FTPDriver) dial() (*ftp.ServerConn, error) {
 	conn, err := ftp.Dial(d.addr, ftp.DialWithTimeout(10*time.Second))
 	if err != nil {
@@ -66,7 +67,7 @@ func (d *FTPDriver) dial() (*ftp.ServerConn, error) {
 	return conn, nil
 }
 
-// remotePath 将相对 key 拼接成远程绝对路径。
+// remotePath joins the relative key onto the base path to produce a remote absolute path.
 func (d *FTPDriver) remotePath(key string) string {
 	clean := path.Clean("/" + strings.TrimLeft(key, "/"))
 	if d.basePath == "" {
@@ -75,7 +76,7 @@ func (d *FTPDriver) remotePath(key string) string {
 	return d.basePath + clean
 }
 
-// ensureDir 递归创建远程目录。
+// ensureDir creates the remote directory tree one segment at a time.
 func (d *FTPDriver) ensureDir(conn *ftp.ServerConn, dir string) error {
 	if dir == "" || dir == "/" || dir == "." {
 		return nil
@@ -88,10 +89,10 @@ func (d *FTPDriver) ensureDir(conn *ftp.ServerConn, dir string) error {
 		}
 		current = current + "/" + p
 		if err := conn.MakeDir(current); err != nil {
-			// 目录已存在时 FTP 返回错误，忽略这种情况
+			// FTP returns an error when the directory already exists; treat that as success.
 			msg := strings.ToLower(err.Error())
 			if !strings.Contains(msg, "exists") && !strings.Contains(msg, "file exists") && !strings.Contains(msg, "already") {
-				// 再次探测目录，如果能切进去说明已经存在
+				// Probe the directory: if we can cd into it, it exists.
 				if changeErr := conn.ChangeDir(current); changeErr == nil {
 					continue
 				}
@@ -102,7 +103,7 @@ func (d *FTPDriver) ensureDir(conn *ftp.ServerConn, dir string) error {
 	return nil
 }
 
-// Put 上传文件到 FTP 服务器。
+// Put uploads a file to the FTP server.
 func (d *FTPDriver) Put(_ context.Context, key string, reader io.Reader, _ int64, _ string) error {
 	conn, err := d.dial()
 	if err != nil {
@@ -120,8 +121,9 @@ func (d *FTPDriver) Put(_ context.Context, key string, reader io.Reader, _ int64
 	return nil
 }
 
-// Get 从 FTP 服务器读取文件。
-// FTP 连接需要与数据流生命周期绑定，因此返回自定义的 ReadCloser。
+// Get reads a file from the FTP server.
+// The FTP connection must live as long as the data stream, so a custom ReadCloser is
+// returned to keep the two bound together.
 func (d *FTPDriver) Get(_ context.Context, key string) (io.ReadCloser, int64, error) {
 	conn, err := d.dial()
 	if err != nil {
@@ -144,7 +146,7 @@ func (d *FTPDriver) Get(_ context.Context, key string) (io.ReadCloser, int64, er
 	return &ftpReadCloser{resp: resp, conn: conn}, size, nil
 }
 
-// ftpReadCloser 将 FTP 响应的读取与连接生命周期绑定。
+// ftpReadCloser binds an FTP response's read cycle to the underlying connection lifetime.
 type ftpReadCloser struct {
 	resp *ftp.Response
 	conn *ftp.ServerConn
@@ -161,7 +163,7 @@ func (r *ftpReadCloser) Close() error {
 	return quitErr
 }
 
-// Delete 从 FTP 服务器删除文件，不存在时返回 nil。
+// Delete removes a file from the FTP server; missing files return nil for idempotence.
 func (d *FTPDriver) Delete(_ context.Context, key string) error {
 	conn, err := d.dial()
 	if err != nil {
@@ -180,7 +182,7 @@ func (d *FTPDriver) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-// Exists 检查 FTP 服务器上文件是否存在。
+// Exists reports whether the given key is present on the FTP server.
 func (d *FTPDriver) Exists(_ context.Context, key string) (bool, error) {
 	conn, err := d.dial()
 	if err != nil {
@@ -199,8 +201,9 @@ func (d *FTPDriver) Exists(_ context.Context, key string) (bool, error) {
 	return true, nil
 }
 
-// URL 返回文件的公开访问 URL。
-// FTP 本身无公网 HTTP URL，依赖 baseURL 配置（通常为反向代理地址）。
+// URL returns the public access URL for the file.
+// FTP has no native HTTP URL, so the caller must configure baseURL (typically the address
+// of a reverse proxy that fronts the FTP directory).
 func (d *FTPDriver) URL(key string) string {
 	if d.baseURL == "" {
 		return "/" + strings.TrimLeft(key, "/")
@@ -208,7 +211,7 @@ func (d *FTPDriver) URL(key string) string {
 	return d.baseURL + "/" + strings.TrimLeft(key, "/")
 }
 
-// SignedURL FTP 不支持预签名 URL，直接返回 URL。
+// SignedURL is not supported for FTP; it returns the plain URL unchanged.
 func (d *FTPDriver) SignedURL(_ context.Context, key string, _ time.Duration) (string, error) {
 	return d.URL(key), nil
 }

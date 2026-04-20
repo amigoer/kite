@@ -7,8 +7,9 @@ import (
 	"sync"
 )
 
-// ConfigMeta 单个存储配置在 manager 中的完整元数据视图。
-// 既包含驱动需要的 StorageConfig，也包含上层路由策略需要的 priority / 容量 / 默认标记。
+// ConfigMeta is the manager's complete metadata view of a single storage configuration.
+// It bundles the driver's StorageConfig together with the priority, capacity, and default
+// flag that upstream routing policies need.
 type ConfigMeta struct {
 	ID                 string
 	Name               string
@@ -20,8 +21,9 @@ type ConfigMeta struct {
 	IsActive           bool
 }
 
-// Manager 管理多个存储配置的驱动实例。
-// 状态在 Reload 时整体替换，避免 CRUD 后默认存储信息与数据库不一致。
+// Manager owns the driver instances for every storage configuration.
+// State is replaced wholesale on Reload so the default-storage view cannot drift from the
+// database after CRUD operations.
 type Manager struct {
 	mu        sync.RWMutex
 	drivers   map[string]StorageDriver
@@ -29,7 +31,7 @@ type Manager struct {
 	defaultID string
 }
 
-// NewManager 创建存储管理器。
+// NewManager builds an empty Manager; callers must invoke Reload before use.
 func NewManager() *Manager {
 	return &Manager{
 		drivers: make(map[string]StorageDriver),
@@ -37,8 +39,9 @@ func NewManager() *Manager {
 	}
 }
 
-// RawConfig 用于 Reload 的原始配置输入。
-// 由调用方从数据库加载后传入，避免 manager 依赖 repo 包形成循环引用。
+// RawConfig is the raw input to Reload.
+// Callers load the rows from the database and pass them in; the manager stays free of a
+// dependency on the repo package so the two do not form an import cycle.
 type RawConfig struct {
 	ID                 string
 	Name               string
@@ -50,8 +53,9 @@ type RawConfig struct {
 	IsActive           bool
 }
 
-// Reload 根据最新的数据库配置整体重建驱动与元数据。
-// 原子替换，任何解析/构造失败都会被跳过并返回聚合错误，但不影响其他驱动加载。
+// Reload rebuilds the driver and metadata maps from the latest database snapshot.
+// The swap is atomic; parse or construction failures are skipped, collected into a single
+// aggregate error, and do not prevent the remaining drivers from loading.
 func (m *Manager) Reload(rawConfigs []RawConfig) error {
 	newDrivers := make(map[string]StorageDriver, len(rawConfigs))
 	newMetas := make(map[string]ConfigMeta, len(rawConfigs))
@@ -92,7 +96,8 @@ func (m *Manager) Reload(rawConfigs []RawConfig) error {
 		}
 	}
 
-	// 如果数据库里没有任何 is_default 但有活跃配置，退化为 priority 最小的一个，避免"无默认"导致上传失败。
+	// No row is marked default but at least one is active: fall back to the lowest-priority
+	// entry so uploads do not fail purely because the default flag is missing.
 	if defaultID == "" && len(newMetas) > 0 {
 		sorted := sortMetas(newMetas)
 		defaultID = sorted[0].ID
@@ -110,7 +115,7 @@ func (m *Manager) Reload(rawConfigs []RawConfig) error {
 	return nil
 }
 
-// Get 获取指定配置 ID 的存储驱动。
+// Get returns the driver for the given configuration ID.
 func (m *Manager) Get(configID string) (StorageDriver, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -122,7 +127,7 @@ func (m *Manager) Get(configID string) (StorageDriver, error) {
 	return driver, nil
 }
 
-// Default 获取默认存储驱动。
+// Default returns the default storage driver and its configuration ID.
 func (m *Manager) Default() (StorageDriver, string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -138,14 +143,14 @@ func (m *Manager) Default() (StorageDriver, string, error) {
 	return driver, m.defaultID, nil
 }
 
-// DefaultID 返回当前默认存储配置 ID（无默认时返回空字符串）。
+// DefaultID returns the current default configuration ID, or an empty string when none is set.
 func (m *Manager) DefaultID() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.defaultID
 }
 
-// Meta 返回指定配置的元数据快照。
+// Meta returns a metadata snapshot for the given configuration ID.
 func (m *Manager) Meta(configID string) (ConfigMeta, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -153,14 +158,15 @@ func (m *Manager) Meta(configID string) (ConfigMeta, bool) {
 	return meta, ok
 }
 
-// ActiveMetas 返回所有活跃配置的元数据快照，按 priority 升序、再按 created-like 顺序（ID）稳定排序。
+// ActiveMetas returns metadata for every active configuration, sorted by priority ascending
+// with a stable ID tiebreaker that mimics creation order.
 func (m *Manager) ActiveMetas() []ConfigMeta {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return sortMetas(m.metas)
 }
 
-// List 列出所有已注册的存储配置 ID。
+// List returns the IDs of every registered storage configuration.
 func (m *Manager) List() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

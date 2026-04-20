@@ -6,7 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CORS 跨域资源共享中间件。
+// CORS returns a middleware that sets permissive CORS headers on every
+// response and short-circuits preflight OPTIONS requests with 204.
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

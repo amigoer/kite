@@ -1,3 +1,7 @@
+// Kite is an image and file hosting service. This package contains the
+// process entry point: it loads configuration, connects to the database,
+// bootstraps default data, builds the HTTP server and handles graceful
+// shutdown.
 package main
 
 import (
@@ -7,7 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,10 +20,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amigoer/kite/internal/api"
 	"github.com/amigoer/kite/internal/config"
+	"github.com/amigoer/kite/internal/logger"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
+	"github.com/amigoer/kite/internal/router"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/amigoer/kite/internal/storage"
 	"github.com/amigoer/kite/web"
@@ -30,7 +35,16 @@ import (
 func main() {
 	cfg := config.DefaultConfig()
 
-	// 环境变量覆盖
+	// Initialise the structured logger as early as possible so that every
+	// subsequent log call (including the standard library log package) is
+	// routed through slog.
+	logger.Init(logger.Options{
+		Level:  logger.ParseLevel(os.Getenv("KITE_LOG_LEVEL")),
+		Format: logger.ParseFormat(os.Getenv("KITE_LOG_FORMAT")),
+		Output: os.Stdout,
+	})
+
+	// Apply environment variable overrides on top of the compiled-in defaults.
 	if port := os.Getenv("KITE_PORT"); port != "" {
 		fmt.Sscanf(port, "%d", &cfg.Server.Port)
 	}
@@ -47,44 +61,38 @@ func main() {
 		cfg.Site.URL = siteURL
 	}
 
-	// 确保数据目录存在
+	// Ensure the data directory exists before the database driver tries to
+	// open a file inside it.
 	dataDir := filepath.Dir(cfg.Database.DSN)
 	if dataDir != "." {
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			log.Fatalf("failed to create data directory: %v", err)
+			logger.Fatal("create data directory", slog.String("err", err.Error()))
 		}
 	}
 
-	// 初始化数据库
 	db, err := initDatabase(cfg.Database)
 	if err != nil {
-		log.Fatalf("failed to init database: %v", err)
+		logger.Fatal("init database", slog.String("err", err.Error()))
 	}
 
-	// 自动迁移表结构
 	if err := autoMigrate(db); err != nil {
-		log.Fatalf("failed to migrate database: %v", err)
+		logger.Fatal("migrate database", slog.String("err", err.Error()))
 	}
 
-	// 从数据库加载运行时配置
 	settingRepo := repo.NewSettingRepo(db)
 	loadRuntimeConfig(settingRepo, &cfg)
 
-	// 将存量绝对 URL 迁移为相对路径
 	migrateAbsoluteURLs(db)
 
-	// 确保 JWT 密钥存在（首次启动自动生成并持久化）
 	if err := ensureJWTSecret(settingRepo, &cfg); err != nil {
-		log.Fatalf("failed to ensure jwt secret: %v", err)
+		logger.Fatal("ensure jwt secret", slog.String("err", err.Error()))
 	}
 
-	// 初始化存储管理器
 	storageMgr := storage.NewManager()
 	storageRepo := repo.NewStorageConfigRepo(db)
 	seedDefaultStorage(storageRepo, dataDir)
 	reloadStorage(storageRepo, storageMgr)
 
-	// 初始化服务
 	userRepo := repo.NewUserRepo(db)
 	tokenRepo := repo.NewAPITokenRepo(db)
 	fileRepo := repo.NewFileRepo(db)
@@ -92,10 +100,13 @@ func main() {
 
 	authSvc := service.NewAuthService(userRepo, tokenRepo, cfg.Auth)
 
-	// 首次启动：无用户时自动创建默认管理员
+	// On first boot (no user rows yet), create a default admin account so the
+	// operator can log in.
 	seedDefaultAdmin(userRepo, authSvc)
 
-	// 构造 Router：usageFn 从 file 表聚合用量，policyFn 从 settings 表读取策略。
+	// usageFn and policyFn bridge the storage router to the rest of the
+	// application: the router needs per-config bytes used and the upload
+	// placement policy, both of which live in the domain layer.
 	usageFn := func(ctx context.Context, configID string) (int64, error) {
 		return fileRepo.SumSizeByStorageConfig(ctx, configID)
 	}
@@ -107,7 +118,8 @@ func main() {
 	imageSvc := service.NewImageService(cfg.Upload.ThumbWidth, cfg.Upload.ThumbQuality)
 	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, storageMgr, storageRouter, imageSvc, cfg.Upload)
 
-	// 加载内嵌资产
+	// Load embedded assets: the built SPA under admin/dist and the landing
+	// page templates under template/.
 	var adminFS fs.FS
 	if sub, err := fs.Sub(web.AdminFS, "admin/dist"); err == nil {
 		adminFS = sub
@@ -117,8 +129,7 @@ func main() {
 		templateFS = sub
 	}
 
-	// 设置路由
-	router := api.SetupRouter(api.RouterConfig{
+	engine := router.Setup(router.Config{
 		DB:         db,
 		StorageMgr: storageMgr,
 		AuthSvc:    authSvc,
@@ -131,21 +142,21 @@ func main() {
 		},
 	})
 
-	// 启动 HTTP 服务
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      router,
+		Handler:      engine,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// 优雅关闭
+	// Launch the listener in a goroutine so the main goroutine can block on
+	// the shutdown signal.
 	go func() {
-		log.Printf("Kite server starting on %s", addr)
+		logger.Info("server starting", slog.String("addr", addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			logger.Fatal("server error", slog.String("err", err.Error()))
 		}
 	}()
 
@@ -153,16 +164,18 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down server...")
+	logger.Info("shutting down server")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("server shutdown error: %v", err)
+		logger.Fatal("server shutdown", slog.String("err", err.Error()))
 	}
-	log.Println("server stopped")
+	logger.Info("server stopped")
 }
 
+// autoMigrate runs GORM's schema migration for every first-class model so
+// fresh deployments have every table and index the application requires.
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
@@ -177,7 +190,9 @@ func autoMigrate(db *gorm.DB) error {
 	)
 }
 
-// loadRuntimeConfig 从数据库 settings 表加载运行时配置。
+// loadRuntimeConfig overlays runtime-tunable fields from the settings table
+// onto the in-memory configuration. Values absent from the table are left at
+// their default (typically populated from compiled-in defaults or env vars).
 func loadRuntimeConfig(settingRepo *repo.SettingRepo, cfg *config.Config) {
 	ctx := context.Background()
 	settings, err := settingRepo.GetAll(ctx)
@@ -199,8 +214,10 @@ func loadRuntimeConfig(settingRepo *repo.SettingRepo, cfg *config.Config) {
 	}
 }
 
-// ensureJWTSecret 保证 JWT 签名密钥存在。
-// 若 settings 表中未配置，则生成 32 字节随机密钥并持久化，避免空密钥导致 token 可伪造。
+// ensureJWTSecret guarantees a non-empty JWT signing key. On first boot it
+// generates 32 random bytes, hex-encodes them and persists the result to the
+// settings table so tokens remain valid across restarts. An empty secret
+// would let anyone forge tokens.
 func ensureJWTSecret(settingRepo *repo.SettingRepo, cfg *config.Config) error {
 	if cfg.Auth.JWTSecret != "" {
 		return nil
@@ -214,12 +231,13 @@ func ensureJWTSecret(settingRepo *repo.SettingRepo, cfg *config.Config) error {
 		return fmt.Errorf("persist jwt secret: %w", err)
 	}
 	cfg.Auth.JWTSecret = secret
-	log.Println("generated new JWT secret and saved to settings")
+	logger.Info("generated new JWT secret and saved to settings")
 	return nil
 }
 
-// seedDefaultAdmin 首次启动时自动创建默认管理员账号 admin/admin。
-// 该账号标记为 PasswordMustChange，首次登录后强制在前端重置用户名与密码才可使用。
+// seedDefaultAdmin creates a bootstrap admin account (admin/admin) when the
+// user table is empty. The account is flagged PasswordMustChange, forcing the
+// operator to set real credentials from the UI on first login.
 func seedDefaultAdmin(userRepo *repo.UserRepo, authSvc *service.AuthService) {
 	ctx := context.Background()
 	count, err := userRepo.Count(ctx)
@@ -228,21 +246,19 @@ func seedDefaultAdmin(userRepo *repo.UserRepo, authSvc *service.AuthService) {
 	}
 
 	if _, err := authSvc.CreateAdminUser(ctx, "admin", "admin@kite.local", "admin", true); err != nil {
-		log.Fatalf("failed to create default admin: %v", err)
+		logger.Fatal("create default admin", slog.String("err", err.Error()))
 	}
 
-	log.Println("============================================================")
-	log.Println("  ⚠️  Default admin account created with WEAK credentials:")
-	log.Println("        Username: admin")
-	log.Println("        Password: admin")
-	log.Println("  You MUST change the username and password on first login.")
-	log.Println("  Do NOT expose this server to the public internet until you")
-	log.Println("  have completed the first-login reset.")
-	log.Println("============================================================")
+	logger.Warn("default admin created with weak credentials, change on first login",
+		slog.String("username", "admin"),
+		slog.String("password", "admin"),
+	)
 }
 
-// migrateAbsoluteURLs 将存量记录中的绝对 URL（如 http://localhost:8080/i/xxx）改写为相对路径（/i/xxx）。
-// 相对路径在响应时由 handler 根据请求 Host 动态拼接，不再依赖启动时配置的 site_url。
+// migrateAbsoluteURLs rewrites legacy absolute URLs stored in the file table
+// (e.g. http://localhost:8080/i/xxx) to bare relative paths (/i/xxx). The
+// response handlers now prepend the request host at response time, so stored
+// absolute URLs are stale and break when the deployment address changes.
 func migrateAbsoluteURLs(db *gorm.DB) {
 	var count int64
 	var files []model.File
@@ -276,17 +292,18 @@ func migrateAbsoluteURLs(db *gorm.DB) {
 		}
 	}
 	if count > 0 {
-		log.Printf("migrated %d URLs from absolute to relative paths", count)
+		logger.Info("migrated absolute URLs to relative paths", slog.Int64("count", count))
 	}
 }
 
-// seedDefaultStorage 首次启动时自动创建一个本地存储作为兜底，避免用户必须先手动添加存储才能使用上传功能。
-// 仅在数据库中不存在任何存储配置时才创建；用户手动删除后重启不会被再次创建。
+// seedDefaultStorage creates a fallback local storage backend on first boot
+// so uploads work out of the box. The seed only fires when the storage_config
+// table is empty; operators who remove the default will not see it recreated.
 func seedDefaultStorage(storageRepo *repo.StorageConfigRepo, dataDir string) {
 	ctx := context.Background()
 	existing, err := storageRepo.List(ctx)
 	if err != nil {
-		log.Printf("warning: failed to check existing storage configs: %v", err)
+		logger.Warn("check existing storage configs", slog.String("err", err.Error()))
 		return
 	}
 	if len(existing) > 0 {
@@ -297,37 +314,42 @@ func seedDefaultStorage(storageRepo *repo.StorageConfigRepo, dataDir string) {
 	lc := storage.LocalConfig{BasePath: basePath}
 	raw, err := json.Marshal(lc)
 	if err != nil {
-		log.Printf("warning: failed to marshal default storage config: %v", err)
+		logger.Warn("marshal default storage config", slog.String("err", err.Error()))
 		return
 	}
 
 	cfg := &model.StorageConfig{
 		ID:        uuid.New().String(),
-		Name:      "本机存储",
+		Name:      "Local Storage",
 		Driver:    "local",
 		Config:    string(raw),
 		IsDefault: true,
 		IsActive:  true,
 	}
 	if err := storageRepo.Create(ctx, cfg); err != nil {
-		log.Printf("warning: failed to seed default storage: %v", err)
+		logger.Warn("seed default storage", slog.String("err", err.Error()))
 		return
 	}
-	log.Printf("seeded default local storage at %s", basePath)
+	logger.Info("seeded default local storage", slog.String("base_path", basePath))
 }
 
-// reloadStorage 原子重建存储管理器状态，启动时调用一次，CRUD 后由 handler 再次调用。
+// reloadStorage atomically rebuilds the storage manager state. It runs once
+// at startup and again whenever an admin mutates storage configuration
+// through the API.
 func reloadStorage(storageRepo *repo.StorageConfigRepo, mgr *storage.Manager) {
 	ctx := context.Background()
 	rawConfigs, err := storageRepo.BuildRawConfigs(ctx)
 	if err != nil {
-		log.Printf("warning: failed to load storage configs: %v", err)
+		logger.Warn("load storage configs", slog.String("err", err.Error()))
 		return
 	}
 	if err := mgr.Reload(rawConfigs); err != nil {
-		log.Printf("warning: reload storage with errors: %v", err)
+		logger.Warn("reload storage with errors", slog.String("err", err.Error()))
 	}
 	if defID := mgr.DefaultID(); defID != "" {
-		log.Printf("storage manager ready, default=%s, active=%d", defID, len(mgr.ActiveMetas()))
+		logger.Info("storage manager ready",
+			slog.String("default", defID),
+			slog.Int("active", len(mgr.ActiveMetas())),
+		)
 	}
 }

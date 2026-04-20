@@ -2,8 +2,8 @@ package model
 
 import "time"
 
-// FileAccessLog 记录每次文件访问/下载，用于带宽与访问量统计。
-// UserID 存储文件所属用户（非访问者），用于按文件拥有者维度做统计隔离；游客文件为空。
+// FileAccessLog records each file access or download for bandwidth and traffic statistics.
+// UserID stores the file owner (not the visitor) so stats can be segmented per owner; empty for anonymous uploads.
 type FileAccessLog struct {
 	ID          string    `gorm:"column:id;primaryKey" json:"id"`
 	FileID      string    `gorm:"column:file_id;index;not null" json:"file_id"`

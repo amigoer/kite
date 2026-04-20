@@ -1,16 +1,16 @@
-package api
+package handler
 
 import (
 	"errors"
 	"net/http"
 
-	"github.com/amigoer/kite/internal/api/middleware"
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-// AuthHandler 认证相关的 HTTP 处理器。
+// AuthHandler handles authentication HTTP requests.
 type AuthHandler struct {
 	authSvc  *service.AuthService
 	userRepo *repo.UserRepo
@@ -25,28 +25,28 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// Login 用户登录。
+// Login authenticates a user and returns a token pair.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "username and password are required")
+		BadRequest(c, "username and password are required")
 		return
 	}
 
 	tokenPair, err := h.authSvc.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) || errors.Is(err, service.ErrUserInactive) {
-			unauthorized(c, err.Error())
+			Unauthorized(c, err.Error())
 			return
 		}
-		serverError(c, "login failed")
+		ServerError(c, "login failed")
 		return
 	}
 
-	// 同时设置 cookie 供 Web 界面使用
+	// Also set a cookie for the web UI.
 	c.SetCookie("access_token", tokenPair.AccessToken, 7200, "/", "", false, true)
 
-	success(c, tokenPair)
+	Success(c, tokenPair)
 }
 
 type registerRequest struct {
@@ -55,29 +55,29 @@ type registerRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=64"`
 }
 
-// Register 用户注册。
+// Register creates a new user account via self-registration.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid registration data: "+err.Error())
+		BadRequest(c, "invalid registration data: "+err.Error())
 		return
 	}
 
 	user, err := h.authSvc.Register(c.Request.Context(), req.Username, req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, service.ErrRegistrationClosed) {
-			forbidden(c, err.Error())
+			Forbidden(c, err.Error())
 			return
 		}
 		if errors.Is(err, service.ErrUserExists) {
-			fail(c, http.StatusConflict, 40900, err.Error())
+			Fail(c, http.StatusConflict, 40900, err.Error())
 			return
 		}
-		serverError(c, "registration failed")
+		ServerError(c, "registration failed")
 		return
 	}
 
-	created(c, gin.H{
+	Created(c, gin.H{
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
@@ -88,41 +88,41 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
-// RefreshToken 刷新 access token。
+// RefreshToken exchanges a refresh token for a new access token.
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "refresh_token is required")
+		BadRequest(c, "refresh_token is required")
 		return
 	}
 
 	tokenPair, err := h.authSvc.RefreshToken(req.RefreshToken)
 	if err != nil {
-		unauthorized(c, "invalid refresh token")
+		Unauthorized(c, "invalid refresh token")
 		return
 	}
 
 	c.SetCookie("access_token", tokenPair.AccessToken, 7200, "/", "", false, true)
-	success(c, tokenPair)
+	Success(c, tokenPair)
 }
 
-// Logout 登出，清除 cookie。
+// Logout clears the access token cookie.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie("access_token", "", -1, "/", "", false, true)
-	success(c, nil)
+	Success(c, nil)
 }
 
-// GetProfile 获取当前登录用户信息。
+// GetProfile returns information about the currently authenticated user.
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := c.GetString(middleware.ContextKeyUserID)
 
 	user, err := h.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
-		unauthorized(c, "user not found")
+		Unauthorized(c, "user not found")
 		return
 	}
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"user_id":              user.ID,
 		"username":             user.Username,
 		"nickname":             user.Nickname,
@@ -143,11 +143,11 @@ type updateProfileRequest struct {
 	AvatarURL *string `json:"avatar_url" binding:"omitempty,max=512"`
 }
 
-// UpdateProfile 当前登录用户更新自己的用户名、昵称、邮箱与头像。
+// UpdateProfile lets the current user update their username, nickname, email, and avatar.
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	var req updateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid profile data: "+err.Error())
+		BadRequest(c, "invalid profile data: "+err.Error())
 		return
 	}
 
@@ -155,14 +155,14 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	user, err := h.authSvc.UpdateProfile(c.Request.Context(), userID, req.Username, req.Nickname, req.Email, req.AvatarURL)
 	if err != nil {
 		if errors.Is(err, service.ErrUserExists) {
-			fail(c, http.StatusConflict, 40900, err.Error())
+			Fail(c, http.StatusConflict, 40900, err.Error())
 			return
 		}
-		serverError(c, "update profile failed")
+		ServerError(c, "update profile failed")
 		return
 	}
 
-	success(c, gin.H{
+	Success(c, gin.H{
 		"user_id":    user.ID,
 		"username":   user.Username,
 		"nickname":   user.Nickname,
@@ -177,25 +177,25 @@ type changePasswordRequest struct {
 	NewPassword     string `json:"new_password" binding:"required,min=6,max=64"`
 }
 
-// ChangePassword 当前登录用户修改自己的密码。
+// ChangePassword lets the current user change their own password.
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var req changePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid password data: "+err.Error())
+		BadRequest(c, "invalid password data: "+err.Error())
 		return
 	}
 
 	userID := c.GetString(middleware.ContextKeyUserID)
 	if err := h.authSvc.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
 		if errors.Is(err, service.ErrPasswordMismatch) {
-			fail(c, http.StatusBadRequest, 40010, err.Error())
+			Fail(c, http.StatusBadRequest, 40010, err.Error())
 			return
 		}
-		serverError(c, "change password failed")
+		ServerError(c, "change password failed")
 		return
 	}
 
-	success(c, nil)
+	Success(c, nil)
 }
 
 type firstLoginResetRequest struct {
@@ -204,12 +204,12 @@ type firstLoginResetRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=6,max=64"`
 }
 
-// FirstLoginReset 首次登录强制重置账号与密码。
-// 仅当用户 PasswordMustChange=true 时允许；成功后返回新的 token pair。
+// FirstLoginReset forces a first-login account and password reset.
+// Allowed only when PasswordMustChange=true; returns a fresh token pair on success.
 func (h *AuthHandler) FirstLoginReset(c *gin.Context) {
 	var req firstLoginResetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		badRequest(c, "invalid reset data: "+err.Error())
+		BadRequest(c, "invalid reset data: "+err.Error())
 		return
 	}
 
@@ -219,13 +219,13 @@ func (h *AuthHandler) FirstLoginReset(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrUserExists) {
-			fail(c, http.StatusConflict, 40900, err.Error())
+			Fail(c, http.StatusConflict, 40900, err.Error())
 			return
 		}
-		badRequest(c, err.Error())
+		BadRequest(c, err.Error())
 		return
 	}
 
 	c.SetCookie("access_token", tokenPair.AccessToken, 7200, "/", "", false, true)
-	success(c, tokenPair)
+	Success(c, tokenPair)
 }

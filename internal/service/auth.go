@@ -28,7 +28,7 @@ var (
 	ErrPasswordMismatch   = errors.New("current password is incorrect")
 )
 
-// JWTClaims JWT 令牌中携带的声明。
+// JWTClaims is the claim set carried inside the signed JWT.
 type JWTClaims struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
@@ -36,14 +36,14 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-// TokenPair 包含 access token 和 refresh token。
+// TokenPair bundles an access token with its refresh token.
 type TokenPair struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-// AuthService 认证业务逻辑。
+// AuthService encapsulates authentication business logic.
 type AuthService struct {
 	userRepo  *repo.UserRepo
 	tokenRepo *repo.APITokenRepo
@@ -58,7 +58,7 @@ func NewAuthService(userRepo *repo.UserRepo, tokenRepo *repo.APITokenRepo, cfg c
 	}
 }
 
-// Register 用户自行注册。
+// Register performs self-service user registration.
 func (s *AuthService) Register(ctx context.Context, username, email, password string) (*model.User, error) {
 	if !s.cfg.AllowRegistration {
 		return nil, ErrRegistrationClosed
@@ -93,11 +93,11 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 	return user, nil
 }
 
-// Login 用户登录，返回 JWT token pair。
+// Login authenticates a user and returns a JWT token pair.
 func (s *AuthService) Login(ctx context.Context, username, password string) (*TokenPair, error) {
 	user, err := s.userRepo.GetByUsername(ctx, username)
 	if err != nil {
-		// 也尝试通过邮箱登录
+		// Fall back to email-based lookup.
 		user, err = s.userRepo.GetByEmail(ctx, username)
 		if err != nil {
 			return nil, ErrInvalidCredentials
@@ -115,7 +115,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*To
 	return s.generateTokenPair(user)
 }
 
-// RefreshToken 使用 refresh token 获取新的 token pair。
+// RefreshToken exchanges a valid refresh token for a new token pair.
 func (s *AuthService) RefreshToken(refreshToken string) (*TokenPair, error) {
 	claims, err := s.parseToken(refreshToken)
 	if err != nil {
@@ -131,12 +131,12 @@ func (s *AuthService) RefreshToken(refreshToken string) (*TokenPair, error) {
 	return s.generateTokenPair(user)
 }
 
-// ValidateToken 验证 JWT token 并返回 claims。
+// ValidateToken verifies a JWT token and returns its claims.
 func (s *AuthService) ValidateToken(tokenStr string) (*JWTClaims, error) {
 	return s.parseToken(tokenStr)
 }
 
-// ValidateAPIToken 验证 API Token，返回关联的用户 ID。
+// ValidateAPIToken verifies an API token and returns the owning user ID.
 func (s *AuthService) ValidateAPIToken(ctx context.Context, tokenStr string) (string, error) {
 	hash := HashToken(tokenStr)
 
@@ -149,7 +149,7 @@ func (s *AuthService) ValidateAPIToken(ctx context.Context, tokenStr string) (st
 		return "", ErrTokenExpired
 	}
 
-	// 异步更新最后使用时间
+	// Update last-used timestamp asynchronously so the hot path stays fast.
 	go func() {
 		_ = s.tokenRepo.UpdateLastUsed(context.Background(), token.ID)
 	}()
@@ -157,8 +157,8 @@ func (s *AuthService) ValidateAPIToken(ctx context.Context, tokenStr string) (st
 	return token.UserID, nil
 }
 
-// CreateAPIToken 为用户创建 API Token。
-// 返回明文 token（仅此一次展示）和记录。
+// CreateAPIToken creates an API token for the user.
+// It returns the plaintext token (shown to the user exactly once) alongside the stored record.
 func (s *AuthService) CreateAPIToken(ctx context.Context, userID, name string, expiresAt *time.Time) (string, *model.APIToken, error) {
 	plainToken, err := generateRandomToken(32)
 	if err != nil {
@@ -180,8 +180,8 @@ func (s *AuthService) CreateAPIToken(ctx context.Context, userID, name string, e
 	return plainToken, token, nil
 }
 
-// CreateAdminUser 创建管理员用户（安装向导使用）。
-// mustChange=true 时，用户首次登录后必须重置账号和密码才能使用其他功能。
+// CreateAdminUser creates an administrator account (used by the setup wizard).
+// When mustChange is true the user must reset their credentials at first login before anything else.
 func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, password string, mustChange bool) (*model.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -194,7 +194,7 @@ func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, pass
 		Email:              email,
 		PasswordHash:       string(hash),
 		Role:               "admin",
-		StorageLimit:       -1, // 管理员无存储限制
+		StorageLimit:       -1, // administrators have no storage quota
 		IsActive:           true,
 		PasswordMustChange: mustChange,
 	}
@@ -206,8 +206,8 @@ func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, pass
 	return user, nil
 }
 
-// UpdateProfile 更新当前登录用户的基本资料（用户名、昵称、邮箱、头像）。
-// 不涉及密码修改；若用户名或邮箱发生变化会进行唯一性校验。
+// UpdateProfile updates the current user's profile fields (username, nickname, email, avatar).
+// Passwords are unchanged; username and email changes are checked for uniqueness.
 func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername string, newNickname *string, newEmail string, newAvatarURL *string) (*model.User, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -248,7 +248,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername str
 	return user, nil
 }
 
-// ChangePassword 校验当前密码后更新为新密码。
+// ChangePassword verifies the current password and writes a new hash.
 func (s *AuthService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -268,9 +268,9 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID, currentPasswor
 	return nil
 }
 
-// ResetFirstLoginCredentials 重置首次登录用户的账号与密码。
-// 仅当用户的 PasswordMustChange 为 true 时允许调用；成功后清除该标志并返回新 token pair
-// （因为用户名变化会使旧 token 的 username claim 失效）。
+// ResetFirstLoginCredentials resets the username, email, and password for a first-login user.
+// Callable only when PasswordMustChange is true; on success the flag is cleared and a fresh
+// token pair is issued because a username change invalidates the username claim on the old token.
 func (s *AuthService) ResetFirstLoginCredentials(ctx context.Context, userID, newUsername, newEmail, newPassword string) (*TokenPair, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -280,7 +280,7 @@ func (s *AuthService) ResetFirstLoginCredentials(ctx context.Context, userID, ne
 		return nil, errors.New("first-login reset is not required for this user")
 	}
 
-	// 用户名或邮箱冲突检测（排除当前用户自身）
+	// Username/email conflict check, excluding the user themself.
 	if newUsername != user.Username || newEmail != user.Email {
 		conflict, err := s.userRepo.ExistsByUsernameOrEmailExcept(ctx, newUsername, newEmail, userID)
 		if err != nil {
@@ -368,7 +368,7 @@ func (s *AuthService) parseToken(tokenStr string) (*JWTClaims, error) {
 	return claims, nil
 }
 
-// HashToken 计算 token 的 SHA256 哈希。
+// HashToken returns the SHA256 hex digest of token.
 func HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
