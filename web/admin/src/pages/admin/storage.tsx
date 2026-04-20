@@ -910,7 +910,10 @@ export default function StoragePage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="grid-cols-1 sm:max-w-lg">
+        <DialogContent
+          className="grid-cols-1 sm:max-w-lg"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <div className="grid gap-4">
             <DialogHeader>
               <DialogTitle>
@@ -980,14 +983,14 @@ export default function StoragePage() {
                 <p className="text-xs text-muted-foreground">{t("storage.capacityLimitHint")}</p>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={closeDialog} className="w-full sm:w-auto">
+            <DialogFooter className="flex-row gap-2 [&>button]:flex-1">
+              <Button variant="outline" onClick={closeDialog} className="w-full">
                 {t("common.cancel")}
               </Button>
               <Button
                 onClick={() => saveMutation.mutate()}
                 disabled={!form.name || saveMutation.isPending}
-                className="w-full sm:w-auto"
+                className="w-full"
               >
                 {saveMutation.isPending ? t("common.loading") : t("common.save")}
               </Button>
