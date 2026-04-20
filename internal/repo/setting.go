@@ -2,7 +2,9 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/amigoer/kite/internal/model"
 	"gorm.io/gorm"
@@ -25,6 +27,33 @@ func (r *SettingRepo) Get(ctx context.Context, key string) (string, error) {
 		return "", fmt.Errorf("get setting %q: %w", key, err)
 	}
 	return setting.Value, nil
+}
+
+// GetOrDefault returns the stored value or the provided fallback when the key
+// does not exist yet.
+func (r *SettingRepo) GetOrDefault(ctx context.Context, key, fallback string) (string, error) {
+	val, err := r.Get(ctx, key)
+	if err == nil {
+		return val, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return fallback, nil
+	}
+	return "", err
+}
+
+// GetBool returns the parsed boolean value stored under key. Missing keys fall
+// back to the provided default.
+func (r *SettingRepo) GetBool(ctx context.Context, key string, fallback bool) (bool, error) {
+	def := "false"
+	if fallback {
+		def = "true"
+	}
+	val, err := r.GetOrDefault(ctx, key, def)
+	if err != nil {
+		return false, err
+	}
+	return strings.EqualFold(strings.TrimSpace(val), "true"), nil
 }
 
 // Set upserts the value for key.

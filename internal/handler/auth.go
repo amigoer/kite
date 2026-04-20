@@ -12,12 +12,42 @@ import (
 
 // AuthHandler handles authentication HTTP requests.
 type AuthHandler struct {
-	authSvc  *service.AuthService
-	userRepo *repo.UserRepo
+	authSvc                  *service.AuthService
+	userRepo                 *repo.UserRepo
+	settingRepo              *repo.SettingRepo
+	allowRegistrationDefault bool
 }
 
-func NewAuthHandler(authSvc *service.AuthService, userRepo *repo.UserRepo) *AuthHandler {
-	return &AuthHandler{authSvc: authSvc, userRepo: userRepo}
+func NewAuthHandler(
+	authSvc *service.AuthService,
+	userRepo *repo.UserRepo,
+	settingRepo *repo.SettingRepo,
+	allowRegistrationDefault bool,
+) *AuthHandler {
+	return &AuthHandler{
+		authSvc:                  authSvc,
+		userRepo:                 userRepo,
+		settingRepo:              settingRepo,
+		allowRegistrationDefault: allowRegistrationDefault,
+	}
+}
+
+func (h *AuthHandler) allowRegistration(c *gin.Context) bool {
+	if h.settingRepo == nil {
+		return h.allowRegistrationDefault
+	}
+	enabled, err := h.settingRepo.GetBool(c.Request.Context(), "allow_registration", h.allowRegistrationDefault)
+	if err != nil {
+		return h.allowRegistrationDefault
+	}
+	return enabled
+}
+
+// Options returns the effective public auth settings for anonymous pages.
+func (h *AuthHandler) Options(c *gin.Context) {
+	Success(c, gin.H{
+		"allow_registration": h.allowRegistration(c),
+	})
 }
 
 type loginRequest struct {
@@ -63,7 +93,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authSvc.Register(c.Request.Context(), req.Username, req.Email, req.Password)
+	user, err := h.authSvc.RegisterWithPolicy(
+		c.Request.Context(),
+		req.Username,
+		req.Email,
+		req.Password,
+		h.allowRegistration(c),
+	)
 	if err != nil {
 		if errors.Is(err, service.ErrRegistrationClosed) {
 			Forbidden(c, err.Error())

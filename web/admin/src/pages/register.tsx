@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +20,20 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const { data: authOptions } = useQuery<{ allow_registration: boolean }>({
+    queryKey: ["auth", "options"],
+    queryFn: () => authApi.options().then((r) => r.data.data),
+    retry: 0,
+  });
+  const allowRegistration = authOptions?.allow_registration !== false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!allowRegistration) {
+      toast.error("当前站点未开放注册");
+      return;
+    }
 
     if (form.password !== form.confirmPassword) {
       toast.error("两次输入的密码不一致，请重新核对");
@@ -33,7 +46,11 @@ export default function RegisterPage() {
       toast.success("注册成功，请重新登录！");
       navigate("/login");
     } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
       const msg =
+        (status === 403
+          ? "当前站点未开放注册，请联系管理员"
+          : undefined) ??
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ?? "注册失败，请稍后重试";
       toast.error(msg);
@@ -63,66 +80,78 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="grid gap-3 pt-2">
-          <div className="grid gap-2">
-            <Label htmlFor="username">用户名</Label>
-            <Input
-              id="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              value={form.username}
-              onChange={update("username")}
-              placeholder="请输入用户名"
-              required
-              minLength={3}
-            />
-          </div>
+        {allowRegistration ? (
+          <form onSubmit={handleSubmit} className="grid gap-3 pt-2">
+            <div className="grid gap-2">
+              <Label htmlFor="username">用户名</Label>
+              <Input
+                id="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={form.username}
+                onChange={update("username")}
+                placeholder="请输入用户名"
+                required
+                minLength={3}
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="email">邮箱</Label>
-            <Input
-              id="email"
-              type="email"
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect="off"
-              value={form.email}
-              onChange={update("email")}
-              placeholder="name@example.com"
-              required
-            />
-          </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">邮箱</Label>
+              <Input
+                id="email"
+                type="email"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect="off"
+                value={form.email}
+                onChange={update("email")}
+                placeholder="name@example.com"
+                required
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="password">密码</Label>
-            <Input
-              id="password"
-              type="password"
-              value={form.password}
-              onChange={update("password")}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">密码</Label>
+              <Input
+                id="password"
+                type="password"
+                value={form.password}
+                onChange={update("password")}
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="confirmPassword">确认密码</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={form.confirmPassword}
-              onChange={update("confirmPassword")}
-              placeholder="••••••••"
-              required
-            />
-          </div>
+            <div className="grid gap-2">
+              <Label htmlFor="confirmPassword">确认密码</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={form.confirmPassword}
+                onChange={update("confirmPassword")}
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-          <Button type="submit" className="mt-2" disabled={loading}>
-            {loading && <Loader2 className="size-4 animate-spin" />}
-            {loading ? "创建中..." : "注册"}
-          </Button>
-        </form>
+            <Button type="submit" className="mt-2" disabled={loading}>
+              {loading && <Loader2 className="size-4 animate-spin" />}
+              {loading ? "创建中..." : "注册"}
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-4 rounded-lg border bg-muted/25 p-4 text-sm">
+            <div className="font-medium">当前站点未开放注册</div>
+            <p className="mt-1 text-muted-foreground">
+              如需创建账号，请联系管理员为你开通，或稍后再试。
+            </p>
+            <Button asChild variant="outline" className="mt-4 w-full">
+              <Link to="/login">返回登录</Link>
+            </Button>
+          </div>
+        )}
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           已有账号？{" "}

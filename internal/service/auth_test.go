@@ -71,6 +71,32 @@ func TestAuthService_Register_ClosedRegistration(t *testing.T) {
 	}
 }
 
+func TestAuthService_RegisterWithPolicy(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, false)
+
+	user, err := svc.RegisterWithPolicy(context.Background(), "policy-user", "policy@example.com", "hunter2", true)
+	if err != nil {
+		t.Fatalf("register with policy override: %v", err)
+	}
+	if user.Role != "user" {
+		t.Fatalf("unexpected role: %+v", user)
+	}
+}
+
+func TestAuthService_CreateStandardUser_BypassesRegistrationSwitch(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, false)
+
+	user, err := svc.CreateStandardUser(context.Background(), "created-by-admin", "created-by-admin@example.com", "hunter2")
+	if err != nil {
+		t.Fatalf("create standard user: %v", err)
+	}
+	if user.Role != "user" || !user.IsActive {
+		t.Fatalf("unexpected user: %+v", user)
+	}
+}
+
 func TestAuthService_Login(t *testing.T) {
 	db := newAuthTestDB(t)
 	svc := newAuthService(db, true)

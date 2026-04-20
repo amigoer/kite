@@ -11,6 +11,7 @@ func registerAuthPublic(v1 *gin.RouterGroup, h *handler.AuthHandler) {
 	g := v1.Group("/auth")
 	g.Use(authRateLimit(20))
 
+	g.GET("/options", h.Options)
 	g.POST("/login", h.Login)
 	g.POST("/register", h.Register)
 	g.POST("/refresh", h.RefreshToken)

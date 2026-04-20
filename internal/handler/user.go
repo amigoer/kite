@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -68,10 +69,14 @@ func (h *UserHandler) Create(c *gin.Context) {
 	if req.Role == "admin" {
 		user, err = h.authSvc.CreateAdminUser(c.Request.Context(), req.Username, req.Email, req.Password, false)
 	} else {
-		user, err = h.authSvc.Register(c.Request.Context(), req.Username, req.Email, req.Password)
+		user, err = h.authSvc.CreateStandardUser(c.Request.Context(), req.Username, req.Email, req.Password)
 	}
 
 	if err != nil {
+		if errors.Is(err, service.ErrUserExists) {
+			Fail(c, 409, 40900, err.Error())
+			return
+		}
 		ServerError(c, "failed to create user: "+err.Error())
 		return
 	}

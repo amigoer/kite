@@ -8,10 +8,14 @@ import (
 // SettingsHandler handles system settings HTTP requests.
 type SettingsHandler struct {
 	settingRepo *repo.SettingRepo
+	defaults    map[string]string
 }
 
-func NewSettingsHandler(settingRepo *repo.SettingRepo) *SettingsHandler {
-	return &SettingsHandler{settingRepo: settingRepo}
+func NewSettingsHandler(settingRepo *repo.SettingRepo, defaults map[string]string) *SettingsHandler {
+	if defaults == nil {
+		defaults = map[string]string{}
+	}
+	return &SettingsHandler{settingRepo: settingRepo, defaults: defaults}
 }
 
 // Get returns all system settings.
@@ -21,7 +25,14 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 		ServerError(c, "failed to get settings")
 		return
 	}
-	Success(c, settings)
+	merged := make(map[string]string, len(h.defaults)+len(settings))
+	for key, value := range h.defaults {
+		merged[key] = value
+	}
+	for key, value := range settings {
+		merged[key] = value
+	}
+	Success(c, merged)
 }
 
 type updateSettingsRequest struct {

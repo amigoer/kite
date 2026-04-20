@@ -60,10 +60,27 @@ func NewAuthService(userRepo *repo.UserRepo, tokenRepo *repo.APITokenRepo, cfg c
 
 // Register performs self-service user registration.
 func (s *AuthService) Register(ctx context.Context, username, email, password string) (*model.User, error) {
-	if !s.cfg.AllowRegistration {
+	return s.RegisterWithPolicy(ctx, username, email, password, s.cfg.AllowRegistration)
+}
+
+// RegisterWithPolicy performs self-service registration while letting the
+// caller provide the effective registration switch (for example a runtime
+// setting stored in the database).
+func (s *AuthService) RegisterWithPolicy(ctx context.Context, username, email, password string, allowRegistration bool) (*model.User, error) {
+	if !allowRegistration {
 		return nil, ErrRegistrationClosed
 	}
 
+	return s.createUser(ctx, username, email, password, "user", false)
+}
+
+// CreateStandardUser creates a regular active user account without consulting
+// the public self-registration switch. It is intended for administrator flows.
+func (s *AuthService) CreateStandardUser(ctx context.Context, username, email, password string) (*model.User, error) {
+	return s.createUser(ctx, username, email, password, "user", false)
+}
+
+func (s *AuthService) createUser(ctx context.Context, username, email, password, role string, mustChange bool) (*model.User, error) {
 	exists, err := s.userRepo.ExistsByUsernameOrEmail(ctx, username, email)
 	if err != nil {
 		return nil, fmt.Errorf("register check exists: %w", err)
@@ -78,12 +95,13 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 	}
 
 	user := &model.User{
-		ID:           uuid.New().String(),
-		Username:     username,
-		Email:        email,
-		PasswordHash: string(hash),
-		Role:         "user",
-		IsActive:     true,
+		ID:                 uuid.New().String(),
+		Username:           username,
+		Email:              email,
+		PasswordHash:       string(hash),
+		Role:               role,
+		IsActive:           true,
+		PasswordMustChange: mustChange,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -183,24 +201,13 @@ func (s *AuthService) CreateAPIToken(ctx context.Context, userID, name string, e
 // CreateAdminUser creates an administrator account (used by the setup wizard).
 // When mustChange is true the user must reset their credentials at first login before anything else.
 func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, password string, mustChange bool) (*model.User, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	user, err := s.createUser(ctx, username, email, password, "admin", mustChange)
 	if err != nil {
-		return nil, fmt.Errorf("hash admin password: %w", err)
-	}
-
-	user := &model.User{
-		ID:                 uuid.New().String(),
-		Username:           username,
-		Email:              email,
-		PasswordHash:       string(hash),
-		Role:               "admin",
-		StorageLimit:       -1, // administrators have no storage quota
-		IsActive:           true,
-		PasswordMustChange: mustChange,
-	}
-
-	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("create admin user: %w", err)
+	}
+	user.StorageLimit = -1 // administrators have no storage quota
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("persist admin storage limit: %w", err)
 	}
 
 	return user, nil

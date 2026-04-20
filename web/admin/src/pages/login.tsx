@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +18,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { data: authOptions } = useQuery<{ allow_registration: boolean }>({
+    queryKey: ["auth", "options"],
+    queryFn: () => authApi.options().then((r) => r.data.data),
+    retry: 0,
+  });
+  const allowRegistration = authOptions?.allow_registration !== false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,13 +187,19 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          还没有账号？{" "}
-          <Link
-            to="/register"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            立即注册
-          </Link>
+          {allowRegistration ? (
+            <>
+              还没有账号？{" "}
+              <Link
+                to="/register"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                立即注册
+              </Link>
+            </>
+          ) : (
+            "当前站点未开放注册"
+          )}
         </p>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">

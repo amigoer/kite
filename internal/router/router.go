@@ -9,6 +9,7 @@ package router
 
 import (
 	"io/fs"
+	"strconv"
 	"time"
 
 	"github.com/amigoer/kite/internal/handler"
@@ -23,14 +24,17 @@ import (
 // Config carries all dependencies required to build the HTTP server. It is
 // populated by the cmd entry point before calling [Setup].
 type Config struct {
-	DB            *gorm.DB
-	StorageMgr    *storage.Manager
-	AuthSvc       *service.AuthService
-	FileSvc       *service.FileService
-	AdminFS       fs.FS  // Embedded SPA assets (web/admin/dist).
-	TemplateFS    fs.FS  // Embedded Go templates (web/template).
-	DataDir       string // Data directory backing the local storage driver.
-	ReloadStorage func() // Rebuilds the storage manager after CRUD on storage configs.
+	DB                *gorm.DB
+	StorageMgr        *storage.Manager
+	AuthSvc           *service.AuthService
+	FileSvc           *service.FileService
+	SiteName          string
+	SiteURL           string
+	AllowRegistration bool
+	AdminFS           fs.FS  // Embedded SPA assets (web/admin/dist).
+	TemplateFS        fs.FS  // Embedded Go templates (web/template).
+	DataDir           string // Data directory backing the local storage driver.
+	ReloadStorage     func() // Rebuilds the storage manager after CRUD on storage configs.
 }
 
 // Setup constructs a fully wired gin.Engine: it creates the realtime metrics
@@ -53,12 +57,18 @@ func Setup(cfg Config) *gin.Engine {
 	settingRepo := repo.NewSettingRepo(cfg.DB)
 	accessLogRepo := repo.NewFileAccessLogRepo(cfg.DB)
 
-	authHandler := handler.NewAuthHandler(cfg.AuthSvc, userRepo)
+	authHandler := handler.NewAuthHandler(cfg.AuthSvc, userRepo, settingRepo, cfg.AllowRegistration)
 	fileHandler := handler.NewFileHandler(cfg.FileSvc, fileRepo, albumRepo, accessLogRepo)
 	albumHandler := handler.NewAlbumHandler(albumRepo, fileRepo)
 	tokenHandler := handler.NewTokenHandler(cfg.AuthSvc, tokenRepo)
 	storageHandler := handler.NewStorageHandler(storageRepo, fileRepo, cfg.StorageMgr, cfg.ReloadStorage)
-	settingsHandler := handler.NewSettingsHandler(settingRepo)
+	settingsHandler := handler.NewSettingsHandler(settingRepo, map[string]string{
+		"site_name":            cfg.SiteName,
+		"site_url":             cfg.SiteURL,
+		"allow_registration":   strconv.FormatBool(cfg.AllowRegistration),
+		"allow_guest_upload":   "false",
+		"allow_public_gallery": "false",
+	})
 	userHandler := handler.NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
 	setupHandler := handler.NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)
 	systemStatusHandler := handler.NewSystemStatusRealtimeHandler(realtimeCollector)

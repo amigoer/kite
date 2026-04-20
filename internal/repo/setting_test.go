@@ -43,6 +43,54 @@ func TestSettingRepo_SetAndGet(t *testing.T) {
 	}
 }
 
+func TestSettingRepo_GetOrDefault(t *testing.T) {
+	r := NewSettingRepo(newTestDB(t))
+	ctx := context.Background()
+
+	got, err := r.GetOrDefault(ctx, "allow_registration", "true")
+	if err != nil {
+		t.Fatalf("GetOrDefault missing: %v", err)
+	}
+	if got != "true" {
+		t.Fatalf("expected fallback value, got %q", got)
+	}
+
+	if err := r.Set(ctx, "allow_registration", "false"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	got, err = r.GetOrDefault(ctx, "allow_registration", "true")
+	if err != nil {
+		t.Fatalf("GetOrDefault existing: %v", err)
+	}
+	if got != "false" {
+		t.Fatalf("expected stored value, got %q", got)
+	}
+}
+
+func TestSettingRepo_GetBool(t *testing.T) {
+	r := NewSettingRepo(newTestDB(t))
+	ctx := context.Background()
+
+	got, err := r.GetBool(ctx, "allow_registration", true)
+	if err != nil {
+		t.Fatalf("GetBool missing: %v", err)
+	}
+	if !got {
+		t.Fatal("expected fallback true")
+	}
+
+	if err := r.Set(ctx, "allow_registration", "false"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	got, err = r.GetBool(ctx, "allow_registration", true)
+	if err != nil {
+		t.Fatalf("GetBool existing: %v", err)
+	}
+	if got {
+		t.Fatal("expected stored false")
+	}
+}
+
 func TestSettingRepo_GetAll(t *testing.T) {
 	r := NewSettingRepo(newTestDB(t))
 	ctx := context.Background()
