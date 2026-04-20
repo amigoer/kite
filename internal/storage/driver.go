@@ -36,16 +36,18 @@ type StorageDriver interface {
 	SignedURL(ctx context.Context, key string, expires time.Duration) (string, error)
 }
 
-// Driver-type constants. S3-compatible drivers (oss/cos/obs/bos) keep distinct values in the
-// database so the frontend can render distinct branding, while all sharing the S3 wire protocol.
+// Driver-type constants. The canonical runtime driver set is local / s3 / ftp.
+// Legacy S3 vendor aliases are retained here only to normalize old rows during migration.
 const (
 	DriverLocal = "local"
 	DriverS3    = "s3"
-	DriverOSS   = "oss" // Alibaba Cloud OSS
-	DriverCOS   = "cos" // Tencent Cloud COS
-	DriverOBS   = "obs" // Huawei Cloud OBS
-	DriverBOS   = "bos" // Baidu Cloud BOS
 	DriverFTP   = "ftp"
+
+	// Legacy driver aliases.
+	DriverOSS = "oss" // Alibaba Cloud OSS
+	DriverCOS = "cos" // Tencent Cloud COS
+	DriverOBS = "obs" // Huawei Cloud OBS
+	DriverBOS = "bos" // Baidu Cloud BOS
 )
 
 // IsS3Compatible reports whether the driver speaks the S3-compatible protocol.

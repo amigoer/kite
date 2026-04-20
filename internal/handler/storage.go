@@ -38,12 +38,18 @@ func NewStorageHandler(
 
 type createStorageRequest struct {
 	Name               string          `json:"name" binding:"required"`
-	Driver             string          `json:"driver" binding:"required,oneof=local s3 oss cos ftp"`
+	SchemeKey          string          `json:"scheme_key"`
+	Driver             string          `json:"driver"` // legacy fallback for older clients
 	Config             json.RawMessage `json:"config" binding:"required"`
 	CapacityLimitBytes int64           `json:"capacity_limit_bytes"`
 	Priority           int             `json:"priority"`
 	IsDefault          bool            `json:"is_default"`
 	IsActive           *bool           `json:"is_active"` // pointer distinguishes unset from explicit false
+}
+
+// Catalog returns the user-facing storage scheme directory used by the admin UI.
+func (h *StorageHandler) Catalog(c *gin.Context) {
+	Success(c, storage.Catalog())
 }
 
 // Create adds a storage configuration.
@@ -54,9 +60,10 @@ func (h *StorageHandler) Create(c *gin.Context) {
 		return
 	}
 
-	scfg, err := storage.ParseConfig(req.Driver, req.Config)
+	schemeKey := resolveStorageSchemeKey(req.SchemeKey, req.Driver)
+	driver, provider, normalizedConfig, scfg, err := storage.ResolveSchemeConfig(schemeKey, req.Config)
 	if err != nil {
-		BadRequest(c, "invalid "+req.Driver+" config: "+err.Error())
+		BadRequest(c, "invalid "+schemeKey+" storage config: "+err.Error())
 		return
 	}
 
@@ -83,8 +90,9 @@ func (h *StorageHandler) Create(c *gin.Context) {
 	cfg := &model.StorageConfig{
 		ID:                 uuid.New().String(),
 		Name:               req.Name,
-		Driver:             req.Driver,
-		Config:             string(req.Config),
+		Driver:             driver,
+		Provider:           provider,
+		Config:             string(normalizedConfig),
 		CapacityLimitBytes: req.CapacityLimitBytes,
 		Priority:           priority,
 		IsDefault:          req.IsDefault,
@@ -108,9 +116,11 @@ func (h *StorageHandler) Create(c *gin.Context) {
 	h.reloadStorage()
 
 	Created(c, gin.H{
-		"id":     cfg.ID,
-		"name":   cfg.Name,
-		"driver": cfg.Driver,
+		"id":         cfg.ID,
+		"name":       cfg.Name,
+		"driver":     cfg.Driver,
+		"provider":   cfg.Provider,
+		"scheme_key": schemeKey,
 	})
 }
 
@@ -128,7 +138,8 @@ func (h *StorageHandler) List(c *gin.Context) {
 		ID                 string `json:"id"`
 		Name               string `json:"name"`
 		Driver             string `json:"driver"`
-		Provider           string `json:"provider"`
+		Provider           string `json:"provider,omitempty"`
+		SchemeKey          string `json:"scheme_key"`
 		CapacityLimitBytes int64  `json:"capacity_limit_bytes"`
 		UsedBytes          int64  `json:"used_bytes"`
 		Priority           int    `json:"priority"`
@@ -142,7 +153,8 @@ func (h *StorageHandler) List(c *gin.Context) {
 			ID:                 cfg.ID,
 			Name:               cfg.Name,
 			Driver:             cfg.Driver,
-			Provider:           storage.DetectProvider(cfg.Driver, cfg.Config),
+			Provider:           storage.DetectProvider(cfg.Driver, cfg.Provider, cfg.Config),
+			SchemeKey:          storage.SchemeKeyForStoredConfig(cfg.Driver, cfg.Provider, cfg.Config),
 			CapacityLimitBytes: cfg.CapacityLimitBytes,
 			UsedBytes:          used,
 			Priority:           cfg.Priority,
@@ -175,6 +187,8 @@ func (h *StorageHandler) GetOne(c *gin.Context) {
 		"id":                   cfg.ID,
 		"name":                 cfg.Name,
 		"driver":               cfg.Driver,
+		"provider":             cfg.Provider,
+		"scheme_key":           storage.SchemeKeyForStoredConfig(cfg.Driver, cfg.Provider, cfg.Config),
 		"config":               configJSON,
 		"capacity_limit_bytes": cfg.CapacityLimitBytes,
 		"used_bytes":           used,
@@ -205,9 +219,10 @@ func (h *StorageHandler) Update(c *gin.Context) {
 		return
 	}
 
-	scfg, err := storage.ParseConfig(req.Driver, req.Config)
+	schemeKey := resolveStorageSchemeKey(req.SchemeKey, req.Driver)
+	driver, provider, normalizedConfig, scfg, err := storage.ResolveSchemeConfig(schemeKey, req.Config)
 	if err != nil {
-		BadRequest(c, "invalid "+req.Driver+" config: "+err.Error())
+		BadRequest(c, "invalid "+schemeKey+" storage config: "+err.Error())
 		return
 	}
 	if _, err := storage.NewDriver(scfg); err != nil {
@@ -216,8 +231,9 @@ func (h *StorageHandler) Update(c *gin.Context) {
 	}
 
 	existing.Name = req.Name
-	existing.Driver = req.Driver
-	existing.Config = string(req.Config)
+	existing.Driver = driver
+	existing.Provider = provider
+	existing.Config = string(normalizedConfig)
 	existing.CapacityLimitBytes = req.CapacityLimitBytes
 	if req.Priority > 0 {
 		existing.Priority = req.Priority
@@ -241,7 +257,7 @@ func (h *StorageHandler) Update(c *gin.Context) {
 
 	h.reloadStorage()
 
-	Success(c, gin.H{"id": id, "name": req.Name, "driver": req.Driver})
+	Success(c, gin.H{"id": id, "name": req.Name, "driver": driver, "provider": provider, "scheme_key": schemeKey})
 }
 
 // Delete removes a storage configuration.
@@ -330,4 +346,11 @@ func (h *StorageHandler) Reorder(c *gin.Context) {
 	}
 	h.reloadStorage()
 	Success(c, nil)
+}
+
+func resolveStorageSchemeKey(schemeKey, legacyDriver string) string {
+	if schemeKey != "" {
+		return schemeKey
+	}
+	return legacyDriver
 }

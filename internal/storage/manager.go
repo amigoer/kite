@@ -14,6 +14,8 @@ type ConfigMeta struct {
 	ID                 string
 	Name               string
 	Driver             string
+	Provider           string
+	SchemeKey          string
 	DriverConfig       StorageConfig
 	Priority           int
 	CapacityLimitBytes int64
@@ -46,6 +48,7 @@ type RawConfig struct {
 	ID                 string
 	Name               string
 	Driver             string
+	Provider           string
 	ConfigJSON         string
 	Priority           int
 	CapacityLimitBytes int64
@@ -67,7 +70,9 @@ func (m *Manager) Reload(rawConfigs []RawConfig) error {
 			continue
 		}
 
-		scfg, err := ParseConfig(raw.Driver, json.RawMessage(raw.ConfigJSON))
+		canonicalDriver, provider := CanonicalDriverAndProvider(raw.Driver, &raw.Provider, raw.ConfigJSON)
+
+		scfg, err := ParseConfig(canonicalDriver, json.RawMessage(raw.ConfigJSON))
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s(%s): parse: %v", raw.Name, raw.ID, err))
 			continue
@@ -83,7 +88,9 @@ func (m *Manager) Reload(rawConfigs []RawConfig) error {
 		newMetas[raw.ID] = ConfigMeta{
 			ID:                 raw.ID,
 			Name:               raw.Name,
-			Driver:             raw.Driver,
+			Driver:             canonicalDriver,
+			Provider:           provider,
+			SchemeKey:          SchemeKeyForStoredConfig(canonicalDriver, &provider, raw.ConfigJSON),
 			DriverConfig:       scfg,
 			Priority:           raw.Priority,
 			CapacityLimitBytes: raw.CapacityLimitBytes,

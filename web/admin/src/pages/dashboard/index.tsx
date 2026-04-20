@@ -45,7 +45,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BrandIcon } from "@/components/storage-brand";
+import { StorageLogo, resolveLogoVendor } from "@/components/storage-logo";
 import {
   CardLinkFooter,
   Donut,
@@ -100,7 +100,7 @@ interface DashboardStorageBackend {
   id: string;
   name: string;
   driver: string;
-  provider: string;
+  provider?: string;
   capacity_limit_bytes: number;
   used_bytes: number;
   is_default: boolean;
@@ -1469,10 +1469,11 @@ function StorageBackendsCard({
                 key={b.id}
                 className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30"
               >
-                <BrandIcon
-                  provider={b.provider}
-                  driver={b.driver}
-                  className="size-8 shrink-0 rounded-md"
+                <StorageLogo
+                  vendor={resolveLogoVendor(b.provider, b.driver)}
+                  size={32}
+                  rounded="rounded-md"
+                  className="shrink-0"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">
@@ -1531,11 +1532,12 @@ function StorageBackendsCard({
             <div className="flex items-center gap-3">
               <div className="flex -space-x-1.5">
                 {overflow.map((b) => (
-                  <BrandIcon
+                  <StorageLogo
                     key={b.id}
-                    provider={b.provider}
-                    driver={b.driver}
-                    className="size-6 rounded-md ring-2 ring-card"
+                    vendor={resolveLogoVendor(b.provider, b.driver)}
+                    size={24}
+                    rounded="rounded-md"
+                    className="ring-2 ring-card"
                   />
                 ))}
               </div>

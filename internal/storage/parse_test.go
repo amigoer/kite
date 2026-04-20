@@ -128,25 +128,75 @@ func TestParseConfig_BOS(t *testing.T) {
 func TestDetectProvider(t *testing.T) {
 	cases := []struct {
 		driver string
+		prov   *string
 		cfg    string
 		want   string
 	}{
-		{DriverLocal, "", "local"},
-		{DriverFTP, "", "ftp"},
-		{DriverOSS, "", "aliyun-oss"},
-		{DriverCOS, "", "tencent-cos"},
-		{DriverOBS, "", "huawei-obs"},
-		{DriverBOS, "", "baidu-bos"},
-		{DriverS3, `{"endpoint":"s3.amazonaws.com"}`, "aws-s3"},
-		{DriverS3, `{"endpoint":"r2.cloudflarestorage.com"}`, "cloudflare-r2"},
-		{DriverS3, `{"endpoint":"obs.cn-north-4.myhuaweicloud.com"}`, "huawei-obs"},
-		{DriverS3, `{"endpoint":"bj.bcebos.com"}`, "baidu-bos"},
-		{DriverS3, `{"endpoint":"s3.custom.example.com"}`, "s3"},
+		{DriverLocal, nil, "", ""},
+		{DriverFTP, nil, "", ""},
+		{DriverOSS, nil, "", ProviderAliyunOSS},
+		{DriverCOS, nil, "", ProviderTencentCOS},
+		{DriverOBS, nil, "", ProviderHuaweiOBS},
+		{DriverBOS, nil, "", ProviderBaiduBOS},
+		{DriverS3, nil, `{"endpoint":"s3.amazonaws.com"}`, ProviderAWSS3},
+		{DriverS3, nil, `{"endpoint":"r2.cloudflarestorage.com"}`, ProviderCloudflareR2},
+		{DriverS3, nil, `{"endpoint":"obs.cn-north-4.myhuaweicloud.com"}`, ProviderHuaweiOBS},
+		{DriverS3, nil, `{"endpoint":"bj.bcebos.com"}`, ProviderBaiduBOS},
+		{DriverS3, nil, `{"endpoint":"s3.custom.example.com"}`, ProviderCustomS3},
 	}
 	for _, c := range cases {
-		if got := DetectProvider(c.driver, c.cfg); got != c.want {
+		if got := DetectProvider(c.driver, c.prov, c.cfg); got != c.want {
 			t.Errorf("DetectProvider(%q, %q) = %q, want %q", c.driver, c.cfg, got, c.want)
 		}
+	}
+}
+
+func TestCanonicalDriverAndProvider(t *testing.T) {
+	cases := []struct {
+		driver       string
+		provider     *string
+		cfg          string
+		wantDriver   string
+		wantProvider string
+	}{
+		{DriverOSS, nil, "", DriverS3, ProviderAliyunOSS},
+		{DriverCOS, nil, "", DriverS3, ProviderTencentCOS},
+		{DriverOBS, nil, "", DriverS3, ProviderHuaweiOBS},
+		{DriverBOS, nil, "", DriverS3, ProviderBaiduBOS},
+		{DriverS3, nil, `{"endpoint":"s3.amazonaws.com"}`, DriverS3, ProviderAWSS3},
+		{DriverS3, nil, `{"endpoint":"minio.example.com"}`, DriverS3, ProviderMinIO},
+		{DriverLocal, nil, "", DriverLocal, ""},
+		{DriverFTP, nil, "", DriverFTP, ""},
+	}
+	for _, c := range cases {
+		gotDriver, gotProvider := CanonicalDriverAndProvider(c.driver, c.provider, c.cfg)
+		if gotDriver != c.wantDriver || gotProvider != c.wantProvider {
+			t.Errorf("CanonicalDriverAndProvider(%q) = (%q, %q), want (%q, %q)", c.driver, gotDriver, gotProvider, c.wantDriver, c.wantProvider)
+		}
+	}
+}
+
+func TestSchemeCatalogAndResolution(t *testing.T) {
+	scheme, ok := SchemeByKey(DriverOSS)
+	if !ok {
+		t.Fatal("legacy alias oss should resolve to a scheme")
+	}
+	if scheme.Key != ProviderAliyunOSS || scheme.Driver != DriverS3 || scheme.Provider != ProviderAliyunOSS {
+		t.Fatalf("unexpected scheme: %+v", scheme)
+	}
+
+	driver, provider, raw, scfg, err := ResolveSchemeConfig(ProviderMinIO, json.RawMessage(`{"bucket":"demo","access_key_id":"ak","secret_access_key":"sk"}`))
+	if err != nil {
+		t.Fatalf("ResolveSchemeConfig: %v", err)
+	}
+	if driver != DriverS3 || provider == nil || *provider != ProviderMinIO {
+		t.Fatalf("resolved identity mismatch: driver=%s provider=%v", driver, provider)
+	}
+	if scfg.S3 == nil || !scfg.S3.ForcePathStyle {
+		t.Fatalf("expected MinIO defaults to force path-style access, got %+v", scfg.S3)
+	}
+	if len(raw) == 0 {
+		t.Fatal("normalized raw config should not be empty")
 	}
 }
 

@@ -28,6 +28,9 @@ func (r *StorageConfigRepo) Create(ctx context.Context, cfg *model.StorageConfig
 
 // GetByID fetches a storage configuration by ID.
 func (r *StorageConfigRepo) GetByID(ctx context.Context, id string) (*model.StorageConfig, error) {
+	if err := r.normalizeLegacyConfigs(ctx); err != nil {
+		return nil, err
+	}
 	var cfg model.StorageConfig
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&cfg).Error; err != nil {
 		return nil, fmt.Errorf("get storage config: %w", err)
@@ -37,6 +40,9 @@ func (r *StorageConfigRepo) GetByID(ctx context.Context, id string) (*model.Stor
 
 // GetDefault returns the default storage configuration.
 func (r *StorageConfigRepo) GetDefault(ctx context.Context) (*model.StorageConfig, error) {
+	if err := r.normalizeLegacyConfigs(ctx); err != nil {
+		return nil, err
+	}
 	var cfg model.StorageConfig
 	if err := r.db.WithContext(ctx).
 		Where("is_default = ? AND is_active = ?", true, true).
@@ -83,6 +89,9 @@ func (r *StorageConfigRepo) Delete(ctx context.Context, id string) error {
 
 // List returns all storage configurations, ordered by priority ascending with created_at as a tiebreaker.
 func (r *StorageConfigRepo) List(ctx context.Context) ([]model.StorageConfig, error) {
+	if err := r.normalizeLegacyConfigs(ctx); err != nil {
+		return nil, err
+	}
 	var configs []model.StorageConfig
 	if err := r.db.WithContext(ctx).
 		Order("priority ASC, created_at ASC").
@@ -94,6 +103,9 @@ func (r *StorageConfigRepo) List(ctx context.Context) ([]model.StorageConfig, er
 
 // ListActive returns all active storage configurations, ordered by priority ascending with created_at as a tiebreaker.
 func (r *StorageConfigRepo) ListActive(ctx context.Context) ([]model.StorageConfig, error) {
+	if err := r.normalizeLegacyConfigs(ctx); err != nil {
+		return nil, err
+	}
 	var configs []model.StorageConfig
 	if err := r.db.WithContext(ctx).
 		Where("is_active = ?", true).
@@ -134,6 +146,7 @@ func (r *StorageConfigRepo) BuildRawConfigs(ctx context.Context) ([]storage.RawC
 			ID:                 c.ID,
 			Name:               c.Name,
 			Driver:             c.Driver,
+			Provider:           providerValue(c.Provider),
 			ConfigJSON:         c.Config,
 			Priority:           c.Priority,
 			CapacityLimitBytes: c.CapacityLimitBytes,
@@ -142,4 +155,45 @@ func (r *StorageConfigRepo) BuildRawConfigs(ctx context.Context) ([]storage.RawC
 		})
 	}
 	return out, nil
+}
+
+// normalizeLegacyConfigs rewrites legacy S3 vendor driver values into the new
+// driver=s3 + provider=* shape. It is safe to call repeatedly.
+func (r *StorageConfigRepo) normalizeLegacyConfigs(ctx context.Context) error {
+	var configs []model.StorageConfig
+	if err := r.db.WithContext(ctx).Find(&configs).Error; err != nil {
+		return fmt.Errorf("list storage configs for normalization: %w", err)
+	}
+
+	for _, cfg := range configs {
+		driver, provider := storage.CanonicalDriverAndProvider(cfg.Driver, cfg.Provider, cfg.Config)
+		if cfg.Driver == driver && providerValue(cfg.Provider) == provider {
+			continue
+		}
+
+		updates := map[string]any{
+			"driver": driver,
+		}
+		if provider == "" {
+			updates["provider"] = nil
+		} else {
+			updates["provider"] = provider
+		}
+
+		if err := r.db.WithContext(ctx).
+			Model(&model.StorageConfig{}).
+			Where("id = ?", cfg.ID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("normalize storage config %q: %w", cfg.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func providerValue(provider *string) string {
+	if provider == nil {
+		return ""
+	}
+	return *provider
 }

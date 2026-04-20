@@ -10,6 +10,7 @@ import (
 // and middleware.AdminOnly.
 func registerStorageAdmin(admin *gin.RouterGroup, h *handler.StorageHandler) {
 	admin.GET("/storage", h.List)
+	admin.GET("/storage/catalog", h.Catalog)
 	admin.GET("/storage/:id", h.GetOne)
 	admin.POST("/storage", h.Create)
 	admin.PUT("/storage/:id", h.Update)

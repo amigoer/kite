@@ -16,6 +16,8 @@ import {
   Loader2,
   Settings as SettingsIcon,
   RefreshCw,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import {
   DndContext,
@@ -75,8 +77,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader, Section } from "@/components/page-header";
 import { EmptyKite } from "@/components/empty-state";
-import { BrandIcon, getBrandInfo } from "@/components/storage-brand";
-import { StorageLogo, resolveLogoVendor } from "@/components/storage-logo";
+import { StorageLogo, getStorageBrandMeta, resolveLogoVendor } from "@/components/storage-logo";
 import { toast } from "sonner";
 
 interface StorageSegment {
@@ -87,14 +88,15 @@ interface StorageSegment {
   color: string;
 }
 
-type Driver = "local" | "s3" | "oss" | "cos" | "obs" | "bos" | "ftp";
+type Driver = "local" | "s3" | "ftp";
 type Unit = "MB" | "GB" | "TB";
 
 interface StorageListItem {
   id: string;
   name: string;
   driver: Driver;
-  provider: string;
+  provider?: string;
+  scheme_key: string;
   capacity_limit_bytes: number;
   used_bytes: number;
   files_count?: number;
@@ -107,8 +109,18 @@ interface StorageDetail extends StorageListItem {
   config: Record<string, unknown> | null;
 }
 
+interface StorageScheme {
+  key: string;
+  name: string;
+  description: string;
+  driver: Driver;
+  provider?: string;
+  defaults: Record<string, unknown>;
+}
+
 interface StorageForm {
   name: string;
+  schemeKey: string;
   driver: Driver;
   capacityValue: string;
   capacityUnit: Unit;
@@ -157,41 +169,115 @@ function unitToBytes(value: string, unit: Unit): number {
   return Math.floor(n * UNIT_BYTES[unit]);
 }
 
-function defaultConfigForDriver(driver: Driver): StorageForm["config"] {
-  switch (driver) {
-    case "local":
-      return { base_path: "./uploads", base_url: "" };
-    case "ftp":
-      return { host: "", port: 21, username: "", password: "", base_path: "/" };
-    default:
-      return {};
-  }
+function normalizeDefaults(
+  defaults: Record<string, unknown> | undefined,
+): StorageForm["config"] {
+  if (!defaults) return {};
+  return {
+    base_path: defaults.base_path as string | undefined,
+    base_url: defaults.base_url as string | undefined,
+    endpoint: defaults.endpoint as string | undefined,
+    region: defaults.region as string | undefined,
+    bucket: defaults.bucket as string | undefined,
+    access_key_id: defaults.access_key_id as string | undefined,
+    secret_access_key: defaults.secret_access_key as string | undefined,
+    force_path_style: defaults.force_path_style as boolean | undefined,
+    host: defaults.host as string | undefined,
+    port: defaults.port as number | undefined,
+    username: defaults.username as string | undefined,
+    password: defaults.password as string | undefined,
+  };
 }
 
 const emptyForm: StorageForm = {
   name: "",
+  schemeKey: "local",
   driver: "local",
   capacityValue: "",
   capacityUnit: "GB",
-  config: defaultConfigForDriver("local"),
+  config: normalizeDefaults({ base_path: "./uploads", base_url: "" }),
 };
 
-interface DriverOption {
-  value: Driver;
-  labelKey: string;
-  descKey: string;
-  provider: string;
+function schemeLabel(t: (key: string) => string, scheme: StorageScheme): string {
+  switch (scheme.key) {
+    case "local":
+      return t("storage.schemeLocal");
+    case "ftp":
+      return t("storage.schemeFtp");
+    case "aws-s3":
+      return t("storage.schemeAws");
+    case "aliyun-oss":
+      return t("storage.schemeAliyun");
+    case "tencent-cos":
+      return t("storage.schemeTencent");
+    case "huawei-obs":
+      return t("storage.schemeHuawei");
+    case "baidu-bos":
+      return t("storage.schemeBaidu");
+    case "cloudflare-r2":
+      return t("storage.schemeCloudflare");
+    case "minio":
+      return t("storage.schemeMinio");
+    case "google-gcs":
+      return t("storage.schemeGcs");
+    case "backblaze-b2":
+      return t("storage.schemeBackblaze");
+    case "wasabi":
+      return t("storage.schemeWasabi");
+    case "do-spaces":
+      return t("storage.schemeDoSpaces");
+    case "custom-s3":
+      return t("storage.schemeCustomS3");
+    default:
+      return scheme.name;
+  }
 }
 
-const DRIVER_OPTIONS: DriverOption[] = [
-  { value: "local", labelKey: "storage.driverLocal", descKey: "storage.driverLocalDesc", provider: "local" },
-  { value: "s3", labelKey: "storage.driverS3", descKey: "storage.driverS3Desc", provider: "s3" },
-  { value: "oss", labelKey: "storage.driverOss", descKey: "storage.driverOssDesc", provider: "aliyun-oss" },
-  { value: "cos", labelKey: "storage.driverCos", descKey: "storage.driverCosDesc", provider: "tencent-cos" },
-  { value: "obs", labelKey: "storage.driverObs", descKey: "storage.driverObsDesc", provider: "huawei-obs" },
-  { value: "bos", labelKey: "storage.driverBos", descKey: "storage.driverBosDesc", provider: "baidu-bos" },
-  { value: "ftp", labelKey: "storage.driverFtp", descKey: "storage.driverFtpDesc", provider: "ftp" },
-];
+function schemeDescription(t: (key: string) => string, scheme: StorageScheme): string {
+  switch (scheme.key) {
+    case "local":
+      return t("storage.schemeLocalDesc");
+    case "ftp":
+      return t("storage.schemeFtpDesc");
+    case "aws-s3":
+      return t("storage.schemeAwsDesc");
+    case "aliyun-oss":
+      return t("storage.schemeAliyunDesc");
+    case "tencent-cos":
+      return t("storage.schemeTencentDesc");
+    case "huawei-obs":
+      return t("storage.schemeHuaweiDesc");
+    case "baidu-bos":
+      return t("storage.schemeBaiduDesc");
+    case "cloudflare-r2":
+      return t("storage.schemeCloudflareDesc");
+    case "minio":
+      return t("storage.schemeMinioDesc");
+    case "google-gcs":
+      return t("storage.schemeGcsDesc");
+    case "backblaze-b2":
+      return t("storage.schemeBackblazeDesc");
+    case "wasabi":
+      return t("storage.schemeWasabiDesc");
+    case "do-spaces":
+      return t("storage.schemeDoSpacesDesc");
+    case "custom-s3":
+      return t("storage.schemeCustomS3Desc");
+    default:
+      return scheme.description;
+  }
+}
+
+function schemeFamilyLabel(driver: Driver): string {
+  switch (driver) {
+    case "local":
+      return "Local";
+    case "ftp":
+      return "FTP";
+    default:
+      return "S3";
+  }
+}
 
 const UPLOAD_POLICY_OPTIONS = [
   { value: "single", icon: HardDrive },
@@ -226,9 +312,147 @@ function mapStorageError(err: unknown, fallback: string): string {
   if (msg.includes("local config is nil")) return "本地存储配置不完整";
   if (msg.includes("ftp config is nil")) return "FTP 配置不完整";
   if (msg.includes("unknown driver")) return "不支持的存储驱动";
+  if (msg.includes("unknown storage scheme")) return "不支持的存储方案";
   if (msg.startsWith("invalid storage config")) return "表单填写不完整，请检查";
 
   return fallback;
+}
+
+interface StorageSchemeSelectProps {
+  schemes: StorageScheme[];
+  selectedScheme?: StorageScheme;
+  value: string;
+  t: (key: string) => string;
+  onChange: (schemeKey: string) => void;
+}
+
+function StorageSchemeSelect({
+  schemes,
+  selectedScheme,
+  value,
+  t,
+  onChange,
+}: StorageSchemeSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredSchemes = useMemo(() => {
+    if (!normalizedQuery) return schemes;
+
+    return schemes.filter((scheme) =>
+      [
+        scheme.key,
+        scheme.driver,
+        scheme.provider ?? "",
+        schemeLabel(t, scheme),
+        schemeDescription(t, scheme),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [normalizedQuery, schemes, t]);
+
+  if (!selectedScheme) return null;
+
+  const selectedVendor = resolveLogoVendor(selectedScheme.provider, selectedScheme.driver);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        className="h-auto w-full min-w-0 items-start justify-between gap-3 px-3 py-3 text-left whitespace-normal"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <StorageLogo vendor={selectedVendor} size={40} rounded="rounded-lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">{schemeLabel(t, selectedScheme)}</span>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {schemeFamilyLabel(selectedScheme.driver)}
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {schemeDescription(t, selectedScheme)}
+            </p>
+          </div>
+        </div>
+        <ChevronDown className="mt-1 size-4 shrink-0 text-muted-foreground" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="grid-cols-1 gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <DialogHeader className="border-b px-4 py-4 sm:px-6">
+            <DialogTitle>{t("storage.scheme")}</DialogTitle>
+          </DialogHeader>
+          <div className="border-b px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-2 rounded-md border bg-background px-3">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("storage.schemeSearchPlaceholder")}
+                className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              />
+            </div>
+          </div>
+          <div className="max-h-[min(70dvh,32rem)] overflow-y-auto overscroll-contain px-3 py-3 touch-pan-y [-webkit-overflow-scrolling:touch] sm:px-4">
+            {filteredSchemes.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                {t("storage.schemeSearchEmpty")}
+              </div>
+            ) : (
+              filteredSchemes.map((scheme) => {
+                const vendor = resolveLogoVendor(scheme.provider, scheme.driver);
+                const selected = value === scheme.key;
+                return (
+                  <button
+                    key={scheme.key}
+                    type="button"
+                    onClick={() => {
+                      onChange(scheme.key);
+                      setOpen(false);
+                    }}
+                    className="block w-full text-left"
+                  >
+                    <div
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-xl border px-3 py-3 transition-colors",
+                        selected
+                          ? "border-foreground/50 bg-muted/40"
+                          : "border-transparent hover:border-border hover:bg-muted/20",
+                      )}
+                    >
+                      <StorageLogo vendor={vendor} size={40} rounded="rounded-lg" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">{schemeLabel(t, scheme)}</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {schemeFamilyLabel(scheme.driver)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {schemeDescription(t, scheme)}
+                        </p>
+                      </div>
+                      {selected && <Check className="mt-1 size-4 shrink-0 text-foreground" />}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export default function StoragePage() {
@@ -245,11 +469,24 @@ export default function StoragePage() {
     queryFn: () => settingsApi.get().then((r) => r.data.data),
   });
 
+  const { data: schemes = [] } = useQuery<StorageScheme[]>({
+    queryKey: ["storage", "catalog"],
+    queryFn: () => storageApi.catalog().then((r) => r.data.data),
+  });
+
   useEffect(() => {
     if (settings?.["storage.upload_policy"]) {
       setUploadPolicy(settings["storage.upload_policy"]);
     }
   }, [settings]);
+
+  const schemesByKey = useMemo(() => {
+    const map = new Map<string, StorageScheme>();
+    schemes.forEach((scheme) => map.set(scheme.key, scheme));
+    return map;
+  }, [schemes]);
+
+  const activeScheme = schemesByKey.get(form.schemeKey);
 
   const saveUploadPolicyMutation = useMutation({
     mutationFn: (policy: string) =>
@@ -296,7 +533,7 @@ export default function StoragePage() {
     mutationFn: () => {
       const payload = {
         name: form.name,
-        driver: form.driver,
+        scheme_key: form.schemeKey,
         config: normalizeConfig(form),
         capacity_limit_bytes: unitToBytes(form.capacityValue, form.capacityUnit),
       };
@@ -346,7 +583,7 @@ export default function StoragePage() {
       const cfg = detail.data.data as StorageDetail;
       return storageApi.update(id, {
         name: cfg.name,
-        driver: cfg.driver,
+        scheme_key: cfg.scheme_key,
         config: (cfg.config as Record<string, unknown>) ?? {},
         capacity_limit_bytes: cfg.capacity_limit_bytes,
         priority: cfg.priority,
@@ -375,8 +612,20 @@ export default function StoragePage() {
   };
 
   const openCreate = () => {
+    const firstScheme = schemes[0];
     setEditingId(null);
-    setForm({ ...emptyForm });
+    setForm(
+      firstScheme
+        ? {
+            name: "",
+            schemeKey: firstScheme.key,
+            driver: firstScheme.driver,
+            capacityValue: "",
+            capacityUnit: "GB",
+            config: normalizeDefaults(firstScheme.defaults),
+          }
+        : { ...emptyForm },
+    );
     setDialogOpen(true);
   };
 
@@ -385,13 +634,17 @@ export default function StoragePage() {
       const res = await storageApi.get(id);
       const cfg: StorageDetail = res.data.data;
       const { value, unit } = bytesToUnit(cfg.capacity_limit_bytes);
+      const scheme = schemesByKey.get(cfg.scheme_key);
       setEditingId(cfg.id);
       setForm({
         name: cfg.name,
+        schemeKey: cfg.scheme_key,
         driver: cfg.driver,
         capacityValue: value,
         capacityUnit: unit,
-        config: (cfg.config as StorageForm["config"]) ?? defaultConfigForDriver(cfg.driver),
+        config:
+          (cfg.config as StorageForm["config"]) ??
+          normalizeDefaults(scheme?.defaults),
       });
       setDialogOpen(true);
     } catch (err) {
@@ -405,11 +658,19 @@ export default function StoragePage() {
     setForm({ ...emptyForm });
   };
 
-  const updateConfig = (key: string, value: string | number) =>
+  const updateConfig = (key: string, value: string | number | boolean) =>
     setForm((prev) => ({ ...prev, config: { ...prev.config, [key]: value } }));
 
-  const changeDriver = (driver: Driver) =>
-    setForm((prev) => ({ ...prev, driver, config: defaultConfigForDriver(driver) }));
+  const changeScheme = (schemeKey: string) => {
+    const scheme = schemesByKey.get(schemeKey);
+    if (!scheme) return;
+    setForm((prev) => ({
+      ...prev,
+      schemeKey: scheme.key,
+      driver: scheme.driver,
+      config: normalizeDefaults(scheme.defaults),
+    }));
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -650,104 +911,88 @@ export default function StoragePage() {
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="grid-cols-1 sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingId ? t("storage.editStorage") : t("storage.addStorage")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
-            <div className="grid gap-2">
-              <Label>{t("common.name")}</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder={t("storage.namePlaceholder")}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>{t("storage.driver")}</Label>
-              <Select value={form.driver} onValueChange={(v) => changeDriver(v as Driver)}>
-                <SelectTrigger className="h-auto py-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DRIVER_OPTIONS.map((opt) => {
-                    const optBrand = getBrandInfo(opt.provider, opt.value);
-                    const optTint = optBrand.isBrand ? `${optBrand.color}1A` : undefined;
-                    return (
-                      <SelectItem key={opt.value} value={opt.value} className="py-2">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted"
-                            style={optTint ? { backgroundColor: optTint } : undefined}
-                          >
-                            <BrandIcon
-                              provider={opt.provider}
-                              driver={opt.value}
-                              className={optBrand.isBrand ? "size-4" : "size-4 text-muted-foreground"}
-                            />
-                          </span>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium">{t(opt.labelKey)}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {t(opt.descKey)}
-                            </span>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DriverFields form={form} updateConfig={updateConfig} />
-
-            <div className="grid gap-2">
-              <Label>{t("storage.capacityLimit")}</Label>
-              <div className="flex gap-2">
+          <div className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>
+                {editingId ? t("storage.editStorage") : t("storage.addStorage")}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid min-w-0 gap-4 overflow-y-auto pr-1 sm:max-h-[60vh]">
+              <div className="grid gap-2">
+                <Label>{t("common.name")}</Label>
                 <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.capacityValue}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, capacityValue: e.target.value }))
-                  }
-                  placeholder="0"
-                  className="flex-1"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder={t("storage.namePlaceholder")}
                 />
-                <Select
-                  value={form.capacityUnit}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, capacityUnit: v as Unit }))
-                  }
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MB">{t("storage.unitMB")}</SelectItem>
-                    <SelectItem value="GB">{t("storage.unitGB")}</SelectItem>
-                    <SelectItem value="TB">{t("storage.unitTB")}</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
-              <p className="text-xs text-muted-foreground">{t("storage.capacityLimitHint")}</p>
+
+              <div className="grid gap-2">
+                <Label>{t("storage.scheme")}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("storage.schemeHint")}
+                </p>
+                <StorageSchemeSelect
+                  schemes={schemes}
+                  selectedScheme={activeScheme}
+                  value={form.schemeKey}
+                  t={t}
+                  onChange={changeScheme}
+                />
+              </div>
+
+              <DriverFields
+                form={form}
+                scheme={activeScheme}
+                updateConfig={updateConfig}
+              />
+
+              <div className="grid gap-2">
+                <Label>{t("storage.capacityLimit")}</Label>
+                <div className="flex min-w-0 gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.capacityValue}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, capacityValue: e.target.value }))
+                    }
+                    placeholder="0"
+                    className="flex-1"
+                  />
+                  <Select
+                    value={form.capacityUnit}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, capacityUnit: v as Unit }))
+                    }
+                  >
+                    <SelectTrigger className="w-20 shrink-0 sm:w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MB">{t("storage.unitMB")}</SelectItem>
+                      <SelectItem value="GB">{t("storage.unitGB")}</SelectItem>
+                      <SelectItem value="TB">{t("storage.unitTB")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">{t("storage.capacityLimitHint")}</p>
+              </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeDialog} className="w-full sm:w-auto">
+                {t("common.cancel")}
+              </Button>
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={!form.name || saveMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {saveMutation.isPending ? t("common.loading") : t("common.save")}
+              </Button>
+            </DialogFooter>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!form.name || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? t("common.loading") : t("common.save")}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -774,8 +1019,8 @@ function SortableStorageCard(props: StorageCardProps) {
     id: props.cfg.id,
   });
   const { t } = useI18n();
-  const brand = getBrandInfo(props.cfg.provider, props.cfg.driver);
-  const vendor = resolveLogoVendor(props.cfg.provider, props.cfg.driver);
+  const brand = getStorageBrandMeta(props.cfg.provider, props.cfg.driver);
+  const vendor = brand.vendor;
   const hasLimit = props.cfg.capacity_limit_bytes > 0;
   const percent = hasLimit
     ? Math.min(100, (props.cfg.used_bytes / props.cfg.capacity_limit_bytes) * 100)
@@ -981,11 +1226,13 @@ function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
  * ═══════════════════════════════════════════════════════════ */
 interface DriverFieldsProps {
   form: StorageForm;
-  updateConfig: (key: string, value: string | number) => void;
+  scheme?: StorageScheme;
+  updateConfig: (key: string, value: string | number | boolean) => void;
 }
 
-function DriverFields({ form, updateConfig }: DriverFieldsProps) {
+function DriverFields({ form, scheme, updateConfig }: DriverFieldsProps) {
   const { t } = useI18n();
+  const defaults = normalizeDefaults(scheme?.defaults);
 
   if (form.driver === "local") {
     return (
@@ -995,7 +1242,7 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
           <Input
             value={form.config.base_path ?? ""}
             onChange={(e) => updateConfig("base_path", e.target.value)}
-            placeholder="./uploads"
+            placeholder={defaults.base_path ?? "./uploads"}
           />
         </div>
         <div className="grid gap-2">
@@ -1013,13 +1260,13 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
   if (form.driver === "ftp") {
     return (
       <>
-        <div className="grid grid-cols-[1fr_100px] gap-3">
+        <div className="grid gap-3 sm:grid-cols-[1fr_100px]">
           <div className="grid gap-2">
             <Label>{t("storage.ftpHost")}</Label>
             <Input
               value={form.config.host ?? ""}
               onChange={(e) => updateConfig("host", e.target.value)}
-              placeholder="ftp.example.com"
+              placeholder={defaults.host ?? "ftp.example.com"}
             />
           </div>
           <div className="grid gap-2">
@@ -1027,11 +1274,11 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
             <Input
               type="number"
               value={form.config.port ?? 21}
-              onChange={(e) => updateConfig("port", Number(e.target.value) || 21)}
+              onChange={(e) => updateConfig("port", Number(e.target.value) || Number(defaults.port ?? 21))}
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label>{t("storage.ftpUsername")}</Label>
             <Input
@@ -1053,7 +1300,7 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
           <Input
             value={form.config.base_path ?? ""}
             onChange={(e) => updateConfig("base_path", e.target.value)}
-            placeholder="/"
+            placeholder={defaults.base_path ?? "/"}
           />
         </div>
         <div className="grid gap-2">
@@ -1068,25 +1315,15 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
     );
   }
 
-  const endpointHints: Record<Driver, string> = {
-    local: "",
-    s3: "s3.amazonaws.com",
-    oss: "oss-cn-hangzhou.aliyuncs.com",
-    cos: "cos.ap-guangzhou.myqcloud.com",
-    obs: "obs.cn-north-4.myhuaweicloud.com",
-    bos: "s3.bj.bcebos.com",
-    ftp: "",
-  };
-
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label>Endpoint</Label>
           <Input
             value={form.config.endpoint ?? ""}
             onChange={(e) => updateConfig("endpoint", e.target.value)}
-            placeholder={endpointHints[form.driver]}
+            placeholder={defaults.endpoint ?? "s3.amazonaws.com"}
           />
         </div>
         <div className="grid gap-2">
@@ -1094,7 +1331,7 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
           <Input
             value={form.config.region ?? ""}
             onChange={(e) => updateConfig("region", e.target.value)}
-            placeholder={form.driver === "s3" ? "us-east-1" : "cn-hangzhou"}
+            placeholder={defaults.region ?? "auto"}
           />
         </div>
       </div>
@@ -1128,6 +1365,26 @@ function DriverFields({ form, updateConfig }: DriverFieldsProps) {
           onChange={(e) => updateConfig("base_url", e.target.value)}
           placeholder="https://cdn.example.com"
         />
+      </div>
+      <div className="rounded-lg border bg-muted/20 p-3">
+        <div className="mb-3">
+          <div className="text-sm font-medium">{t("storage.advancedOptions")}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("storage.advancedOptionsHint")}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-sm">{t("storage.forcePathStyle")}</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("storage.forcePathStyleHint")}
+            </p>
+          </div>
+          <Switch
+            checked={Boolean(form.config.force_path_style)}
+            onCheckedChange={(checked) => updateConfig("force_path_style", checked)}
+          />
+        </div>
       </div>
     </>
   );

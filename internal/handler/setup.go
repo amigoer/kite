@@ -53,7 +53,8 @@ type setupRequest struct {
 	AdminPassword string `json:"admin_password" binding:"required,min=6,max=64"`
 
 	// Storage configuration.
-	StorageDriver string          `json:"storage_driver" binding:"required,oneof=local s3"`
+	StorageScheme string          `json:"storage_scheme"`
+	StorageDriver string          `json:"storage_driver"` // legacy fallback
 	StorageConfig json.RawMessage `json:"storage_config" binding:"required"`
 }
 
@@ -93,9 +94,13 @@ func (h *SetupHandler) Setup(c *gin.Context) {
 	}
 
 	// 3. Create the default storage configuration.
-	scfg, err := storage.ParseConfig(req.StorageDriver, req.StorageConfig)
+	schemeKey := req.StorageScheme
+	if schemeKey == "" {
+		schemeKey = req.StorageDriver
+	}
+	driver, provider, normalizedConfig, scfg, err := storage.ResolveSchemeConfig(schemeKey, req.StorageConfig)
 	if err != nil {
-		BadRequest(c, "invalid "+req.StorageDriver+" storage config: "+err.Error())
+		BadRequest(c, "invalid "+schemeKey+" storage config: "+err.Error())
 		return
 	}
 
@@ -108,8 +113,9 @@ func (h *SetupHandler) Setup(c *gin.Context) {
 	storageCfg := &model.StorageConfig{
 		ID:        uuid.New().String(),
 		Name:      "Default Storage",
-		Driver:    req.StorageDriver,
-		Config:    string(req.StorageConfig),
+		Driver:    driver,
+		Provider:  provider,
+		Config:    string(normalizedConfig),
 		Priority:  100,
 		IsDefault: true,
 		IsActive:  true,

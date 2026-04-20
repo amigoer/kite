@@ -34,7 +34,7 @@ interface StorageListItem {
   id: string;
   name: string;
   driver: string;
-  provider: string;
+  provider?: string;
   capacity_limit_bytes: number;
   used_bytes: number;
   files_count?: number;

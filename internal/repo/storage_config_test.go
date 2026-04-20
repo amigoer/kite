@@ -13,6 +13,7 @@ func makeStorageConfig(id, name string, priority int, isDefault, isActive bool) 
 		ID:        id,
 		Name:      name,
 		Driver:    "local",
+		Provider:  nil,
 		Config:    `{"base_path":"/tmp","base_url":"http://localhost"}`,
 		Priority:  priority,
 		IsDefault: isDefault,
@@ -190,8 +191,39 @@ func TestStorageConfigRepo_BuildRawConfigs(t *testing.T) {
 	if raws[0].ID != "br1" || raws[0].Name != "Bucket1" || !raws[0].IsDefault || !raws[0].IsActive {
 		t.Fatalf("BuildRawConfigs entry[0]: %+v", raws[0])
 	}
+	if raws[0].Provider != "" {
+		t.Fatalf("BuildRawConfigs entry[0] provider should be empty, got %q", raws[0].Provider)
+	}
 	if raws[1].IsActive {
 		t.Fatal("BuildRawConfigs entry[1] should have IsActive=false")
+	}
+}
+
+func TestStorageConfigRepo_NormalizeLegacyS3Drivers(t *testing.T) {
+	db := newTestDB(t)
+	r := NewStorageConfigRepo(db)
+	ctx := context.Background()
+
+	legacy := &model.StorageConfig{
+		ID:        "legacy-oss",
+		Name:      "Legacy OSS",
+		Driver:    "oss",
+		Config:    `{"endpoint":"oss-cn-hangzhou.aliyuncs.com","region":"cn-hangzhou","bucket":"demo","access_key_id":"ak","secret_access_key":"sk","base_url":""}`,
+		Priority:  100,
+		IsDefault: true,
+		IsActive:  true,
+	}
+	createStorageConfig(t, db, r, legacy)
+
+	got, err := r.GetByID(ctx, legacy.ID)
+	if err != nil {
+		t.Fatalf("GetByID after normalization: %v", err)
+	}
+	if got.Driver != "s3" {
+		t.Fatalf("expected normalized driver s3, got %q", got.Driver)
+	}
+	if got.Provider == nil || *got.Provider != "aliyun-oss" {
+		t.Fatalf("expected provider aliyun-oss, got %+v", got.Provider)
 	}
 }
 

@@ -100,7 +100,7 @@ export const tokenApi = {
 // Storage (admin)
 interface StoragePayload {
   name: string;
-  driver: string;
+  scheme_key: string;
   config: unknown;
   capacity_limit_bytes?: number;
   priority?: number;
@@ -110,6 +110,7 @@ interface StoragePayload {
 
 export const storageApi = {
   list: () => api.get("/storage"),
+  catalog: () => api.get("/storage/catalog"),
   get: (id: string) => api.get(`/storage/${id}`),
   create: (data: StoragePayload) => api.post("/storage", data),
   update: (id: string, data: StoragePayload) => api.put(`/storage/${id}`, data),
