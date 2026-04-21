@@ -60,6 +60,21 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		}
 		req.Settings[service.UploadMaxFileSizeMBSettingKey] = normalized
 	}
+	for _, key := range []string{
+		service.AuthRateLimitPerMinuteSettingKey,
+		service.GuestUploadRateLimitPerMinuteSettingKey,
+	} {
+		raw, ok := req.Settings[key]
+		if !ok {
+			continue
+		}
+		normalized, err := service.NormalizeRequestsPerMinute(raw)
+		if err != nil {
+			BadRequest(c, "invalid "+key+": "+err.Error())
+			return
+		}
+		req.Settings[key] = normalized
+	}
 
 	for _, key := range []string{
 		service.SiteNameSettingKey,

@@ -557,6 +557,10 @@ const zh: Translations = {
     uploadDesc: '上传规则',
     uploadHint:
       '为新上传文件配置单文件大小上限与底层存储路径模板，保存后立即对后续上传生效。',
+    rateLimitTab: '限流',
+    rateLimitDesc: '请求频率限制',
+    rateLimitHint:
+      '分别控制认证接口与游客上传接口的每 IP 每分钟请求上限，保存后立即生效。',
     auth: '认证',
     authDesc: '认证与安全',
     storageTab: '默认存储',
@@ -628,6 +632,19 @@ const zh: Translations = {
     uploadVarMd58: '文件 MD5 前 8 位',
     uploadVarUuid: '文件记录 UUID',
     uploadVarExt: '小写扩展名，缺失时回退为 bin',
+    rateLimitPerMinuteSuffix: '次/分钟',
+    rateLimitAuthTitle: '认证接口限流',
+    rateLimitAuthHint:
+      '作用于登录、注册、刷新令牌与 OAuth 票据交换等未登录认证接口，按单个 IP 统计。',
+    rateLimitAuthPlaceholder: '20',
+    rateLimitAuthPreview: '当前每个 IP 每分钟最多 {count} 次请求',
+    rateLimitGuestTitle: '游客上传限流',
+    rateLimitGuestHint:
+      '作用于公开上传接口 /api/v1/public/upload。多文件上传建议设置高一些，避免批量上传时过早触发 429。',
+    rateLimitGuestPlaceholder: '60',
+    rateLimitGuestPreview: '当前每个 IP 每分钟最多 {count} 次上传请求',
+    rateLimitRecommend:
+      '建议：游客上传限流不要低于 30；认证接口可按实例暴露程度保守设置。',
     // Preferences — auth
     twoFactor: '两步验证',
     twoFactorHint: '强制所有管理员启用',
@@ -848,6 +865,7 @@ const zh: Translations = {
     testFailed: '连接失败',
     error: '操作失败，请重试',
     copyUrl: '链接已复制到剪贴板',
+    tooManyRequests: '请求过于频繁，请稍后再试',
   },
 
   footer: {

@@ -566,6 +566,10 @@ const en = {
     uploadDesc: 'Upload rules',
     uploadHint:
       'Configure the per-file upload limit and storage path template used for future uploads. Changes apply immediately after saving.',
+    rateLimitTab: 'Rate limit',
+    rateLimitDesc: 'Request throttling',
+    rateLimitHint:
+      'Control the per-IP per-minute caps for auth endpoints and guest uploads. Changes apply immediately after saving.',
     auth: 'Auth',
     authDesc: 'Authentication & security',
     storageTab: 'Default storage',
@@ -647,6 +651,20 @@ const en = {
     uploadVarMd58: 'First 8 characters of the MD5 hash',
     uploadVarUuid: 'File record UUID',
     uploadVarExt: 'Lowercase extension, falling back to bin when missing',
+    rateLimitPerMinuteSuffix: 'req/min',
+    rateLimitAuthTitle: 'Auth endpoint limit',
+    rateLimitAuthHint:
+      'Applies to unauthenticated auth endpoints such as login, registration, token refresh, and OAuth ticket exchange. Counted per IP.',
+    rateLimitAuthPlaceholder: '20',
+    rateLimitAuthPreview: 'Current cap: {count} requests per IP per minute',
+    rateLimitGuestTitle: 'Guest upload limit',
+    rateLimitGuestHint:
+      'Applies to the public upload endpoint /api/v1/public/upload. Keep this higher for multi-file upload bursts to avoid early 429 responses.',
+    rateLimitGuestPlaceholder: '60',
+    rateLimitGuestPreview:
+      'Current cap: {count} upload requests per IP per minute',
+    rateLimitRecommend:
+      'Recommendation: keep guest upload at 30 or above; keep auth endpoints more conservative based on your exposure.',
     // Preferences — auth
     twoFactor: 'Two-factor auth',
     twoFactorHint: 'Enforce for all administrators',
@@ -879,6 +897,7 @@ const en = {
     testFailed: 'Connection failed',
     error: 'Something went wrong',
     copyUrl: 'URL copied to clipboard',
+    tooManyRequests: 'Too many requests, please try again later',
   },
 
   footer: {

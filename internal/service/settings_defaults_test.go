@@ -70,3 +70,19 @@ func TestResolveSettingsIncludesUploadMaxFileSize(t *testing.T) {
 		t.Fatalf("unexpected upload.max_file_size_mb: %q", got[UploadMaxFileSizeMBSettingKey])
 	}
 }
+
+func TestResolveSettingsIncludesRateLimitSettings(t *testing.T) {
+	defaults := DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024)
+
+	got := ResolveSettings(defaults, map[string]string{
+		AuthRateLimitPerMinuteSettingKey:        "30",
+		GuestUploadRateLimitPerMinuteSettingKey: "120",
+	})
+
+	if got[AuthRateLimitPerMinuteSettingKey] != "30" {
+		t.Fatalf("unexpected auth rate limit: %q", got[AuthRateLimitPerMinuteSettingKey])
+	}
+	if got[GuestUploadRateLimitPerMinuteSettingKey] != "120" {
+		t.Fatalf("unexpected guest upload rate limit: %q", got[GuestUploadRateLimitPerMinuteSettingKey])
+	}
+}

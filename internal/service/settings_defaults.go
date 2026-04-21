@@ -39,17 +39,19 @@ func DefaultSettings(siteName, siteURL string, allowRegistration bool, uploadPat
 	}
 
 	return map[string]string{
-		SiteNameSettingKey:               name,
-		SiteURLSettingKey:                strings.TrimSpace(siteURL),
-		AllowRegistrationSettingKey:      boolString(allowRegistration),
-		AllowGuestUploadSettingKey:       "false",
-		AllowPublicGallerySettingKey:     "false",
-		UploadPathPatternSettingKey:      strings.TrimSpace(uploadPathPattern),
-		UploadMaxFileSizeMBSettingKey:    DefaultUploadMaxFileSizeMB(uploadMaxFileSize),
-		SiteKeywordsSettingKey:           defaultSiteKeywords,
-		SiteFaviconURLSettingKey:         defaultSiteFaviconURL,
-		SiteHeaderNavGitHubURLSettingKey: defaultSiteGitHubURL,
-		SiteFooterTextSettingKey:         defaultSiteFooterText,
+		SiteNameSettingKey:                      name,
+		SiteURLSettingKey:                       strings.TrimSpace(siteURL),
+		AllowRegistrationSettingKey:             boolString(allowRegistration),
+		AllowGuestUploadSettingKey:              "false",
+		AllowPublicGallerySettingKey:            "false",
+		AuthRateLimitPerMinuteSettingKey:        DefaultAuthRateLimitPerMinute(),
+		GuestUploadRateLimitPerMinuteSettingKey: DefaultGuestUploadRateLimitPerMinute(),
+		UploadPathPatternSettingKey:             strings.TrimSpace(uploadPathPattern),
+		UploadMaxFileSizeMBSettingKey:           DefaultUploadMaxFileSizeMB(uploadMaxFileSize),
+		SiteKeywordsSettingKey:                  defaultSiteKeywords,
+		SiteFaviconURLSettingKey:                defaultSiteFaviconURL,
+		SiteHeaderNavGitHubURLSettingKey:        defaultSiteGitHubURL,
+		SiteFooterTextSettingKey:                defaultSiteFooterText,
 	}
 }
 
@@ -71,6 +73,8 @@ func ResolveSettings(defaults, overrides map[string]string) map[string]string {
 	merged[AllowRegistrationSettingKey] = resolveSettingValue(defaults, overrides, AllowRegistrationSettingKey, strings.TrimSpace(defaults[AllowRegistrationSettingKey]), false)
 	merged[AllowGuestUploadSettingKey] = resolveSettingValue(defaults, overrides, AllowGuestUploadSettingKey, strings.TrimSpace(defaults[AllowGuestUploadSettingKey]), false)
 	merged[AllowPublicGallerySettingKey] = resolveSettingValue(defaults, overrides, AllowPublicGallerySettingKey, strings.TrimSpace(defaults[AllowPublicGallerySettingKey]), false)
+	merged[AuthRateLimitPerMinuteSettingKey] = resolveSettingValue(defaults, overrides, AuthRateLimitPerMinuteSettingKey, DefaultAuthRateLimitPerMinute(), false)
+	merged[GuestUploadRateLimitPerMinuteSettingKey] = resolveSettingValue(defaults, overrides, GuestUploadRateLimitPerMinuteSettingKey, DefaultGuestUploadRateLimitPerMinute(), false)
 	merged[UploadPathPatternSettingKey] = resolveSettingValue(defaults, overrides, UploadPathPatternSettingKey, strings.TrimSpace(defaults[UploadPathPatternSettingKey]), false)
 	merged[UploadMaxFileSizeMBSettingKey] = resolveSettingValue(defaults, overrides, UploadMaxFileSizeMBSettingKey, strings.TrimSpace(defaults[UploadMaxFileSizeMBSettingKey]), false)
 

@@ -5,6 +5,7 @@ import {
   Globe,
   Upload,
   Shield,
+  Gauge,
   HardDrive,
   Mail,
   Check,
@@ -35,10 +36,19 @@ import { PageHeader } from '@/components/page-header'
 import { SocialProviderLogo } from '@/components/social-provider-logo'
 import { StorageLogo, resolveLogoVendor } from '@/components/storage-logo'
 
-type Tab = 'general' | 'site' | 'upload' | 'auth' | 'storage' | 'email'
+type Tab =
+  | 'general'
+  | 'site'
+  | 'upload'
+  | 'rateLimit'
+  | 'auth'
+  | 'storage'
+  | 'email'
 
 const DEFAULT_UPLOAD_PATH_PATTERN = '{year}/{month}/{md5_8}/{uuid}.{ext}'
 const DEFAULT_UPLOAD_MAX_FILE_SIZE_MB = '100'
+const DEFAULT_AUTH_RATE_LIMIT_PER_MINUTE = '20'
+const DEFAULT_GUEST_UPLOAD_RATE_LIMIT_PER_MINUTE = '60'
 const UPLOAD_SIZE_MB_BYTES = 1024 * 1024
 
 interface StorageListItem {
@@ -319,6 +329,7 @@ export default function SettingsPage() {
     { value: 'general', label: t('settings.general'), icon: SettingsIcon },
     { value: 'site', label: t('settings.siteTab'), icon: Globe },
     { value: 'upload', label: t('settings.uploadTab'), icon: Upload },
+    { value: 'rateLimit', label: t('settings.rateLimitTab'), icon: Gauge },
     { value: 'auth', label: t('settings.auth'), icon: Shield },
     { value: 'storage', label: t('settings.storageTab'), icon: HardDrive },
     { value: 'email', label: t('settings.email'), icon: Mail },
@@ -331,6 +342,12 @@ export default function SettingsPage() {
     form['upload.max_file_size_mb'] ?? DEFAULT_UPLOAD_MAX_FILE_SIZE_MB
   const uploadMaxFileSizeBytes =
     parseUploadMaxFileSizeMB(uploadMaxFileSizeMB) * UPLOAD_SIZE_MB_BYTES
+  const authRateLimitPerMinute =
+    form['rate_limit.auth_requests_per_minute'] ??
+    DEFAULT_AUTH_RATE_LIMIT_PER_MINUTE
+  const guestUploadRateLimitPerMinute =
+    form['rate_limit.guest_upload_requests_per_minute'] ??
+    DEFAULT_GUEST_UPLOAD_RATE_LIMIT_PER_MINUTE
   const siteName = (form.site_name ?? '').trim()
   const siteTitle = (form.site_title ?? '').trim() || siteName || 'Kite'
   const siteFaviconURL = (form.site_favicon_url ?? '').trim() || '/favicon.svg'
@@ -818,6 +835,114 @@ export default function SettingsPage() {
               <code className="block overflow-x-auto rounded-lg border bg-muted/30 px-3 py-2 font-mono text-xs">
                 {uploadPatternPreview}
               </code>
+            </div>
+          </CardContent>
+          <CardFooter className="justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={resetForm}>
+              {t('settings.reset')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+            >
+              {saved ? (
+                <>
+                  <Check className="size-3.5" />
+                  {t('settings.saved')}
+                </>
+              ) : mutation.isPending ? (
+                t('settings.saving')
+              ) : (
+                t('settings.saveSettings')
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {tab === 'rateLimit' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.rateLimitDesc')}</CardTitle>
+            <CardDescription>{t('settings.rateLimitHint')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="rate-limit-auth">
+                  {t('settings.rateLimitAuthTitle')}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="rate-limit-auth"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={authRateLimitPerMinute}
+                    onChange={(e) =>
+                      updateField(
+                        'rate_limit.auth_requests_per_minute',
+                        e.target.value
+                      )
+                    }
+                    placeholder={t('settings.rateLimitAuthPlaceholder')}
+                  />
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    {t('settings.rateLimitPerMinuteSuffix')}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.rateLimitAuthHint')}
+                </p>
+                <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t('settings.rateLimitAuthPreview').replace(
+                    '{count}',
+                    authRateLimitPerMinute || DEFAULT_AUTH_RATE_LIMIT_PER_MINUTE
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="rate-limit-guest-upload">
+                  {t('settings.rateLimitGuestTitle')}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="rate-limit-guest-upload"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={guestUploadRateLimitPerMinute}
+                    onChange={(e) =>
+                      updateField(
+                        'rate_limit.guest_upload_requests_per_minute',
+                        e.target.value
+                      )
+                    }
+                    placeholder={t('settings.rateLimitGuestPlaceholder')}
+                  />
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    {t('settings.rateLimitPerMinuteSuffix')}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.rateLimitGuestHint')}
+                </p>
+                <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t('settings.rateLimitGuestPreview').replace(
+                    '{count}',
+                    guestUploadRateLimitPerMinute ||
+                      DEFAULT_GUEST_UPLOAD_RATE_LIMIT_PER_MINUTE
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:text-amber-200">
+              {t('settings.rateLimitRecommend')}
             </div>
           </CardContent>
           <CardFooter className="justify-end gap-2">

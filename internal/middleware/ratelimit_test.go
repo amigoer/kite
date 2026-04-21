@@ -84,3 +84,36 @@ func TestRateLimit_IsPerIP(t *testing.T) {
 		t.Fatalf("ip1 second: code = %d, want 429", code)
 	}
 }
+
+func TestRateLimitFunc_UsesDynamicLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	currentLimit := 2
+	r.Use(RateLimitFunc(time.Minute, func(*gin.Context) int {
+		return currentLimit
+	}))
+	r.GET("/r", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	do := func() int {
+		req := httptest.NewRequest(http.MethodGet, "/r", nil)
+		req.RemoteAddr = "7.8.9.10:1234"
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if code := do(); code != http.StatusOK {
+		t.Fatalf("first: code = %d, want 200", code)
+	}
+	if code := do(); code != http.StatusOK {
+		t.Fatalf("second: code = %d, want 200", code)
+	}
+
+	currentLimit = 3
+	if code := do(); code != http.StatusOK {
+		t.Fatalf("third after raising limit: code = %d, want 200", code)
+	}
+	if code := do(); code != http.StatusTooManyRequests {
+		t.Fatalf("fourth: code = %d, want 429", code)
+	}
+}

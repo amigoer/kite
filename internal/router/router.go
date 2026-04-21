@@ -90,7 +90,7 @@ func Setup(cfg Config) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	registerHealth(v1)
 	registerSystemStatusStream(v1, systemStatusHandler)
-	registerAuthPublic(v1, authHandler)
+	registerAuthPublic(v1, authHandler, settingRepo)
 	registerSetup(v1, setupHandler)
 	registerPublic(v1, fileHandler, fileRepo, settingRepo)
 
@@ -116,9 +116,42 @@ func Setup(cfg Config) *gin.Engine {
 	return r
 }
 
-// authRateLimit returns the rate limit used on unauthenticated auth endpoints
-// (login, register, refresh, guest upload): a fixed number of requests per IP
-// per minute. Kept as a function so callers read uniformly.
-func authRateLimit(max int) gin.HandlerFunc {
-	return middleware.RateLimit(max, time.Minute)
+// authRateLimit returns the runtime-configurable rate limit applied to
+// unauthenticated auth endpoints such as login and token refresh.
+func authRateLimit(settingRepo *repo.SettingRepo) gin.HandlerFunc {
+	return rateLimitFromSetting(
+		settingRepo,
+		service.AuthRateLimitPerMinuteSettingKey,
+		service.DefaultAuthRateLimitPerMinute(),
+	)
+}
+
+// guestUploadRateLimit returns the runtime-configurable rate limit applied to
+// the public upload endpoint. This is intentionally separate from auth routes
+// because multi-file uploads require a higher burst ceiling.
+func guestUploadRateLimit(settingRepo *repo.SettingRepo) gin.HandlerFunc {
+	return rateLimitFromSetting(
+		settingRepo,
+		service.GuestUploadRateLimitPerMinuteSettingKey,
+		service.DefaultGuestUploadRateLimitPerMinute(),
+	)
+}
+
+func rateLimitFromSetting(settingRepo *repo.SettingRepo, key, fallback string) gin.HandlerFunc {
+	fallbackLimit, err := service.ParseRequestsPerMinute(fallback)
+	if err != nil {
+		fallbackLimit = 1
+	}
+
+	return middleware.RateLimitFunc(time.Minute, func(c *gin.Context) int {
+		raw, err := settingRepo.GetOrDefault(c.Request.Context(), key, fallback)
+		if err != nil {
+			return fallbackLimit
+		}
+		limit, err := service.ParseRequestsPerMinute(raw)
+		if err != nil {
+			return fallbackLimit
+		}
+		return limit
+	})
 }

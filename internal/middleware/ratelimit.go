@@ -13,8 +13,17 @@ import (
 // so the limit is per instance; a janitor goroutine evicts idle buckets every
 // 2*window to bound memory.
 func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
+	return RateLimitFunc(window, func(*gin.Context) int {
+		return maxRequests
+	})
+}
+
+// RateLimitFunc is a dynamic variant of [RateLimit] that resolves the allowed
+// request count for every incoming request. This allows administrators to tune
+// the limit at runtime without restarting the server.
+func RateLimitFunc(window time.Duration, resolveMax func(*gin.Context) int) gin.HandlerFunc {
 	type bucket struct {
-		tokens    int
+		count     int
 		lastReset time.Time
 	}
 
@@ -36,6 +45,12 @@ func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
 	}()
 
 	return func(c *gin.Context) {
+		maxRequests := resolveMax(c)
+		if maxRequests < 1 {
+			c.Next()
+			return
+		}
+
 		ip := c.ClientIP()
 		mu.Lock()
 
@@ -43,13 +58,13 @@ func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
 		now := time.Now()
 
 		if !exists || now.Sub(b.lastReset) >= window {
-			buckets[ip] = &bucket{tokens: maxRequests - 1, lastReset: now}
+			buckets[ip] = &bucket{count: 1, lastReset: now}
 			mu.Unlock()
 			c.Next()
 			return
 		}
 
-		if b.tokens <= 0 {
+		if b.count >= maxRequests {
 			mu.Unlock()
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    42900,
@@ -60,7 +75,7 @@ func RateLimit(maxRequests int, window time.Duration) gin.HandlerFunc {
 			return
 		}
 
-		b.tokens--
+		b.count++
 		mu.Unlock()
 		c.Next()
 	}

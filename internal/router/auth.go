@@ -2,14 +2,15 @@ package router
 
 import (
 	"github.com/amigoer/kite/internal/handler"
+	"github.com/amigoer/kite/internal/repo"
 	"github.com/gin-gonic/gin"
 )
 
 // registerAuthPublic wires unauthenticated authentication endpoints under
 // /api/v1/auth with a per-IP rate limit to slow credential stuffing.
-func registerAuthPublic(v1 *gin.RouterGroup, h *handler.AuthHandler) {
+func registerAuthPublic(v1 *gin.RouterGroup, h *handler.AuthHandler, settingRepo *repo.SettingRepo) {
 	g := v1.Group("/auth")
-	g.Use(authRateLimit(20))
+	g.Use(authRateLimit(settingRepo))
 
 	g.GET("/options", h.Options)
 	g.GET("/oauth/:provider/start", h.StartOAuth)

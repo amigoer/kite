@@ -92,7 +92,7 @@ func registerPublic(
 	})
 
 	uploadGroup := pub.Group("")
-	uploadGroup.Use(authRateLimit(10))
+	uploadGroup.Use(guestUploadRateLimit(settingRepo))
 	uploadGroup.POST("/upload", func(c *gin.Context) {
 		val, err := settingRepo.Get(c.Request.Context(), "allow_guest_upload")
 		if err != nil || val != "true" {

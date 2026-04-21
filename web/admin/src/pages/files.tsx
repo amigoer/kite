@@ -99,11 +99,23 @@ function resolveUploadMaxFileSizeBytes(options?: PublicAuthOptions): number {
   return DEFAULT_UPLOAD_MAX_FILE_SIZE_BYTES
 }
 
-function readUploadErrorMessage(xhr: XMLHttpRequest): string | null {
+function readUploadErrorMessage(
+  xhr: XMLHttpRequest,
+  tooManyRequestsMessage?: string
+): string | null {
   try {
     const payload = JSON.parse(xhr.responseText) as {
+      code?: number
       message?: string
       data?: { message?: string }
+    }
+    if (payload.code === 42900) {
+      return (
+        tooManyRequestsMessage ??
+        payload.message ??
+        payload.data?.message ??
+        null
+      )
     }
     return payload.message ?? payload.data?.message ?? null
   } catch {
@@ -790,7 +802,7 @@ export default function FilesPage() {
               )
             )
             toast.error(
-              readUploadErrorMessage(xhr) ??
+              readUploadErrorMessage(xhr, t('toast.tooManyRequests')) ??
                 t('files.uploadOneFailed').replace('{name}', task.file.name)
             )
           }
