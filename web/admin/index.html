@@ -2,10 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="__KITE_FAVICON_URL__" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <title>Kite Admin</title>
+    <title>__KITE_ADMIN_TITLE__</title>
     <style>
       :root {
         color-scheme: light;
@@ -19,10 +19,17 @@
           --splash-fg: #fafafa;
         }
       }
-      html, body {
+      html,
+      body {
         margin: 0;
         padding: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
         -webkit-font-smoothing: antialiased;
       }
       #splash {
@@ -35,7 +42,9 @@
         color: var(--splash-fg);
         z-index: 9999;
         pointer-events: none;
-        transition: opacity 220ms ease-out, visibility 0s linear 220ms;
+        transition:
+          opacity 220ms ease-out,
+          visibility 0s linear 220ms;
       }
       #splash.ready {
         opacity: 0;
@@ -48,16 +57,29 @@
         animation: splash-pulse 1.4s ease-in-out infinite;
       }
       @keyframes splash-pulse {
-        0%, 100% { opacity: 0.35; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.08); }
+        0%,
+        100% {
+          opacity: 0.35;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.08);
+        }
       }
     </style>
   </head>
   <body>
     <div id="splash" aria-hidden="true">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor">
-        <path d="m16.235 13.059l-4.525 8.516L21.575 30l3.249-12.561z"/>
-        <path d="m12.751 2l-7.81 13.792l5.991 5.113l4.996-8.824l9.158 4.362l1.973-7.629z"/>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 32 32"
+        fill="currentColor"
+      >
+        <path d="m16.235 13.059l-4.525 8.516L21.575 30l3.249-12.561z" />
+        <path
+          d="m12.751 2l-7.81 13.792l5.991 5.113l4.996-8.824l9.158 4.362l1.973-7.629z"
+        />
       </svg>
     </div>
     <div id="root"></div>

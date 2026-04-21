@@ -1,10 +1,13 @@
 {{define "head_common"}}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Kite 是一个开源的自部署媒体托管系统，支持图片、视频、音频和文件的上传、管理与分享。">
-<meta name="keywords" content="图床,媒体托管,自部署,图片托管,S3,PicGo,开源">
-<meta property="og:title" content="Kite - 自部署媒体托管系统">
-<meta property="og:description" content="开源、高性能的自部署媒体托管系统，支持图片、视频、音频和文件管理。">
+<title>{{.DocumentTitle}}</title>
+{{if .SiteFaviconURL}}<link rel="icon" href="{{.SiteFaviconURL}}">{{end}}
+{{if .SiteDescription}}<meta name="description" content="{{.SiteDescription}}">{{end}}
+{{if .SiteKeywords}}<meta name="keywords" content="{{.SiteKeywords}}">{{end}}
+<meta property="og:title" content="{{.DocumentTitle}}">
+{{if .SiteDescription}}<meta property="og:description" content="{{.SiteDescription}}">{{end}}
+<meta property="og:site_name" content="{{.SiteName}}">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,13 +49,15 @@
                 <path d="m16.235 13.059l-4.525 8.516L21.575 30l3.249-12.561z" />
                 <path d="m12.751 2l-7.81 13.792l5.991 5.113l4.996-8.824l9.158 4.362l1.973-7.629z" />
             </svg>
-            <span class="font-bold text-base sm:text-lg tracking-tight dark:text-white">Kite</span>
+            <span class="font-bold text-base sm:text-lg tracking-tight dark:text-white">{{.SiteHeaderBrand}}</span>
         </a>
         <nav class="flex items-center gap-0.5 sm:gap-1 text-sm">
             <a href="/explore" hx-boost="false" class="inline-flex h-9 items-center px-2.5 sm:px-3 text-sm font-medium transition-all duration-200 border-b-2 {{if eq .ActiveNav "explore"}}text-gray-900 dark:text-white border-gray-900 dark:border-white{{else}}text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border-transparent hover:border-gray-300 dark:hover:border-gray-600{{end}}">探索</a>
             <a href="/upload" hx-boost="false" class="inline-flex h-9 items-center px-2.5 sm:px-3 text-sm font-medium transition-all duration-200 border-b-2 {{if eq .ActiveNav "upload"}}text-gray-900 dark:text-white border-gray-900 dark:border-white{{else}}text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border-transparent hover:border-gray-300 dark:hover:border-gray-600{{end}}">上传</a>
-            <a href="https://github.com/amigoer/kite" target="_blank"
+            {{if .SiteHeaderGitHubURL}}
+            <a href="{{.SiteHeaderGitHubURL}}" target="_blank" rel="noreferrer"
                 class="hidden sm:inline-flex px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition font-medium">GitHub</a>
+            {{end}}
 
             <button id="themeToggleBtn" class="ml-1 p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition relative outline-none">
                 <!-- Sun -->
@@ -141,9 +146,11 @@
                 <path d="m16.235 13.059l-4.525 8.516L21.575 30l3.249-12.561z" />
                 <path d="m12.751 2l-7.81 13.792l5.991 5.113l4.996-8.824l9.158 4.362l1.973-7.629z" />
             </svg>
-            <span class="font-medium text-gray-500 dark:text-gray-400">Kite</span>
+            <span class="font-medium text-gray-500 dark:text-gray-400">{{.SiteHeaderBrand}}</span>
+            {{if .SiteFooterText}}
             <span class="text-gray-200 dark:text-gray-700 mx-1">·</span>
-            <span>开源自部署媒体托管系统</span>
+            <span>{{.SiteFooterText}}</span>
+            {{end}}
         </div>
 
         <!-- 桌面端导航 -->
@@ -161,7 +168,8 @@
 
         <!-- 链接与版权 -->
         <div class="flex items-center gap-4">
-            <a href="https://github.com/amigoer/kite" target="_blank"
+            {{if .SiteHeaderGitHubURL}}
+            <a href="{{.SiteHeaderGitHubURL}}" target="_blank" rel="noreferrer"
                 class="flex items-center gap-1 hover:text-gray-600 dark:hover:text-gray-300 transition">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path
@@ -169,7 +177,10 @@
                 </svg>
                 GitHub
             </a>
-            <span>&copy; 2026 Kite</span>
+            {{end}}
+            {{if .SiteFooterCopyright}}
+            <span>{{.SiteFooterCopyright}}</span>
+            {{end}}
         </div>
     </div>
 </footer>

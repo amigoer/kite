@@ -23,9 +23,10 @@ func TestSettingsHandler_GetIncludesDefaultUploadPathPattern(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
-	h := NewSettingsHandler(repo.NewSettingRepo(db), map[string]string{
-		service.UploadPathPatternSettingKey: "{year}/{month}/{md5_8}/{uuid}.{ext}",
-	})
+	h := NewSettingsHandler(
+		repo.NewSettingRepo(db),
+		service.DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}"),
+	)
 
 	r := gin.New()
 	r.GET("/settings", h.Get)
@@ -47,6 +48,12 @@ func TestSettingsHandler_GetIncludesDefaultUploadPathPattern(t *testing.T) {
 	}
 	if got := payload.Data[service.UploadPathPatternSettingKey]; got != "{year}/{month}/{md5_8}/{uuid}.{ext}" {
 		t.Fatalf("unexpected default upload path pattern: %q", got)
+	}
+	if got := payload.Data[service.SiteTitleSettingKey]; got != "Kite - 自部署媒体托管系统" {
+		t.Fatalf("unexpected default site title: %q", got)
+	}
+	if got := payload.Data[service.SiteFaviconURLSettingKey]; got != "/favicon.svg" {
+		t.Fatalf("unexpected default favicon url: %q", got)
 	}
 }
 
@@ -124,6 +131,35 @@ func TestSettingsHandler_UpdateRejectsInvalidUploadPathPattern(t *testing.T) {
 	}
 	if payload.Message == "" {
 		t.Fatal("expected error message for invalid upload.path_pattern")
+	}
+}
+
+func TestSettingsHandler_UpdateRejectsEmptySiteTitle(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.SiteTitleSettingKey: "   ",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty site_title, got %d", rec.Code)
 	}
 }
 

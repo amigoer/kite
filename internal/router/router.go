@@ -9,7 +9,6 @@ package router
 
 import (
 	"io/fs"
-	"strconv"
 	"time"
 
 	"github.com/amigoer/kite/internal/config"
@@ -60,6 +59,7 @@ func Setup(cfg Config) *gin.Engine {
 	storageRepo := repo.NewStorageConfigRepo(cfg.DB)
 	settingRepo := repo.NewSettingRepo(cfg.DB)
 	accessLogRepo := repo.NewFileAccessLogRepo(cfg.DB)
+	settingDefaults := service.DefaultSettings(cfg.SiteName, cfg.SiteURL, cfg.AllowRegistration, cfg.UploadPathPattern)
 
 	oauthConfigSvc := service.NewOAuthConfigService(settingRepo, cfg.SiteURL)
 	socialAuthSvc := service.NewSocialAuthService(
@@ -78,14 +78,7 @@ func Setup(cfg Config) *gin.Engine {
 	tokenHandler := handler.NewTokenHandler(cfg.AuthSvc, tokenRepo)
 	oauthProviderAdminHandler := handler.NewOAuthProviderAdminHandler(oauthConfigSvc)
 	storageHandler := handler.NewStorageHandler(storageRepo, fileRepo, cfg.StorageMgr, cfg.ReloadStorage)
-	settingsHandler := handler.NewSettingsHandler(settingRepo, map[string]string{
-		"site_name":                         cfg.SiteName,
-		"site_url":                          cfg.SiteURL,
-		"allow_registration":                strconv.FormatBool(cfg.AllowRegistration),
-		"allow_guest_upload":                "false",
-		"allow_public_gallery":              "false",
-		service.UploadPathPatternSettingKey: cfg.UploadPathPattern,
-	})
+	settingsHandler := handler.NewSettingsHandler(settingRepo, settingDefaults)
 	userHandler := handler.NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
 	setupHandler := handler.NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)
 	systemStatusHandler := handler.NewSystemStatusRealtimeHandler(realtimeCollector)
@@ -116,8 +109,8 @@ func Setup(cfg Config) *gin.Engine {
 	registerAuthAdmin(admin, oauthProviderAdminHandler)
 	registerUserAdmin(admin, userHandler, fileHandler)
 
-	registerLanding(r, cfg, userRepo)
-	registerStatic(r, cfg)
+	registerLanding(r, cfg, userRepo, settingRepo, settingDefaults)
+	registerStatic(r, cfg, settingRepo, settingDefaults)
 
 	return r
 }

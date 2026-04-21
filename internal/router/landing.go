@@ -28,38 +28,31 @@ type publicUser struct {
 // /upload) and parses the embedded template set. These pages recognise the
 // access_token cookie so the header reflects login state, but they never
 // require authentication.
-func registerLanding(r *gin.Engine, cfg Config, userRepo *repo.UserRepo) {
+func registerLanding(r *gin.Engine, cfg Config, userRepo *repo.UserRepo, settingRepo *repo.SettingRepo, settingDefaults map[string]string) {
 	if cfg.TemplateFS != nil {
 		if tmpl, err := template.ParseFS(cfg.TemplateFS, "layouts/*.html", "pages/*.html"); err == nil {
 			r.SetHTMLTemplate(tmpl)
 		}
 	}
 
-	settingRepo := repo.NewSettingRepo(cfg.DB)
-
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"CurrentUser": getOptionalUser(c, cfg.AuthSvc, userRepo),
-			"ActiveNav":   "",
-		})
+		settings := loadResolvedSettings(c.Request.Context(), settingRepo, settingDefaults)
+		data := landingTemplateData(getOptionalUser(c, cfg.AuthSvc, userRepo), settings, "", "")
+		c.HTML(http.StatusOK, "index.html", data)
 	})
 
 	r.GET("/explore", func(c *gin.Context) {
-		val, _ := settingRepo.Get(c.Request.Context(), "allow_public_gallery")
-		c.HTML(http.StatusOK, "explore.html", gin.H{
-			"GalleryEnabled": val == "true",
-			"CurrentUser":    getOptionalUser(c, cfg.AuthSvc, userRepo),
-			"ActiveNav":      "explore",
-		})
+		settings := loadResolvedSettings(c.Request.Context(), settingRepo, settingDefaults)
+		data := landingTemplateData(getOptionalUser(c, cfg.AuthSvc, userRepo), settings, "explore", "探索广场")
+		data["GalleryEnabled"] = strings.EqualFold(settings[service.AllowPublicGallerySettingKey], "true")
+		c.HTML(http.StatusOK, "explore.html", data)
 	})
 
 	r.GET("/upload", func(c *gin.Context) {
-		val, _ := settingRepo.Get(c.Request.Context(), "allow_guest_upload")
-		c.HTML(http.StatusOK, "upload.html", gin.H{
-			"GuestUploadEnabled": val == "true",
-			"CurrentUser":        getOptionalUser(c, cfg.AuthSvc, userRepo),
-			"ActiveNav":          "upload",
-		})
+		settings := loadResolvedSettings(c.Request.Context(), settingRepo, settingDefaults)
+		data := landingTemplateData(getOptionalUser(c, cfg.AuthSvc, userRepo), settings, "upload", "上传文件")
+		data["GuestUploadEnabled"] = strings.EqualFold(settings[service.AllowGuestUploadSettingKey], "true")
+		c.HTML(http.StatusOK, "upload.html", data)
 	})
 }
 

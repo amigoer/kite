@@ -557,7 +557,8 @@ const en = {
     description: 'Instance-level configuration and security policies',
     // Tabs
     general: 'General',
-    generalDesc: 'Site information',
+    generalDesc: 'Instance defaults',
+    siteTab: 'Site',
     uploadTab: 'Upload',
     uploadDesc: 'Upload rules',
     uploadHint:
@@ -571,10 +572,54 @@ const en = {
     emailDesc: 'Outbound email',
     // Preferences — general
     siteName: 'Site name',
-    siteNameHint: 'Shown in header and login page',
+    siteNameHint: 'Instance name used as the fallback site brand',
     siteUrl: 'Site domain',
-    siteUrlHint: 'Used to generate public URLs',
+    siteUrlHint: 'Used to generate public URLs and OAuth callbacks',
     siteUrlPlaceholder: 'https://kite.plus',
+    siteBasicsTitle: 'Basics',
+    siteBasicsHint: 'Manage the site name, public domain, and browser title.',
+    siteTitle: 'Website title',
+    siteTitleHint:
+      'Used for public page titles, Open Graph titles, and SEO snippets.',
+    siteTitlePlaceholder: 'Kite - Self-hosted media hosting',
+    siteFaviconUrl: 'Favicon URL',
+    siteFaviconUrlHint:
+      'Supports either a local path or a full URL. Both the public site and the admin console will use it.',
+    siteFaviconUrlPlaceholder: '/favicon.svg',
+    siteFaviconPreview: 'Icon preview',
+    siteTitlePreview: 'Title preview',
+    siteTitlePreviewHome: 'Home',
+    siteTitlePreviewUpload: 'Upload',
+    siteTitlePreviewExplore: 'Explore',
+    siteSeoTitle: 'SEO metadata',
+    siteSeoHint:
+      'Search engines and share cards will prioritize these keywords and descriptions.',
+    siteKeywords: 'Website keywords',
+    siteKeywordsHint:
+      'Separate multiple keywords with commas. Leave blank if you want to hide them.',
+    siteKeywordsPlaceholder:
+      'media hosting,self-hosted,image hosting,S3,PicGo,open source',
+    siteDescription: 'Website description',
+    siteDescriptionHint:
+      'Used for the HTML description meta tag, Open Graph description, and search summaries.',
+    siteDescriptionPlaceholder:
+      'Kite is an open-source self-hosted media hosting service for images, videos, audio, and files.',
+    siteChromeTitle: 'Header & footer',
+    siteChromeHint:
+      'Customize the brand and link content rendered in the public header and footer.',
+    siteHeaderBrand: 'Header brand',
+    siteHeaderBrandHint:
+      'Shown in the public navigation and the footer brand block.',
+    siteHeaderGitHubUrl: 'Header GitHub URL',
+    siteHeaderGitHubUrlHint:
+      'Leave blank to hide the GitHub entry in both header and footer.',
+    siteFooterText: 'Footer description',
+    siteFooterTextHint:
+      'Short supporting copy rendered next to the footer brand.',
+    siteFooterTextPlaceholder: 'Open-source self-hosted media hosting',
+    siteFooterCopyright: 'Footer copyright',
+    siteFooterCopyrightHint:
+      'For example: © 2026 Kite. Leave blank if you want to hide it.',
     allowRegistration: 'Open registration',
     allowRegistrationHint: 'Allow anyone to create an account',
     defaultQuota: 'Default quota',
@@ -621,7 +666,7 @@ const en = {
     oauthSecretKeep: 'A secret is already saved; leave this blank to keep it.',
     oauthSecretEmpty: 'No secret is configured yet.',
     oauthSiteUrlInvalid:
-      'The current site URL cannot be used for third-party login. Save an HTTPS site URL first. Development only allows localhost.',
+      'The current site URL cannot be used for third-party login. Save an HTTPS site URL in the Site tab first. Development only allows localhost.',
     oauthMissingFields:
       'Fill in both Client ID and Secret before enabling the provider.',
     saveProvider: 'Save provider',

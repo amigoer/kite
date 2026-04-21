@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Settings as SettingsIcon,
+  Globe,
   Upload,
   Shield,
   HardDrive,
@@ -21,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
@@ -33,7 +35,7 @@ import { PageHeader } from '@/components/page-header'
 import { SocialProviderLogo } from '@/components/social-provider-logo'
 import { StorageLogo, resolveLogoVendor } from '@/components/storage-logo'
 
-type Tab = 'general' | 'upload' | 'auth' | 'storage' | 'email'
+type Tab = 'general' | 'site' | 'upload' | 'auth' | 'storage' | 'email'
 
 const DEFAULT_UPLOAD_PATH_PATTERN = '{year}/{month}/{md5_8}/{uuid}.{ext}'
 
@@ -92,6 +94,13 @@ function previewUploadPathPattern(pattern: string) {
 
   rendered = rendered.replaceAll('\\', '/').replace(/\/+$/g, '')
   return rendered || DEFAULT_UPLOAD_PATH_PATTERN
+}
+
+function previewDocumentTitle(siteTitle: string, pageTitle?: string) {
+  const resolvedSiteTitle = siteTitle.trim() || 'Kite'
+  const resolvedPageTitle = pageTitle?.trim()
+  if (!resolvedPageTitle) return resolvedSiteTitle
+  return `${resolvedPageTitle} - ${resolvedSiteTitle}`
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -296,6 +305,7 @@ export default function SettingsPage() {
 
   const tabs: { value: Tab; label: string; icon: React.ElementType }[] = [
     { value: 'general', label: t('settings.general'), icon: SettingsIcon },
+    { value: 'site', label: t('settings.siteTab'), icon: Globe },
     { value: 'upload', label: t('settings.uploadTab'), icon: Upload },
     { value: 'auth', label: t('settings.auth'), icon: Shield },
     { value: 'storage', label: t('settings.storageTab'), icon: HardDrive },
@@ -305,6 +315,12 @@ export default function SettingsPage() {
   const uploadPattern =
     form['upload.path_pattern'] ?? DEFAULT_UPLOAD_PATH_PATTERN
   const uploadPatternPreview = previewUploadPathPattern(uploadPattern)
+  const siteName = (form.site_name ?? '').trim()
+  const siteTitle = (form.site_title ?? '').trim() || siteName || 'Kite'
+  const siteFaviconURL = (form.site_favicon_url ?? '').trim() || '/favicon.svg'
+  const siteTitlePreviewHome = previewDocumentTitle(siteTitle)
+  const siteTitlePreviewUpload = previewDocumentTitle(siteTitle, '上传文件')
+  const siteTitlePreviewExplore = previewDocumentTitle(siteTitle, '探索广场')
   const uploadPatternVariables = [
     { token: '{year}', description: t('settings.uploadVarYear') },
     { token: '{month}', description: t('settings.uploadVarMonth') },
@@ -403,27 +419,6 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="divide-y">
             <Preference
-              label={t('settings.siteName')}
-              hint={t('settings.siteNameHint')}
-            >
-              <Input
-                value={form.site_name ?? ''}
-                onChange={(e) => updateField('site_name', e.target.value)}
-                className="w-56"
-              />
-            </Preference>
-            <Preference
-              label={t('settings.siteUrl')}
-              hint={t('settings.siteUrlHint')}
-            >
-              <Input
-                value={form.site_url ?? ''}
-                onChange={(e) => updateField('site_url', e.target.value)}
-                placeholder={t('settings.siteUrlPlaceholder')}
-                className="w-64"
-              />
-            </Preference>
-            <Preference
               label={t('settings.allowRegistration')}
               hint={t('settings.allowRegistrationHint')}
             >
@@ -466,6 +461,262 @@ export default function SettingsPage() {
             </Button>
           </CardFooter>
         </Card>
+      )}
+
+      {tab === 'site' && (
+        <div className="space-y-5">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.siteBasicsTitle')}</CardTitle>
+              <CardDescription>{t('settings.siteBasicsHint')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-2">
+                <Label htmlFor="site-name">{t('settings.siteName')}</Label>
+                <Input
+                  id="site-name"
+                  value={form.site_name ?? ''}
+                  onChange={(e) => updateField('site_name', e.target.value)}
+                  placeholder="Kite"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteNameHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-url">{t('settings.siteUrl')}</Label>
+                <Input
+                  id="site-url"
+                  value={form.site_url ?? ''}
+                  onChange={(e) => updateField('site_url', e.target.value)}
+                  placeholder={t('settings.siteUrlPlaceholder')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteUrlHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-title">{t('settings.siteTitle')}</Label>
+                <Input
+                  id="site-title"
+                  value={form.site_title ?? ''}
+                  onChange={(e) => updateField('site_title', e.target.value)}
+                  placeholder={t('settings.siteTitlePlaceholder')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteTitleHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-favicon">
+                  {t('settings.siteFaviconUrl')}
+                </Label>
+                <Input
+                  id="site-favicon"
+                  value={form.site_favicon_url ?? ''}
+                  onChange={(e) =>
+                    updateField('site_favicon_url', e.target.value)
+                  }
+                  placeholder={t('settings.siteFaviconUrlPlaceholder')}
+                />
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                  <span className="flex size-8 items-center justify-center overflow-hidden rounded-md border bg-background">
+                    <img
+                      src={siteFaviconURL}
+                      alt="favicon"
+                      className="size-5 object-contain"
+                    />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium">
+                      {t('settings.siteFaviconPreview')}
+                    </div>
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {siteFaviconURL}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteFaviconUrlHint')}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">
+                  {t('settings.siteTitlePreview')}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">
+                      {t('settings.siteTitlePreviewHome')}
+                    </div>
+                    <div className="mt-1 break-all text-xs font-medium">
+                      {siteTitlePreviewHome}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">
+                      {t('settings.siteTitlePreviewUpload')}
+                    </div>
+                    <div className="mt-1 break-all text-xs font-medium">
+                      {siteTitlePreviewUpload}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">
+                      {t('settings.siteTitlePreviewExplore')}
+                    </div>
+                    <div className="mt-1 break-all text-xs font-medium">
+                      {siteTitlePreviewExplore}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.siteSeoTitle')}</CardTitle>
+              <CardDescription>{t('settings.siteSeoHint')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-2">
+                <Label htmlFor="site-keywords">
+                  {t('settings.siteKeywords')}
+                </Label>
+                <Input
+                  id="site-keywords"
+                  value={form.site_keywords ?? ''}
+                  onChange={(e) => updateField('site_keywords', e.target.value)}
+                  placeholder={t('settings.siteKeywordsPlaceholder')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteKeywordsHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-description">
+                  {t('settings.siteDescription')}
+                </Label>
+                <Textarea
+                  id="site-description"
+                  value={form.site_description ?? ''}
+                  onChange={(e) =>
+                    updateField('site_description', e.target.value)
+                  }
+                  placeholder={t('settings.siteDescriptionPlaceholder')}
+                  className="min-h-[108px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteDescriptionHint')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.siteChromeTitle')}</CardTitle>
+              <CardDescription>{t('settings.siteChromeHint')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-2">
+                <Label htmlFor="site-header-brand">
+                  {t('settings.siteHeaderBrand')}
+                </Label>
+                <Input
+                  id="site-header-brand"
+                  value={form.site_header_brand ?? ''}
+                  onChange={(e) =>
+                    updateField('site_header_brand', e.target.value)
+                  }
+                  placeholder={siteName || 'Kite'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteHeaderBrandHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-header-github">
+                  {t('settings.siteHeaderGitHubUrl')}
+                </Label>
+                <Input
+                  id="site-header-github"
+                  value={form.site_header_nav_github_url ?? ''}
+                  onChange={(e) =>
+                    updateField('site_header_nav_github_url', e.target.value)
+                  }
+                  placeholder="https://github.com/amigoer/kite"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteHeaderGitHubUrlHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-footer-text">
+                  {t('settings.siteFooterText')}
+                </Label>
+                <Textarea
+                  id="site-footer-text"
+                  value={form.site_footer_text ?? ''}
+                  onChange={(e) =>
+                    updateField('site_footer_text', e.target.value)
+                  }
+                  placeholder={t('settings.siteFooterTextPlaceholder')}
+                  className="min-h-[88px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteFooterTextHint')}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="site-footer-copyright">
+                  {t('settings.siteFooterCopyright')}
+                </Label>
+                <Input
+                  id="site-footer-copyright"
+                  value={form.site_footer_copyright ?? ''}
+                  onChange={(e) =>
+                    updateField('site_footer_copyright', e.target.value)
+                  }
+                  placeholder={`© ${new Date().getFullYear()} ${siteName || 'Kite'}`}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.siteFooterCopyrightHint')}
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter className="justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={resetForm}>
+                {t('settings.reset')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+              >
+                {saved ? (
+                  <>
+                    <Check className="size-3.5" />
+                    {t('settings.saved')}
+                  </>
+                ) : mutation.isPending ? (
+                  t('settings.saving')
+                ) : (
+                  t('settings.saveSettings')
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       )}
 
       {tab === 'upload' && (

@@ -28,13 +28,7 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 		ServerError(c, "failed to get settings")
 		return
 	}
-	merged := make(map[string]string, len(h.defaults)+len(settings))
-	for key, value := range h.defaults {
-		merged[key] = value
-	}
-	for key, value := range settings {
-		merged[key] = value
-	}
+	merged := service.ResolveSettings(h.defaults, settings)
 	Success(c, merged)
 }
 
@@ -57,6 +51,30 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 			return
 		}
 		req.Settings[service.UploadPathPatternSettingKey] = strings.TrimSpace(pattern)
+	}
+
+	for _, key := range []string{
+		service.SiteNameSettingKey,
+		service.SiteURLSettingKey,
+		service.SiteTitleSettingKey,
+		service.SiteKeywordsSettingKey,
+		service.SiteDescriptionSettingKey,
+		service.SiteFaviconURLSettingKey,
+		service.SiteHeaderBrandSettingKey,
+		service.SiteHeaderNavGitHubURLSettingKey,
+		service.SiteFooterTextSettingKey,
+		service.SiteFooterCopyrightSettingKey,
+	} {
+		raw, ok := req.Settings[key]
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" && (key == service.SiteNameSettingKey || key == service.SiteTitleSettingKey || key == service.SiteHeaderBrandSettingKey) {
+			BadRequest(c, "invalid "+key+": cannot be empty")
+			return
+		}
+		req.Settings[key] = trimmed
 	}
 
 	if err := h.settingRepo.SetBatch(c.Request.Context(), req.Settings); err != nil {

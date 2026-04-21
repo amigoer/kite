@@ -1,10 +1,13 @@
 package router
 
 import (
+	"html/template"
 	"io/fs"
 	"net/http"
 	"strings"
 
+	"github.com/amigoer/kite/internal/repo"
+	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +17,7 @@ import (
 //   - /uploads/* serves files backed by the local storage driver.
 //   - NoRoute serves the embedded admin SPA and rewrites unknown paths to its
 //     index.html so client-side routing works on deep links.
-func registerStatic(r *gin.Engine, cfg Config) {
+func registerStatic(r *gin.Engine, cfg Config, settingRepo *repo.SettingRepo, settingDefaults map[string]string) {
 	if cfg.TemplateFS != nil {
 		r.GET("/static/*filepath", func(c *gin.Context) {
 			fp := strings.TrimPrefix(c.Param("filepath"), "/")
@@ -48,7 +51,12 @@ func registerStatic(r *gin.Engine, cfg Config) {
 				c.String(http.StatusNotFound, "frontend not built")
 				return
 			}
-			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+			settings := loadResolvedSettings(c.Request.Context(), settingRepo, settingDefaults)
+			title := template.HTMLEscapeString(buildAdminPageTitle(settings))
+			faviconURL := template.HTMLEscapeString(settings[service.SiteFaviconURLSettingKey])
+			html := strings.Replace(string(data), "__KITE_ADMIN_TITLE__", title, 1)
+			html = strings.Replace(html, "__KITE_FAVICON_URL__", faviconURL, 1)
+			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 		})
 	}
 }
