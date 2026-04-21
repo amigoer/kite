@@ -42,10 +42,16 @@ func DefaultSettings(siteName, siteURL string, allowRegistration bool, uploadPat
 		SiteNameSettingKey:                      name,
 		SiteURLSettingKey:                       strings.TrimSpace(siteURL),
 		AllowRegistrationSettingKey:             boolString(allowRegistration),
+		DefaultQuotaSettingKey:                  DefaultQuotaSettingValue(),
 		AllowGuestUploadSettingKey:              "false",
 		AllowPublicGallerySettingKey:            "false",
 		AuthRateLimitPerMinuteSettingKey:        DefaultAuthRateLimitPerMinute(),
 		GuestUploadRateLimitPerMinuteSettingKey: DefaultGuestUploadRateLimitPerMinute(),
+		SMTPHostSettingKey:                      "",
+		SMTPPortSettingKey:                      DefaultSMTPPort(),
+		SMTPTLSSettingKey:                       "false",
+		SMTPFromSettingKey:                      "",
+		SMTPUsernameSettingKey:                  "",
 		UploadPathPatternSettingKey:             strings.TrimSpace(uploadPathPattern),
 		UploadMaxFileSizeMBSettingKey:           DefaultUploadMaxFileSizeMB(uploadMaxFileSize),
 		SiteKeywordsSettingKey:                  defaultSiteKeywords,
@@ -71,10 +77,16 @@ func ResolveSettings(defaults, overrides map[string]string) map[string]string {
 	merged[SiteNameSettingKey] = siteName
 	merged[SiteURLSettingKey] = resolveSettingValue(defaults, overrides, SiteURLSettingKey, strings.TrimSpace(defaults[SiteURLSettingKey]), false)
 	merged[AllowRegistrationSettingKey] = resolveSettingValue(defaults, overrides, AllowRegistrationSettingKey, strings.TrimSpace(defaults[AllowRegistrationSettingKey]), false)
+	merged[DefaultQuotaSettingKey] = resolveDefaultQuotaSetting(defaults, overrides)
 	merged[AllowGuestUploadSettingKey] = resolveSettingValue(defaults, overrides, AllowGuestUploadSettingKey, strings.TrimSpace(defaults[AllowGuestUploadSettingKey]), false)
 	merged[AllowPublicGallerySettingKey] = resolveSettingValue(defaults, overrides, AllowPublicGallerySettingKey, strings.TrimSpace(defaults[AllowPublicGallerySettingKey]), false)
 	merged[AuthRateLimitPerMinuteSettingKey] = resolveSettingValue(defaults, overrides, AuthRateLimitPerMinuteSettingKey, DefaultAuthRateLimitPerMinute(), false)
 	merged[GuestUploadRateLimitPerMinuteSettingKey] = resolveSettingValue(defaults, overrides, GuestUploadRateLimitPerMinuteSettingKey, DefaultGuestUploadRateLimitPerMinute(), false)
+	merged[SMTPHostSettingKey] = resolveSettingValue(defaults, overrides, SMTPHostSettingKey, "", true)
+	merged[SMTPPortSettingKey] = resolveSettingValue(defaults, overrides, SMTPPortSettingKey, DefaultSMTPPort(), false)
+	merged[SMTPTLSSettingKey] = resolveSettingValue(defaults, overrides, SMTPTLSSettingKey, "false", false)
+	merged[SMTPFromSettingKey] = resolveSettingValue(defaults, overrides, SMTPFromSettingKey, "", true)
+	merged[SMTPUsernameSettingKey] = resolveSettingValue(defaults, overrides, SMTPUsernameSettingKey, "", true)
 	merged[UploadPathPatternSettingKey] = resolveSettingValue(defaults, overrides, UploadPathPatternSettingKey, strings.TrimSpace(defaults[UploadPathPatternSettingKey]), false)
 	merged[UploadMaxFileSizeMBSettingKey] = resolveSettingValue(defaults, overrides, UploadMaxFileSizeMBSettingKey, strings.TrimSpace(defaults[UploadMaxFileSizeMBSettingKey]), false)
 
@@ -104,6 +116,15 @@ func resolveSettingValue(defaults, overrides map[string]string, key, fallback st
 		}
 	}
 	return strings.TrimSpace(fallback)
+}
+
+func resolveDefaultQuotaSetting(defaults, overrides map[string]string) string {
+	raw := resolveSettingValue(defaults, overrides, DefaultQuotaSettingKey, DefaultQuotaSettingValue(), false)
+	normalized, err := NormalizeDefaultQuota(raw)
+	if err != nil {
+		return DefaultQuotaSettingValue()
+	}
+	return normalized
 }
 
 func firstNonEmptySetting(values ...string) string {

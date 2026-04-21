@@ -42,6 +42,7 @@ func newSocialAuthTestServices(t *testing.T, allowRegistration bool) (*AuthServi
 	authSvc := NewAuthService(
 		userRepo,
 		repo.NewAPITokenRepo(db),
+		settingRepo,
 		config.AuthConfig{
 			JWTSecret:          "test-secret",
 			AccessTokenExpiry:  time.Hour,

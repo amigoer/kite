@@ -98,7 +98,7 @@ func main() {
 	fileRepo := repo.NewFileRepo(db)
 	replicaRepo := repo.NewFileReplicaRepo(db)
 
-	authSvc := service.NewAuthService(userRepo, tokenRepo, cfg.Auth)
+	authSvc := service.NewAuthService(userRepo, tokenRepo, settingRepo, cfg.Auth)
 
 	// On first boot (no user rows yet), create a default admin account so the
 	// operator can log in.

@@ -12,18 +12,21 @@ import (
 	"gorm.io/gorm"
 )
 
+const testCustomQuotaBytes = int64(5 * 1024 * 1024 * 1024)
+
 func newAuthTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.APIToken{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.APIToken{}, &model.Setting{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM users")
 		db.Exec("DELETE FROM api_tokens")
+		db.Exec("DELETE FROM settings")
 	})
 	return db
 }
@@ -32,6 +35,7 @@ func newAuthService(db *gorm.DB, allowReg bool) *AuthService {
 	return NewAuthService(
 		repo.NewUserRepo(db),
 		repo.NewAPITokenRepo(db),
+		repo.NewSettingRepo(db),
 		config.AuthConfig{
 			JWTSecret:          "test-secret",
 			AccessTokenExpiry:  time.Hour,
@@ -94,6 +98,81 @@ func TestAuthService_CreateStandardUser_BypassesRegistrationSwitch(t *testing.T)
 	}
 	if user.Role != "user" || !user.IsActive {
 		t.Fatalf("unexpected user: %+v", user)
+	}
+}
+
+func TestAuthService_RegisterUsesRuntimeDefaultQuota(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, true)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), DefaultQuotaSettingKey, "5 GB"); err != nil {
+		t.Fatalf("set default quota: %v", err)
+	}
+
+	user, err := svc.Register(context.Background(), "quota-user", "quota@example.com", "hunter2")
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if user.StorageLimit != testCustomQuotaBytes {
+		t.Fatalf("storage limit = %d, want %d", user.StorageLimit, testCustomQuotaBytes)
+	}
+}
+
+func TestAuthService_CreateStandardUserWithStorageLimitOverridesDefault(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, true)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), DefaultQuotaSettingKey, "5 GB"); err != nil {
+		t.Fatalf("set default quota: %v", err)
+	}
+
+	explicit := int64(1024 * 1024 * 1024)
+	user, err := svc.CreateStandardUserWithStorageLimit(
+		context.Background(),
+		"quota-override",
+		"quota-override@example.com",
+		"hunter2",
+		&explicit,
+	)
+	if err != nil {
+		t.Fatalf("create standard user with explicit limit: %v", err)
+	}
+	if user.StorageLimit != explicit {
+		t.Fatalf("storage limit = %d, want %d", user.StorageLimit, explicit)
+	}
+}
+
+func TestAuthService_CreateSocialUserUsesRuntimeDefaultQuota(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, true)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), DefaultQuotaSettingKey, "5 GB"); err != nil {
+		t.Fatalf("set default quota: %v", err)
+	}
+
+	user, err := svc.CreateSocialUser(context.Background(), "social-quota", "social-quota@example.com", nil, nil)
+	if err != nil {
+		t.Fatalf("create social user: %v", err)
+	}
+	if user.StorageLimit != testCustomQuotaBytes {
+		t.Fatalf("storage limit = %d, want %d", user.StorageLimit, testCustomQuotaBytes)
+	}
+}
+
+func TestAuthService_RegisterUsesUnlimitedDefaultQuota(t *testing.T) {
+	db := newAuthTestDB(t)
+	svc := newAuthService(db, true)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), DefaultQuotaSettingKey, "-1"); err != nil {
+		t.Fatalf("set unlimited default quota: %v", err)
+	}
+
+	user, err := svc.Register(context.Background(), "quota-unlimited", "quota-unlimited@example.com", "hunter2")
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if user.StorageLimit != UnlimitedStorageQuotaBytes() {
+		t.Fatalf("storage limit = %d, want %d", user.StorageLimit, UnlimitedStorageQuotaBytes())
 	}
 }
 
@@ -169,6 +248,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 	wrongSvc := NewAuthService(
 		repo.NewUserRepo(db),
 		repo.NewAPITokenRepo(db),
+		repo.NewSettingRepo(db),
 		config.AuthConfig{JWTSecret: "different", AccessTokenExpiry: time.Hour, RefreshTokenExpiry: time.Hour},
 	)
 	if _, err := wrongSvc.ValidateToken(pair.AccessToken); err != ErrTokenInvalid {

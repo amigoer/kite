@@ -84,7 +84,7 @@ func registerPublic(
 			return
 		}
 		handler.Success(c, gin.H{
-			"items": fileHandler.EnrichFiles(files, handler.RequestBaseURL(c)),
+			"items": fileHandler.EnrichFiles(c.Request.Context(), files, handler.RequestBaseURL(c)),
 			"total": total,
 			"page":  page,
 			"size":  size,

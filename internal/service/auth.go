@@ -46,16 +46,18 @@ type TokenPair struct {
 
 // AuthService encapsulates authentication business logic.
 type AuthService struct {
-	userRepo  *repo.UserRepo
-	tokenRepo *repo.APITokenRepo
-	cfg       config.AuthConfig
+	userRepo    *repo.UserRepo
+	tokenRepo   *repo.APITokenRepo
+	settingRepo *repo.SettingRepo
+	cfg         config.AuthConfig
 }
 
-func NewAuthService(userRepo *repo.UserRepo, tokenRepo *repo.APITokenRepo, cfg config.AuthConfig) *AuthService {
+func NewAuthService(userRepo *repo.UserRepo, tokenRepo *repo.APITokenRepo, settingRepo *repo.SettingRepo, cfg config.AuthConfig) *AuthService {
 	return &AuthService{
-		userRepo:  userRepo,
-		tokenRepo: tokenRepo,
-		cfg:       cfg,
+		userRepo:    userRepo,
+		tokenRepo:   tokenRepo,
+		settingRepo: settingRepo,
+		cfg:         cfg,
 	}
 }
 
@@ -72,13 +74,23 @@ func (s *AuthService) RegisterWithPolicy(ctx context.Context, username, email, p
 		return nil, ErrRegistrationClosed
 	}
 
-	return s.createUser(ctx, username, email, password, "user", false, true, nil, nil)
+	return s.createUser(ctx, username, email, password, "user", false, true, nil, nil, nil)
 }
 
 // CreateStandardUser creates a regular active user account without consulting
 // the public self-registration switch. It is intended for administrator flows.
 func (s *AuthService) CreateStandardUser(ctx context.Context, username, email, password string) (*model.User, error) {
-	return s.createUser(ctx, username, email, password, "user", false, true, nil, nil)
+	return s.CreateStandardUserWithStorageLimit(ctx, username, email, password, nil)
+}
+
+// CreateStandardUserWithStorageLimit creates a standard user while allowing
+// the caller to override the default storage quota.
+func (s *AuthService) CreateStandardUserWithStorageLimit(
+	ctx context.Context,
+	username, email, password string,
+	storageLimit *int64,
+) (*model.User, error) {
+	return s.createUser(ctx, username, email, password, "user", false, true, nil, nil, storageLimit)
 }
 
 // CreateSocialUser creates a new active user that initially only supports
@@ -89,11 +101,22 @@ func (s *AuthService) CreateSocialUser(
 	username, email string,
 	nickname, avatarURL *string,
 ) (*model.User, error) {
+	return s.CreateSocialUserWithStorageLimit(ctx, username, email, nickname, avatarURL, nil)
+}
+
+// CreateSocialUserWithStorageLimit creates a social-login user and optionally
+// overrides the default storage quota applied to new regular users.
+func (s *AuthService) CreateSocialUserWithStorageLimit(
+	ctx context.Context,
+	username, email string,
+	nickname, avatarURL *string,
+	storageLimit *int64,
+) (*model.User, error) {
 	randomPassword, err := generateRandomToken(32)
 	if err != nil {
 		return nil, fmt.Errorf("generate placeholder password: %w", err)
 	}
-	return s.createUser(ctx, username, email, randomPassword, "user", false, false, nickname, avatarURL)
+	return s.createUser(ctx, username, email, randomPassword, "user", false, false, nickname, avatarURL, storageLimit)
 }
 
 func (s *AuthService) createUser(
@@ -102,6 +125,7 @@ func (s *AuthService) createUser(
 	mustChange bool,
 	hasLocalPassword bool,
 	nickname, avatarURL *string,
+	storageLimit *int64,
 ) (*model.User, error) {
 	exists, err := s.userRepo.ExistsByUsernameOrEmail(ctx, username, email)
 	if err != nil {
@@ -125,6 +149,7 @@ func (s *AuthService) createUser(
 		PasswordHash:       string(hash),
 		HasLocalPassword:   hasLocalPassword,
 		Role:               role,
+		StorageLimit:       s.resolveStorageLimit(ctx, role, storageLimit),
 		IsActive:           true,
 		PasswordMustChange: mustChange,
 	}
@@ -236,15 +261,21 @@ func (s *AuthService) CreateAPIToken(ctx context.Context, userID, name string, e
 // CreateAdminUser creates an administrator account (used by the setup wizard).
 // When mustChange is true the user must reset their credentials at first login before anything else.
 func (s *AuthService) CreateAdminUser(ctx context.Context, username, email, password string, mustChange bool) (*model.User, error) {
-	user, err := s.createUser(ctx, username, email, password, "admin", mustChange, true, nil, nil)
+	return s.CreateAdminUserWithStorageLimit(ctx, username, email, password, mustChange, nil)
+}
+
+// CreateAdminUserWithStorageLimit creates an administrator account and allows
+// callers such as the admin console to override the default unlimited quota.
+func (s *AuthService) CreateAdminUserWithStorageLimit(
+	ctx context.Context,
+	username, email, password string,
+	mustChange bool,
+	storageLimit *int64,
+) (*model.User, error) {
+	user, err := s.createUser(ctx, username, email, password, "admin", mustChange, true, nil, nil, storageLimit)
 	if err != nil {
 		return nil, fmt.Errorf("create admin user: %w", err)
 	}
-	user.StorageLimit = -1 // administrators have no storage quota
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return nil, fmt.Errorf("persist admin storage limit: %w", err)
-	}
-
 	return user, nil
 }
 
@@ -372,6 +403,34 @@ func (s *AuthService) ResetFirstLoginCredentials(ctx context.Context, userID, ne
 	}
 
 	return s.generateTokenPair(user)
+}
+
+func (s *AuthService) resolveStorageLimit(ctx context.Context, role string, explicit *int64) int64 {
+	if explicit != nil {
+		return *explicit
+	}
+	if role == "admin" {
+		return -1
+	}
+	return s.defaultStandardUserStorageLimit(ctx)
+}
+
+func (s *AuthService) defaultStandardUserStorageLimit(ctx context.Context) int64 {
+	if s.settingRepo == nil {
+		return DefaultStorageQuotaBytes()
+	}
+
+	raw, err := s.settingRepo.GetOrDefault(ctx, DefaultQuotaSettingKey, DefaultQuotaSettingValue())
+	if err != nil {
+		return DefaultStorageQuotaBytes()
+	}
+
+	limit, err := ParseStorageQuotaBytes(raw)
+	if err != nil {
+		return DefaultStorageQuotaBytes()
+	}
+
+	return limit
 }
 
 // IssueTokenPair issues a fresh token pair for the given user without

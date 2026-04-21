@@ -551,7 +551,7 @@ const zh: Translations = {
     description: '实例级配置与安全策略',
     // Tabs
     general: '常规',
-    generalDesc: '实例默认行为',
+    generalDesc: '实例入口与默认策略',
     siteTab: '站点',
     uploadTab: '上传',
     uploadDesc: '上传规则',
@@ -569,13 +569,19 @@ const zh: Translations = {
     email: '邮件',
     emailDesc: '邮件发送',
     // Preferences — general
+    generalBasicsTitle: '实例基础',
+    generalBasicsHint: '这些配置决定站点对外展示的基础身份与回调域名。',
+    generalAccessTitle: '开放策略',
+    generalAccessHint: '控制谁可以进入实例、上传文件以及浏览公开内容。',
+    generalDefaultsTitle: '用户默认值',
+    generalDefaultsHint: '面向新账号的默认行为与后续配额策略。',
     siteName: '站点名称',
     siteNameHint: '实例名称，站点品牌未单独设置时会默认使用这里',
     siteUrl: '站点域名',
     siteUrlHint: '用于生成公开 URL 与第三方登录回调地址',
     siteUrlPlaceholder: 'https://kite.plus',
-    siteBasicsTitle: '基础信息',
-    siteBasicsHint: '管理站点名称、站点域名以及浏览器标题。',
+    siteBasicsTitle: '标题与图标',
+    siteBasicsHint: '管理浏览器标题、Favicon 与公开页面中的标题预览。',
     siteTitle: '网站标题',
     siteTitleHint: '用于首页与公开页面的浏览器标题、Open Graph 标题和 SEO。',
     siteTitlePlaceholder: 'Kite - 自部署媒体托管系统',
@@ -610,8 +616,18 @@ const zh: Translations = {
     siteFooterCopyrightHint: '例如 © 2026 Kite；留空时可按需隐藏。',
     allowRegistration: '开放注册',
     allowRegistrationHint: '允许任何人创建账号',
+    defaultQuotaMode: '默认配额模式',
+    defaultQuotaModeHint: '为普通用户选择统一的默认容量策略。',
+    defaultQuotaModeLimited: '指定容量',
+    defaultQuotaModeUnlimited: '不限额',
     defaultQuota: '默认配额',
-    defaultQuotaHint: '新用户初始存储空间',
+    defaultQuotaHint:
+      '只需填写数字，并在右侧选择固定单位；用于普通用户的新建默认存储空间。',
+    defaultQuotaPlaceholder: '10',
+    defaultQuotaAppliedLimited:
+      '保存后会自动用于公开注册、OAuth 首次建号，以及后台新增普通用户；管理员账号仍默认不限容量。',
+    defaultQuotaAppliedUnlimited:
+      '保存后公开注册、OAuth 首次建号，以及后台新增普通用户都会默认不限额；管理员账号继续保持不限容量。',
     uploadMaxFileSize: '单文件大小上限',
     uploadMaxFileSizeHint:
       '统一作用于公开上传、登录后上传和 API 上传；单位为 MB。',
@@ -646,6 +662,12 @@ const zh: Translations = {
     rateLimitRecommend:
       '建议：游客上传限流不要低于 30；认证接口可按实例暴露程度保守设置。',
     // Preferences — auth
+    authOverviewTitle: '认证入口说明',
+    authOverviewHint: '这里保留登录方式配置，实例开放策略已迁移到“常规”页签。',
+    authMovedNotice:
+      '开放注册、游客上传、探索广场等实例级开关已迁移到“常规”页签，方便统一管理。',
+    authPolicyPlanned:
+      '两步验证、密码长度、Session 超时等强制策略当前尚未在服务端统一生效。为避免误导，待后端真正接入后再开放独立配置。',
     twoFactor: '两步验证',
     twoFactorHint: '强制所有管理员启用',
     passwordMinLength: '密码最小长度',
@@ -682,8 +704,16 @@ const zh: Translations = {
     smtpPort: '端口',
     smtpTls: 'TLS',
     smtpFrom: '发件地址',
+    smtpUsername: 'SMTP 用户名',
+    smtpPassword: 'SMTP 密码',
+    smtpPasswordHint: '如服务端不要求认证可留空。',
+    smtpPasswordPlaceholder: '请输入 SMTP 密码',
+    smtpPasswordConfigured: '已配置密码，留空则继续使用当前值',
+    smtpPasswordKeep: '已保存 SMTP 密码；如无变更可留空。',
     sendTestMail: '发送测试邮件',
     testMailSent: '测试邮件已发送',
+    testMailSentTo: '测试邮件已发送到 {email}',
+    testMailSentFallback: '当前账号邮箱',
     // Legacy keys kept for compatibility
     appearance: '外观与偏好',
     appearanceDesc: '自定义当前设备上的显示风格与习惯。',

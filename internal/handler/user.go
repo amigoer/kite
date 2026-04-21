@@ -67,9 +67,22 @@ func (h *UserHandler) Create(c *gin.Context) {
 	var err error
 
 	if req.Role == "admin" {
-		user, err = h.authSvc.CreateAdminUser(c.Request.Context(), req.Username, req.Email, req.Password, false)
+		user, err = h.authSvc.CreateAdminUserWithStorageLimit(
+			c.Request.Context(),
+			req.Username,
+			req.Email,
+			req.Password,
+			false,
+			req.StorageLimit,
+		)
 	} else {
-		user, err = h.authSvc.CreateStandardUser(c.Request.Context(), req.Username, req.Email, req.Password)
+		user, err = h.authSvc.CreateStandardUserWithStorageLimit(
+			c.Request.Context(),
+			req.Username,
+			req.Email,
+			req.Password,
+			req.StorageLimit,
+		)
 	}
 
 	if err != nil {

@@ -560,7 +560,7 @@ const en = {
     description: 'Instance-level configuration and security policies',
     // Tabs
     general: 'General',
-    generalDesc: 'Instance defaults',
+    generalDesc: 'Instance entry and defaults',
     siteTab: 'Site',
     uploadTab: 'Upload',
     uploadDesc: 'Upload rules',
@@ -578,13 +578,23 @@ const en = {
     email: 'Email',
     emailDesc: 'Outbound email',
     // Preferences — general
+    generalBasicsTitle: 'Instance basics',
+    generalBasicsHint:
+      'These fields define the site identity, public base URL, and OAuth callback origin.',
+    generalAccessTitle: 'Access policy',
+    generalAccessHint:
+      'Control who can enter the instance, upload files, and browse public content.',
+    generalDefaultsTitle: 'User defaults',
+    generalDefaultsHint:
+      'Default behavior for new accounts and the quota strategy reserved for future enforcement.',
     siteName: 'Site name',
     siteNameHint: 'Instance name used as the fallback site brand',
     siteUrl: 'Site domain',
     siteUrlHint: 'Used to generate public URLs and OAuth callbacks',
     siteUrlPlaceholder: 'https://kite.plus',
-    siteBasicsTitle: 'Basics',
-    siteBasicsHint: 'Manage the site name, public domain, and browser title.',
+    siteBasicsTitle: 'Title & icon',
+    siteBasicsHint:
+      'Manage the browser title, favicon, and title previews used across public pages.',
     siteTitle: 'Website title',
     siteTitleHint:
       'Used for public page titles, Open Graph titles, and SEO snippets.',
@@ -629,8 +639,19 @@ const en = {
       'For example: © 2026 Kite. Leave blank if you want to hide it.',
     allowRegistration: 'Open registration',
     allowRegistrationHint: 'Allow anyone to create an account',
+    defaultQuotaMode: 'Default quota mode',
+    defaultQuotaModeHint:
+      'Choose the default storage strategy applied to regular users.',
+    defaultQuotaModeLimited: 'Fixed quota',
+    defaultQuotaModeUnlimited: 'Unlimited',
     defaultQuota: 'Default quota',
-    defaultQuotaHint: 'Initial storage for new users',
+    defaultQuotaHint:
+      'Enter a numeric value and pick a fixed unit on the right for the default quota applied to new regular users.',
+    defaultQuotaPlaceholder: '10',
+    defaultQuotaAppliedLimited:
+      'After saving, this quota is applied to self-registration, first-time OAuth onboarding, and newly created standard users from the admin console. Administrator accounts still default to unlimited storage.',
+    defaultQuotaAppliedUnlimited:
+      'After saving, self-registration, first-time OAuth onboarding, and newly created standard users from the admin console will default to unlimited storage. Administrator accounts remain unlimited as before.',
     uploadMaxFileSize: 'Per-file size limit',
     uploadMaxFileSizeHint:
       'Applies to public uploads, signed-in uploads, and API uploads. Unit: MB.',
@@ -666,6 +687,13 @@ const en = {
     rateLimitRecommend:
       'Recommendation: keep guest upload at 30 or above; keep auth endpoints more conservative based on your exposure.',
     // Preferences — auth
+    authOverviewTitle: 'Authentication overview',
+    authOverviewHint:
+      'Login methods stay here, while instance-wide access switches now live in General.',
+    authMovedNotice:
+      'Open registration, guest upload, and the public gallery switches were moved to the General tab so they can be managed together.',
+    authPolicyPlanned:
+      'Mandatory 2FA, password rules, and session timeout controls are not yet enforced uniformly by the backend. To avoid a false sense of security, they will be exposed again after the server-side implementation is ready.',
     twoFactor: 'Two-factor auth',
     twoFactorHint: 'Enforce for all administrators',
     passwordMinLength: 'Min password length',
@@ -705,8 +733,19 @@ const en = {
     smtpPort: 'Port',
     smtpTls: 'TLS',
     smtpFrom: 'From address',
+    smtpUsername: 'SMTP username',
+    smtpPassword: 'SMTP password',
+    smtpPasswordHint:
+      'Leave blank when your SMTP service does not require auth.',
+    smtpPasswordPlaceholder: 'Enter SMTP password',
+    smtpPasswordConfigured:
+      'A password is already configured. Leave blank to keep using it',
+    smtpPasswordKeep:
+      'The stored SMTP password will be kept if you leave this blank.',
     sendTestMail: 'Send test email',
     testMailSent: 'Test email sent',
+    testMailSentTo: 'Test email sent to {email}',
+    testMailSentFallback: 'the current account email',
     // Legacy keys kept for compatibility
     appearance: 'Appearance & Preferences',
     appearanceDesc: 'Customize system display style and habits.',

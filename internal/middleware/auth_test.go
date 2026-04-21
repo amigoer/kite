@@ -22,12 +22,13 @@ func newMiddlewareTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.APIToken{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.APIToken{}, &model.Setting{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM users")
 		db.Exec("DELETE FROM api_tokens")
+		db.Exec("DELETE FROM settings")
 	})
 	return db
 }
@@ -36,6 +37,7 @@ func newAuthSvc(db *gorm.DB) *service.AuthService {
 	return service.NewAuthService(
 		repo.NewUserRepo(db),
 		repo.NewAPITokenRepo(db),
+		repo.NewSettingRepo(db),
 		config.AuthConfig{
 			JWTSecret:          "middleware-secret",
 			AccessTokenExpiry:  time.Hour,

@@ -71,6 +71,18 @@ func TestResolveSettingsIncludesUploadMaxFileSize(t *testing.T) {
 	}
 }
 
+func TestResolveSettingsIncludesDefaultQuota(t *testing.T) {
+	defaults := DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024)
+
+	got := ResolveSettings(defaults, map[string]string{
+		DefaultQuotaSettingKey: "10 GB",
+	})
+
+	if got[DefaultQuotaSettingKey] != DefaultQuotaSettingValue() {
+		t.Fatalf("unexpected default_quota: %q", got[DefaultQuotaSettingKey])
+	}
+}
+
 func TestResolveSettingsIncludesRateLimitSettings(t *testing.T) {
 	defaults := DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024)
 
@@ -84,5 +96,18 @@ func TestResolveSettingsIncludesRateLimitSettings(t *testing.T) {
 	}
 	if got[GuestUploadRateLimitPerMinuteSettingKey] != "120" {
 		t.Fatalf("unexpected guest upload rate limit: %q", got[GuestUploadRateLimitPerMinuteSettingKey])
+	}
+}
+
+func TestResolveSettingsIncludesSMTPDefaults(t *testing.T) {
+	defaults := DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024)
+
+	got := ResolveSettings(defaults, nil)
+
+	if got[SMTPPortSettingKey] != "587" {
+		t.Fatalf("unexpected smtp_port: %q", got[SMTPPortSettingKey])
+	}
+	if got[SMTPTLSSettingKey] != "false" {
+		t.Fatalf("unexpected smtp_tls: %q", got[SMTPTLSSettingKey])
 	}
 }

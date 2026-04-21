@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -145,7 +146,7 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		if err == nil && existing != nil {
 			return &UploadResult{
 				File:  existing,
-				Links: s.generateLinks(existing, params.BaseURL),
+				Links: s.generateLinks(ctx, existing, params.BaseURL),
 			}, nil
 		}
 	}
@@ -244,7 +245,7 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 
 	return &UploadResult{
 		File:  file,
-		Links: s.generateLinks(file, params.BaseURL),
+		Links: s.generateLinks(ctx, file, params.BaseURL),
 	}, nil
 }
 
@@ -376,8 +377,8 @@ func (s *FileService) ListFiles(ctx context.Context, params repo.FileListParams)
 }
 
 // GetSourceURL returns the file's origin URL on its storage backend.
-func (s *FileService) GetSourceURL(file *model.File, baseURL string) string {
-	driver, err := s.storageMgr.Get(file.StorageConfigID)
+func (s *FileService) GetSourceURL(ctx context.Context, file *model.File, baseURL string) string {
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
 	if err != nil {
 		return ""
 	}
@@ -394,7 +395,7 @@ func (s *FileService) GetSourceURL(file *model.File, baseURL string) string {
 
 // GetFileContent opens the file content stream, used for access and download.
 func (s *FileService) GetFileContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
-	driver, err := s.storageMgr.Get(file.StorageConfigID)
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get storage driver: %w", err)
 	}
@@ -404,7 +405,7 @@ func (s *FileService) GetFileContent(ctx context.Context, file *model.File) (io.
 // GetThumbContent opens the thumbnail stream for the /t/:hash short-link endpoint.
 // The thumbnail storage key is always "thumb/" + file.StorageKey.
 func (s *FileService) GetThumbContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
-	driver, err := s.storageMgr.Get(file.StorageConfigID)
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get storage driver: %w", err)
 	}
@@ -421,7 +422,7 @@ func (s *FileService) RegenerateThumbnail(ctx context.Context, file *model.File)
 		return nil, 0, fmt.Errorf("regenerate thumbnail: not an image")
 	}
 
-	driver, err := s.storageMgr.Get(file.StorageConfigID)
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("regenerate thumbnail: get storage driver: %w", err)
 	}
@@ -549,7 +550,7 @@ func (s *FileService) buildAccessURL(fileType, hashShort string) string {
 	return prefix + hashShort
 }
 
-func (s *FileService) generateLinks(file *model.File, baseURL string) FileLinks {
+func (s *FileService) generateLinks(ctx context.Context, file *model.File, baseURL string) FileLinks {
 	base := strings.TrimRight(baseURL, "/")
 	url := file.URL
 	if base != "" && !strings.HasPrefix(url, "http") {
@@ -563,7 +564,7 @@ func (s *FileService) generateLinks(file *model.File, baseURL string) FileLinks 
 		Markdown:         fmt.Sprintf(`![%s](%s)`, file.OriginalName, url),
 		MarkdownWithLink: fmt.Sprintf(`[![%s](%s)](%s)`, file.OriginalName, url, url),
 	}
-	if driver, err := s.storageMgr.Get(file.StorageConfigID); err == nil {
+	if driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID); err == nil {
 		if sourceURL := driver.URL(file.StorageKey); sourceURL != "" {
 			if base != "" && !strings.HasPrefix(sourceURL, "http") {
 				sourceURL = base + sourceURL
@@ -579,6 +580,36 @@ func (s *FileService) generateLinks(file *model.File, baseURL string) FileLinks 
 		links.ThumbnailURL = thumbURL
 	}
 	return links
+}
+
+// storageDriverForConfig resolves the driver's runtime instance for a file's
+// storage configuration. Active storages come from the manager cache; historical
+// files may still point at disabled storages, so those are rebuilt from the
+// persisted config on demand.
+func (s *FileService) storageDriverForConfig(ctx context.Context, configID string) (storage.StorageDriver, error) {
+	if driver, err := s.storageMgr.Get(configID); err == nil {
+		return driver, nil
+	}
+	if s.storageRepo == nil {
+		return nil, fmt.Errorf("storage config %q is not available", configID)
+	}
+
+	cfg, err := s.storageRepo.GetByID(ctx, configID)
+	if err != nil {
+		return nil, fmt.Errorf("get storage config %q: %w", configID, err)
+	}
+
+	driverName, _ := storage.CanonicalDriverAndProvider(cfg.Driver, cfg.Provider, cfg.Config)
+	parsed, err := storage.ParseConfig(driverName, json.RawMessage(cfg.Config))
+	if err != nil {
+		return nil, fmt.Errorf("parse storage config %q: %w", configID, err)
+	}
+
+	driver, err := storage.NewDriver(parsed)
+	if err != nil {
+		return nil, fmt.Errorf("build storage driver %q: %w", configID, err)
+	}
+	return driver, nil
 }
 
 // classifyFileType derives the file category from its MIME type.

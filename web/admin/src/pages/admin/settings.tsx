@@ -25,6 +25,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Card,
   CardContent,
   CardDescription,
@@ -49,7 +56,18 @@ const DEFAULT_UPLOAD_PATH_PATTERN = '{year}/{month}/{md5_8}/{uuid}.{ext}'
 const DEFAULT_UPLOAD_MAX_FILE_SIZE_MB = '100'
 const DEFAULT_AUTH_RATE_LIMIT_PER_MINUTE = '20'
 const DEFAULT_GUEST_UPLOAD_RATE_LIMIT_PER_MINUTE = '60'
+const DEFAULT_SMTP_PORT = '587'
+const DEFAULT_DEFAULT_QUOTA = '10737418240'
+const UNLIMITED_DEFAULT_QUOTA = '-1'
 const UPLOAD_SIZE_MB_BYTES = 1024 * 1024
+
+type QuotaUnit = 'MB' | 'GB' | 'TB'
+
+const QUOTA_UNIT_BYTES: Record<QuotaUnit, number> = {
+  MB: 1024 ** 2,
+  GB: 1024 ** 3,
+  TB: 1024 ** 4,
+}
 
 interface StorageListItem {
   id: string
@@ -124,6 +142,90 @@ function parseUploadMaxFileSizeMB(raw?: string) {
   return Number.parseInt(DEFAULT_UPLOAD_MAX_FILE_SIZE_MB, 10)
 }
 
+function trimTrailingZeros(value: string) {
+  return value.replace(/\.0+$/g, '').replace(/(\.\d*?[1-9])0+$/g, '$1')
+}
+
+function isUnlimitedDefaultQuota(raw?: string) {
+  return (raw ?? '').trim() === UNLIMITED_DEFAULT_QUOTA
+}
+
+function defaultQuotaModeOf(raw?: string) {
+  return isUnlimitedDefaultQuota(raw) ? 'unlimited' : 'limited'
+}
+
+function quotaDraftFromBytes(bytes: number) {
+  if (bytes <= 0) return { value: '10', unit: 'GB' as QuotaUnit }
+  if (bytes % QUOTA_UNIT_BYTES.TB === 0) {
+    return {
+      value: String(bytes / QUOTA_UNIT_BYTES.TB),
+      unit: 'TB' as QuotaUnit,
+    }
+  }
+  if (bytes % QUOTA_UNIT_BYTES.GB === 0) {
+    return {
+      value: String(bytes / QUOTA_UNIT_BYTES.GB),
+      unit: 'GB' as QuotaUnit,
+    }
+  }
+  if (bytes % QUOTA_UNIT_BYTES.MB === 0) {
+    return {
+      value: String(bytes / QUOTA_UNIT_BYTES.MB),
+      unit: 'MB' as QuotaUnit,
+    }
+  }
+  if (bytes >= QUOTA_UNIT_BYTES.TB) {
+    return {
+      value: trimTrailingZeros((bytes / QUOTA_UNIT_BYTES.TB).toFixed(2)),
+      unit: 'TB' as QuotaUnit,
+    }
+  }
+  if (bytes >= QUOTA_UNIT_BYTES.GB) {
+    return {
+      value: trimTrailingZeros((bytes / QUOTA_UNIT_BYTES.GB).toFixed(2)),
+      unit: 'GB' as QuotaUnit,
+    }
+  }
+  return {
+    value: trimTrailingZeros((bytes / QUOTA_UNIT_BYTES.MB).toFixed(2)),
+    unit: 'MB' as QuotaUnit,
+  }
+}
+
+function parseDefaultQuotaDraft(raw?: string) {
+  if (isUnlimitedDefaultQuota(raw)) {
+    return quotaDraftFromBytes(Number(DEFAULT_DEFAULT_QUOTA))
+  }
+
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return quotaDraftFromBytes(Number(DEFAULT_DEFAULT_QUOTA))
+
+  if (/^\d+$/.test(trimmed)) {
+    return quotaDraftFromBytes(Number(trimmed))
+  }
+
+  const matched = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)\s*(MB|GB|TB)$/i)
+  if (matched) {
+    return {
+      value: trimTrailingZeros(matched[1]),
+      unit: matched[2].toUpperCase() as QuotaUnit,
+    }
+  }
+
+  return quotaDraftFromBytes(Number(DEFAULT_DEFAULT_QUOTA))
+}
+
+function buildLimitedDefaultQuota(value: string, unit: QuotaUnit) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return `${trimmed} ${unit}`
+}
+
+function hydrateSettingsForm(data?: Record<string, string>) {
+  if (!data) return {}
+  return { ...data }
+}
+
 /* ────────────────────────────────────────────────────────────
  * Preference row — label+hint on the left, control on the right.
  *  Uses `divide-y` on the parent Card content to get the
@@ -139,14 +241,14 @@ function Preference({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-      <div className="min-w-0">
+    <div className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="min-w-0 sm:flex-1">
         <div className="text-sm font-medium">{label}</div>
         {hint && (
           <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>
         )}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="w-full sm:w-auto sm:shrink-0">{children}</div>
     </div>
   )
 }
@@ -200,6 +302,8 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('general')
   const [form, setForm] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
+  const [defaultQuotaValue, setDefaultQuotaValue] = useState('10')
+  const [defaultQuotaUnit, setDefaultQuotaUnit] = useState<QuotaUnit>('GB')
   const [providerDrafts, setProviderDrafts] = useState<
     Record<string, OAuthProviderDraft>
   >({})
@@ -213,7 +317,11 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    if (data) setForm(data)
+    if (!data) return
+    setForm(hydrateSettingsForm(data))
+    const draft = parseDefaultQuotaDraft(data.default_quota)
+    setDefaultQuotaValue(draft.value)
+    setDefaultQuotaUnit(draft.unit)
   }, [data])
 
   const { data: providerList } = useQuery<OAuthProviderItem[]>({
@@ -267,10 +375,50 @@ export default function SettingsPage() {
     }))
 
   const resetForm = () => {
-    if (data) setForm(data)
+    if (!data) return
+    setForm(hydrateSettingsForm(data))
+    const draft = parseDefaultQuotaDraft(data.default_quota)
+    setDefaultQuotaValue(draft.value)
+    setDefaultQuotaUnit(draft.unit)
   }
 
   const boolOf = (key: string): boolean => form[key] === 'true'
+  const defaultQuotaMode = defaultQuotaModeOf(form.default_quota)
+
+  const updateDefaultQuotaMode = (mode: string) => {
+    if (mode === 'unlimited') {
+      updateField('default_quota', UNLIMITED_DEFAULT_QUOTA)
+      return
+    }
+    updateField(
+      'default_quota',
+      buildLimitedDefaultQuota(defaultQuotaValue, defaultQuotaUnit)
+    )
+  }
+
+  const updateLimitedDefaultQuotaValue = (value: string) => {
+    setDefaultQuotaValue(value)
+    updateField(
+      'default_quota',
+      buildLimitedDefaultQuota(value, defaultQuotaUnit)
+    )
+  }
+
+  const updateLimitedDefaultQuotaUnit = (unit: string) => {
+    const nextUnit = unit as QuotaUnit
+    let nextValue = defaultQuotaValue
+    const currentNumber = Number(defaultQuotaValue)
+    if (Number.isFinite(currentNumber) && currentNumber > 0) {
+      const bytes = currentNumber * QUOTA_UNIT_BYTES[defaultQuotaUnit]
+      const converted = bytes / QUOTA_UNIT_BYTES[nextUnit]
+      nextValue = trimTrailingZeros(
+        converted >= 100 ? converted.toFixed(0) : converted.toFixed(2)
+      )
+    }
+    setDefaultQuotaUnit(nextUnit)
+    setDefaultQuotaValue(nextValue)
+    updateField('default_quota', buildLimitedDefaultQuota(nextValue, nextUnit))
+  }
 
   /* ── storage tab ─────────────────────────────────────── */
   const { data: storageList } = useQuery<StorageListItem[]>({
@@ -314,6 +462,38 @@ export default function SettingsPage() {
     },
   })
 
+  const testEmailMutation = useMutation({
+    mutationFn: () =>
+      settingsApi.testEmail({
+        smtp_host: form.smtp_host ?? '',
+        smtp_port: form.smtp_port ?? '',
+        smtp_tls: form.smtp_tls ?? 'false',
+        smtp_from: form.smtp_from ?? '',
+        smtp_username: form.smtp_username ?? '',
+        ...(typeof form.smtp_password === 'string'
+          ? { smtp_password: form.smtp_password }
+          : {}),
+      }),
+    onSuccess: (response) => {
+      const recipient =
+        response.data?.data?.sent_to ?? t('settings.testMailSentFallback')
+      toast.success(
+        t('settings.testMailSentTo').replace('{email}', String(recipient))
+      )
+      setForm((prev) => ({
+        ...prev,
+        smtp_password: '',
+        smtp_password_configured: 'true',
+      }))
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? t('toast.error')
+      toast.error(msg)
+    },
+  })
+
   /* ── early loading state ─────────────────────────────── */
   if (isLoading) {
     return (
@@ -348,6 +528,7 @@ export default function SettingsPage() {
   const guestUploadRateLimitPerMinute =
     form['rate_limit.guest_upload_requests_per_minute'] ??
     DEFAULT_GUEST_UPLOAD_RATE_LIMIT_PER_MINUTE
+  const smtpPasswordConfigured = form.smtp_password_configured === 'true'
   const siteName = (form.site_name ?? '').trim()
   const siteTitle = (form.site_title ?? '').trim() || siteName || 'Kite'
   const siteFaviconURL = (form.site_favicon_url ?? '').trim() || '/favicon.svg'
@@ -446,68 +627,21 @@ export default function SettingsPage() {
 
       {/* ── General ──────────────────────────────────── */}
       {tab === 'general' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('settings.generalDesc')}</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y">
-            <Preference
-              label={t('settings.allowRegistration')}
-              hint={t('settings.allowRegistrationHint')}
-            >
-              <Switch
-                checked={boolOf('allow_registration')}
-                onCheckedChange={() => toggleField('allow_registration')}
-              />
-            </Preference>
-            <Preference
-              label={t('settings.defaultQuota')}
-              hint={t('settings.defaultQuotaHint')}
-            >
-              <Input
-                value={form.default_quota ?? ''}
-                onChange={(e) => updateField('default_quota', e.target.value)}
-                placeholder="10 GB"
-                className="w-32"
-              />
-            </Preference>
-          </CardContent>
-          <CardFooter className="justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={resetForm}>
-              {t('settings.reset')}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => mutation.mutate()}
-              disabled={mutation.isPending}
-            >
-              {saved ? (
-                <>
-                  <Check className="size-3.5" />
-                  {t('settings.saved')}
-                </>
-              ) : mutation.isPending ? (
-                t('settings.saving')
-              ) : (
-                t('settings.saveSettings')
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {tab === 'site' && (
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.siteBasicsTitle')}</CardTitle>
-              <CardDescription>{t('settings.siteBasicsHint')}</CardDescription>
+              <CardTitle>{t('settings.generalBasicsTitle')}</CardTitle>
+              <CardDescription>
+                {t('settings.generalBasicsHint')}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-2">
-                <Label htmlFor="site-name">{t('settings.siteName')}</Label>
+                <Label htmlFor="general-site-name">
+                  {t('settings.siteName')}
+                </Label>
                 <Input
-                  id="site-name"
+                  id="general-site-name"
                   value={form.site_name ?? ''}
                   onChange={(e) => updateField('site_name', e.target.value)}
                   placeholder="Kite"
@@ -518,9 +652,11 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="site-url">{t('settings.siteUrl')}</Label>
+                <Label htmlFor="general-site-url">
+                  {t('settings.siteUrl')}
+                </Label>
                 <Input
-                  id="site-url"
+                  id="general-site-url"
                   value={form.site_url ?? ''}
                   onChange={(e) => updateField('site_url', e.target.value)}
                   placeholder={t('settings.siteUrlPlaceholder')}
@@ -529,7 +665,163 @@ export default function SettingsPage() {
                   {t('settings.siteUrlHint')}
                 </p>
               </div>
+            </CardContent>
+          </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.generalAccessTitle')}</CardTitle>
+              <CardDescription>
+                {t('settings.generalAccessHint')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y">
+              <Preference
+                label={t('settings.allowRegistration')}
+                hint={t('settings.allowRegistrationHint')}
+              >
+                <Switch
+                  checked={boolOf('allow_registration')}
+                  onCheckedChange={() => toggleField('allow_registration')}
+                />
+              </Preference>
+              <Preference
+                label={t('settings.allowGuestUpload')}
+                hint={t('settings.allowGuestUploadHint')}
+              >
+                <Switch
+                  checked={boolOf('allow_guest_upload')}
+                  onCheckedChange={() => toggleField('allow_guest_upload')}
+                />
+              </Preference>
+              <Preference
+                label={t('settings.allowPublicGallery')}
+                hint={t('settings.allowPublicGalleryHint')}
+              >
+                <Switch
+                  checked={boolOf('allow_public_gallery')}
+                  onCheckedChange={() => toggleField('allow_public_gallery')}
+                />
+              </Preference>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.generalDefaultsTitle')}</CardTitle>
+              <CardDescription>
+                {t('settings.generalDefaultsHint')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:max-w-xs">
+                <Label htmlFor="general-default-quota-mode">
+                  {t('settings.defaultQuotaMode')}
+                </Label>
+                <Select
+                  value={defaultQuotaMode}
+                  onValueChange={updateDefaultQuotaMode}
+                >
+                  <SelectTrigger id="general-default-quota-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="limited">
+                      {t('settings.defaultQuotaModeLimited')}
+                    </SelectItem>
+                    <SelectItem value="unlimited">
+                      {t('settings.defaultQuotaModeUnlimited')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.defaultQuotaModeHint')}
+                </p>
+              </div>
+
+              {defaultQuotaMode === 'limited' && (
+                <div className="grid gap-2 sm:max-w-xs">
+                  <Label htmlFor="general-default-quota">
+                    {t('settings.defaultQuota')}
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="general-default-quota"
+                      type="number"
+                      min={1}
+                      step={0.01}
+                      inputMode="decimal"
+                      value={defaultQuotaValue}
+                      onChange={(e) =>
+                        updateLimitedDefaultQuotaValue(e.target.value)
+                      }
+                      placeholder={t('settings.defaultQuotaPlaceholder')}
+                    />
+                    <Select
+                      value={defaultQuotaUnit}
+                      onValueChange={updateLimitedDefaultQuotaUnit}
+                    >
+                      <SelectTrigger className="w-24 shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MB">
+                          {t('storage.unitMB')}
+                        </SelectItem>
+                        <SelectItem value="GB">
+                          {t('storage.unitGB')}
+                        </SelectItem>
+                        <SelectItem value="TB">
+                          {t('storage.unitTB')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t('settings.defaultQuotaHint')}
+                  </p>
+                </div>
+              )}
+
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+                {defaultQuotaMode === 'unlimited'
+                  ? t('settings.defaultQuotaAppliedUnlimited')
+                  : t('settings.defaultQuotaAppliedLimited')}
+              </div>
+            </CardContent>
+            <CardFooter className="justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={resetForm}>
+                {t('settings.reset')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+              >
+                {saved ? (
+                  <>
+                    <Check className="size-3.5" />
+                    {t('settings.saved')}
+                  </>
+                ) : mutation.isPending ? (
+                  t('settings.saving')
+                ) : (
+                  t('settings.saveSettings')
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {tab === 'site' && (
+        <div className="space-y-5">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.siteBasicsTitle')}</CardTitle>
+              <CardDescription>{t('settings.siteBasicsHint')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
               <div className="grid gap-2">
                 <Label htmlFor="site-title">{t('settings.siteTitle')}</Label>
                 <Input
@@ -974,81 +1266,19 @@ export default function SettingsPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.authDesc')}</CardTitle>
+              <CardTitle>{t('settings.authOverviewTitle')}</CardTitle>
+              <CardDescription>
+                {t('settings.authOverviewHint')}
+              </CardDescription>
             </CardHeader>
-            <CardContent className="divide-y">
-              <Preference
-                label={t('settings.twoFactor')}
-                hint={t('settings.twoFactorHint')}
-              >
-                <Switch
-                  checked={boolOf('two_factor_required')}
-                  onCheckedChange={() => toggleField('two_factor_required')}
-                />
-              </Preference>
-              <Preference label={t('settings.passwordMinLength')}>
-                <Input
-                  value={form.password_min_length ?? ''}
-                  onChange={(e) =>
-                    updateField('password_min_length', e.target.value)
-                  }
-                  placeholder="10"
-                  className="w-20"
-                />
-              </Preference>
-              <Preference
-                label={t('settings.sessionTimeout')}
-                hint={t('settings.sessionTimeoutHint')}
-              >
-                <Input
-                  value={form.session_timeout ?? ''}
-                  onChange={(e) =>
-                    updateField('session_timeout', e.target.value)
-                  }
-                  placeholder="7d"
-                  className="w-24"
-                />
-              </Preference>
-              <Preference
-                label={t('settings.allowGuestUpload')}
-                hint={t('settings.allowGuestUploadHint')}
-              >
-                <Switch
-                  checked={boolOf('allow_guest_upload')}
-                  onCheckedChange={() => toggleField('allow_guest_upload')}
-                />
-              </Preference>
-              <Preference
-                label={t('settings.allowPublicGallery')}
-                hint={t('settings.allowPublicGalleryHint')}
-              >
-                <Switch
-                  checked={boolOf('allow_public_gallery')}
-                  onCheckedChange={() => toggleField('allow_public_gallery')}
-                />
-              </Preference>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                {t('settings.authMovedNotice')}
+              </div>
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:text-amber-200">
+                {t('settings.authPolicyPlanned')}
+              </div>
             </CardContent>
-            <CardFooter className="justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={resetForm}>
-                {t('settings.reset')}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => mutation.mutate()}
-                disabled={mutation.isPending}
-              >
-                {saved ? (
-                  <>
-                    <Check className="size-3.5" />
-                    {t('settings.saved')}
-                  </>
-                ) : mutation.isPending ? (
-                  t('settings.saving')
-                ) : (
-                  t('settings.saveSettings')
-                )}
-              </Button>
-            </CardFooter>
           </Card>
 
           <Card>
@@ -1306,7 +1536,7 @@ export default function SettingsPage() {
               <Input
                 value={form.smtp_port ?? ''}
                 onChange={(e) => updateField('smtp_port', e.target.value)}
-                placeholder="587"
+                placeholder={DEFAULT_SMTP_PORT}
                 className="w-24"
               />
             </Preference>
@@ -1324,12 +1554,41 @@ export default function SettingsPage() {
                 className="w-64"
               />
             </Preference>
+            <Preference label={t('settings.smtpUsername')}>
+              <Input
+                value={form.smtp_username ?? ''}
+                onChange={(e) => updateField('smtp_username', e.target.value)}
+                placeholder="mailer"
+                className="w-64"
+              />
+            </Preference>
+            <Preference label={t('settings.smtpPassword')}>
+              <div className="grid gap-1">
+                <Input
+                  type="password"
+                  value={form.smtp_password ?? ''}
+                  onChange={(e) => updateField('smtp_password', e.target.value)}
+                  placeholder={
+                    smtpPasswordConfigured
+                      ? t('settings.smtpPasswordConfigured')
+                      : t('settings.smtpPasswordPlaceholder')
+                  }
+                  className="w-64"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {smtpPasswordConfigured
+                    ? t('settings.smtpPasswordKeep')
+                    : t('settings.smtpPasswordHint')}
+                </p>
+              </div>
+            </Preference>
           </CardContent>
           <CardFooter className="justify-between gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.info(t('settings.testMailSent'))}
+              onClick={() => testEmailMutation.mutate()}
+              disabled={testEmailMutation.isPending}
             >
               <Mail className="size-3.5" />
               {t('settings.sendTestMail')}

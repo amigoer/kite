@@ -144,7 +144,7 @@ func (h *FileHandler) List(c *gin.Context) {
 		return
 	}
 
-	Paged(c, h.EnrichFiles(files, RequestBaseURL(c)), total, page, size)
+	Paged(c, h.EnrichFiles(c.Request.Context(), files, RequestBaseURL(c)), total, page, size)
 }
 
 // AdminList returns the site-wide file list unconstrained by user; admin only.
@@ -174,7 +174,7 @@ func (h *FileHandler) AdminList(c *gin.Context) {
 		return
 	}
 
-	Paged(c, h.EnrichFiles(files, RequestBaseURL(c)), total, page, size)
+	Paged(c, h.EnrichFiles(c.Request.Context(), files, RequestBaseURL(c)), total, page, size)
 }
 
 // enrichedFile augments model.File with a source URL and fully qualified links.
@@ -185,7 +185,7 @@ type enrichedFile struct {
 	SourceURL string  `json:"source_url,omitempty"`
 }
 
-func (h *FileHandler) EnrichFiles(files []model.File, baseURL string) []enrichedFile {
+func (h *FileHandler) EnrichFiles(ctx context.Context, files []model.File, baseURL string) []enrichedFile {
 	base := strings.TrimRight(baseURL, "/")
 	items := make([]enrichedFile, len(files))
 	for i := range files {
@@ -198,7 +198,7 @@ func (h *FileHandler) EnrichFiles(files []model.File, baseURL string) []enriched
 			thumbURL := base + *item.ThumbURL
 			item.ThumbURL = &thumbURL
 		}
-		item.SourceURL = h.fileSvc.GetSourceURL(&f, baseURL)
+		item.SourceURL = h.fileSvc.GetSourceURL(ctx, &f, baseURL)
 		items[i] = item
 	}
 	return items

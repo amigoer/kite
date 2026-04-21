@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/amigoer/kite/internal/middleware"
 	"github.com/amigoer/kite/internal/model"
 	"github.com/amigoer/kite/internal/repo"
 	"github.com/amigoer/kite/internal/service"
@@ -25,6 +27,8 @@ func TestSettingsHandler_GetIncludesDefaultUploadPathPattern(t *testing.T) {
 	db := newSettingsHandlerTestDB(t)
 	h := NewSettingsHandler(
 		repo.NewSettingRepo(db),
+		repo.NewUserRepo(db),
+		nil,
 		service.DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024),
 	)
 
@@ -49,6 +53,9 @@ func TestSettingsHandler_GetIncludesDefaultUploadPathPattern(t *testing.T) {
 	if got := payload.Data[service.UploadPathPatternSettingKey]; got != "{year}/{month}/{md5_8}/{uuid}.{ext}" {
 		t.Fatalf("unexpected default upload path pattern: %q", got)
 	}
+	if got := payload.Data[service.DefaultQuotaSettingKey]; got != service.DefaultQuotaSettingValue() {
+		t.Fatalf("unexpected default quota: %q", got)
+	}
 	if got := payload.Data[service.UploadMaxFileSizeMBSettingKey]; got != "100" {
 		t.Fatalf("unexpected default upload max size: %q", got)
 	}
@@ -64,6 +71,53 @@ func TestSettingsHandler_GetIncludesDefaultUploadPathPattern(t *testing.T) {
 	if got := payload.Data[service.SiteFaviconURLSettingKey]; got != "/favicon.svg" {
 		t.Fatalf("unexpected default favicon url: %q", got)
 	}
+	if got := payload.Data[service.SMTPPortSettingKey]; got != "587" {
+		t.Fatalf("unexpected default smtp port: %q", got)
+	}
+	if got := payload.Data[service.SMTPPasswordConfiguredSettingKey]; got != "false" {
+		t.Fatalf("unexpected smtp password configured flag: %q", got)
+	}
+}
+
+func TestSettingsHandler_GetHidesSMTPPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), service.SMTPPasswordSettingKey, "super-secret"); err != nil {
+		t.Fatalf("seed smtp password: %v", err)
+	}
+
+	h := NewSettingsHandler(
+		settingRepo,
+		repo.NewUserRepo(db),
+		nil,
+		service.DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024),
+	)
+
+	r := gin.New()
+	r.GET("/settings", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /settings status=%d", rec.Code)
+	}
+
+	var payload struct {
+		Data map[string]string `json:"data"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := payload.Data[service.SMTPPasswordSettingKey]; ok {
+		t.Fatal("smtp password should not be returned")
+	}
+	if payload.Data[service.SMTPPasswordConfiguredSettingKey] != "true" {
+		t.Fatalf("expected smtp password configured flag, got %q", payload.Data[service.SMTPPasswordConfiguredSettingKey])
+	}
 }
 
 func TestSettingsHandler_UpdateAcceptsValidUploadMaxFileSize(t *testing.T) {
@@ -71,7 +125,7 @@ func TestSettingsHandler_UpdateAcceptsValidUploadMaxFileSize(t *testing.T) {
 
 	db := newSettingsHandlerTestDB(t)
 	settingRepo := repo.NewSettingRepo(db)
-	h := NewSettingsHandler(settingRepo, nil)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -104,11 +158,116 @@ func TestSettingsHandler_UpdateAcceptsValidUploadMaxFileSize(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_UpdateAcceptsValidDefaultQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.DefaultQuotaSettingKey: " 20 GB ",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /settings status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	saved, err := settingRepo.Get(req.Context(), service.DefaultQuotaSettingKey)
+	if err != nil {
+		t.Fatalf("Get default_quota: %v", err)
+	}
+	if saved != "21474836480" {
+		t.Fatalf("unexpected normalized default quota: %q", saved)
+	}
+}
+
+func TestSettingsHandler_UpdateRejectsInvalidDefaultQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), repo.NewUserRepo(db), nil, nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.DefaultQuotaSettingKey: "abc",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid default_quota, got %d", rec.Code)
+	}
+}
+
+func TestSettingsHandler_UpdateAcceptsUnlimitedDefaultQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.DefaultQuotaSettingKey: "-1",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /settings status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	saved, err := settingRepo.Get(req.Context(), service.DefaultQuotaSettingKey)
+	if err != nil {
+		t.Fatalf("Get default_quota: %v", err)
+	}
+	if saved != "-1" {
+		t.Fatalf("unexpected normalized unlimited default quota: %q", saved)
+	}
+}
+
 func TestSettingsHandler_UpdateRejectsInvalidUploadMaxFileSize(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
-	h := NewSettingsHandler(repo.NewSettingRepo(db), nil)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -138,7 +297,7 @@ func TestSettingsHandler_UpdateAcceptsValidRateLimits(t *testing.T) {
 
 	db := newSettingsHandlerTestDB(t)
 	settingRepo := repo.NewSettingRepo(db)
-	h := NewSettingsHandler(settingRepo, nil)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -184,7 +343,7 @@ func TestSettingsHandler_UpdateRejectsInvalidRateLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
-	h := NewSettingsHandler(repo.NewSettingRepo(db), nil)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -209,12 +368,50 @@ func TestSettingsHandler_UpdateRejectsInvalidRateLimit(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_TestEmailRejectsMissingSMTPConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	h := NewSettingsHandler(
+		repo.NewSettingRepo(db),
+		repo.NewUserRepo(db),
+		service.NewEmailService(),
+		service.DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024),
+	)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextKeyUserID, "admin-1")
+		c.Next()
+	})
+	r.POST("/settings/test-email", h.TestEmail)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.SMTPPortSettingKey: "587",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/settings/test-email", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing smtp host, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSettingsHandler_UpdateAcceptsValidUploadPathPattern(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
 	settingRepo := repo.NewSettingRepo(db)
-	h := NewSettingsHandler(settingRepo, nil)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -251,7 +448,7 @@ func TestSettingsHandler_UpdateRejectsInvalidUploadPathPattern(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
-	h := NewSettingsHandler(repo.NewSettingRepo(db), nil)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -290,7 +487,7 @@ func TestSettingsHandler_UpdateRejectsEmptySiteTitle(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	db := newSettingsHandlerTestDB(t)
-	h := NewSettingsHandler(repo.NewSettingRepo(db), nil)
+	h := NewSettingsHandler(repo.NewSettingRepo(db), repo.NewUserRepo(db), nil, nil)
 
 	r := gin.New()
 	r.PUT("/settings", h.Update)
@@ -324,8 +521,19 @@ func newSettingsHandlerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Setting{}); err != nil {
+	if err := db.AutoMigrate(&model.Setting{}, &model.User{}); err != nil {
 		t.Fatalf("migrate settings: %v", err)
+	}
+	if err := db.Create(&model.User{
+		ID:               "admin-1",
+		Username:         "admin",
+		Email:            "admin@example.com",
+		PasswordHash:     "hashed",
+		HasLocalPassword: true,
+		Role:             "admin",
+		IsActive:         true,
+	}).Error; err != nil {
+		t.Fatalf("seed admin user: %v", err)
 	}
 	return db
 }
