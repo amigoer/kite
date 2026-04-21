@@ -36,6 +36,7 @@ type FileService struct {
 	userRepo    *repo.UserRepo
 	storageRepo *repo.StorageConfigRepo
 	replicaRepo *repo.FileReplicaRepo
+	settingRepo *repo.SettingRepo
 	storageMgr  *storage.Manager
 	router      *storage.Router
 	imageSvc    *ImageService
@@ -47,6 +48,7 @@ func NewFileService(
 	userRepo *repo.UserRepo,
 	storageRepo *repo.StorageConfigRepo,
 	replicaRepo *repo.FileReplicaRepo,
+	settingRepo *repo.SettingRepo,
 	storageMgr *storage.Manager,
 	router *storage.Router,
 	imageSvc *ImageService,
@@ -57,6 +59,7 @@ func NewFileService(
 		userRepo:    userRepo,
 		storageRepo: storageRepo,
 		replicaRepo: replicaRepo,
+		settingRepo: settingRepo,
 		storageMgr:  storageMgr,
 		router:      router,
 		imageSvc:    imageSvc,
@@ -156,7 +159,17 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		ext = strings.TrimPrefix(ext, ".")
 	}
 	fileID := uuid.New().String()
-	storageKey := s.generateStorageKey(hashMD5, fileID, ext)
+	storageKey, err := s.generateStorageKey(ctx, UploadPathPatternData{
+		Now:      time.Now(),
+		UserID:   params.UserID,
+		FileType: fileType,
+		HashMD5:  hashMD5,
+		FileID:   fileID,
+		Ext:      ext,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upload generate storage key: %w", err)
+	}
 
 	// 11. Write to the primary storage according to the policy.
 	primary, replicaTargets, err := s.writePrimary(ctx, plan, storageKey, data, mimeType)
@@ -480,10 +493,24 @@ func (s *FileService) checkFileType(mimeType, filename string) error {
 	return nil
 }
 
-func (s *FileService) generateStorageKey(hashMD5, fileID, ext string) string {
-	now := time.Now()
-	return fmt.Sprintf("%d/%02d/%s/%s.%s",
-		now.Year(), now.Month(), hashMD5[:8], fileID, ext)
+func (s *FileService) generateStorageKey(ctx context.Context, data UploadPathPatternData) (string, error) {
+	pattern := s.cfg.PathPattern
+	if s.settingRepo != nil {
+		if saved, err := s.settingRepo.GetOrDefault(ctx, UploadPathPatternSettingKey, s.cfg.PathPattern); err == nil {
+			pattern = saved
+		}
+	}
+
+	normalized, err := NormalizeUploadPathPattern(pattern)
+	if err != nil {
+		fallback, fallbackErr := NormalizeUploadPathPattern(s.cfg.PathPattern)
+		if fallbackErr != nil {
+			return "", err
+		}
+		normalized = fallback
+	}
+
+	return RenderUploadPathPattern(normalized, data)
 }
 
 func (s *FileService) buildAccessURL(fileType, hashShort string) string {

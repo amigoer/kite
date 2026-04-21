@@ -30,6 +30,7 @@ type Config struct {
 	AuthSvc           *service.AuthService
 	FileSvc           *service.FileService
 	AuthConfig        config.AuthConfig
+	UploadPathPattern string
 	SiteName          string
 	SiteURL           string
 	AllowRegistration bool
@@ -78,11 +79,12 @@ func Setup(cfg Config) *gin.Engine {
 	oauthProviderAdminHandler := handler.NewOAuthProviderAdminHandler(oauthConfigSvc)
 	storageHandler := handler.NewStorageHandler(storageRepo, fileRepo, cfg.StorageMgr, cfg.ReloadStorage)
 	settingsHandler := handler.NewSettingsHandler(settingRepo, map[string]string{
-		"site_name":            cfg.SiteName,
-		"site_url":             cfg.SiteURL,
-		"allow_registration":   strconv.FormatBool(cfg.AllowRegistration),
-		"allow_guest_upload":   "false",
-		"allow_public_gallery": "false",
+		"site_name":                         cfg.SiteName,
+		"site_url":                          cfg.SiteURL,
+		"allow_registration":                strconv.FormatBool(cfg.AllowRegistration),
+		"allow_guest_upload":                "false",
+		"allow_public_gallery":              "false",
+		service.UploadPathPatternSettingKey: cfg.UploadPathPattern,
 	})
 	userHandler := handler.NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
 	setupHandler := handler.NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)

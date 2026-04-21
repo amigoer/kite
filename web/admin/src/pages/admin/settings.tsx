@@ -1,25 +1,26 @@
-import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Settings as SettingsIcon,
+  Upload,
   Shield,
   HardDrive,
   Mail,
   Check,
   Copy,
   Loader2,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react'
+import { toast } from 'sonner'
 
-import { authProviderApi, settingsApi, storageApi } from "@/lib/api";
-import { useI18n } from "@/i18n";
-import { cn, formatSize } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { authProviderApi, settingsApi, storageApi } from '@/lib/api'
+import { useI18n } from '@/i18n'
+import { cn, formatSize } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -27,45 +28,70 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { PageHeader } from "@/components/page-header";
-import { SocialProviderLogo } from "@/components/social-provider-logo";
-import { StorageLogo, resolveLogoVendor } from "@/components/storage-logo";
+} from '@/components/ui/card'
+import { PageHeader } from '@/components/page-header'
+import { SocialProviderLogo } from '@/components/social-provider-logo'
+import { StorageLogo, resolveLogoVendor } from '@/components/storage-logo'
 
-type Tab = "general" | "auth" | "storage" | "email";
+type Tab = 'general' | 'upload' | 'auth' | 'storage' | 'email'
+
+const DEFAULT_UPLOAD_PATH_PATTERN = '{year}/{month}/{md5_8}/{uuid}.{ext}'
 
 interface StorageListItem {
-  id: string;
-  name: string;
-  driver: string;
-  provider?: string;
-  capacity_limit_bytes: number;
-  used_bytes: number;
-  files_count?: number;
-  priority: number;
-  is_default: boolean;
-  is_active: boolean;
+  id: string
+  name: string
+  driver: string
+  provider?: string
+  capacity_limit_bytes: number
+  used_bytes: number
+  files_count?: number
+  priority: number
+  is_default: boolean
+  is_active: boolean
 }
 
 interface OAuthProviderItem {
-  key: string;
-  label: string;
-  icon_key: string;
-  protocol: string;
-  enabled: boolean;
-  client_id: string;
-  has_secret: boolean;
-  callback_url: string;
-  is_configured: boolean;
-  scopes: string[];
-  site_url: string;
-  site_url_valid: boolean;
+  key: string
+  label: string
+  icon_key: string
+  protocol: string
+  enabled: boolean
+  client_id: string
+  has_secret: boolean
+  callback_url: string
+  is_configured: boolean
+  scopes: string[]
+  site_url: string
+  site_url_valid: boolean
 }
 
 interface OAuthProviderDraft {
-  enabled: boolean;
-  client_id: string;
-  client_secret: string;
+  enabled: boolean
+  client_id: string
+  client_secret: string
+}
+
+function previewUploadPathPattern(pattern: string) {
+  const source = (pattern || DEFAULT_UPLOAD_PATH_PATTERN).trim()
+  const replacements: Record<string, string> = {
+    '{year}': '2026',
+    '{month}': '04',
+    '{day}': '21',
+    '{user_id}': 'user-demo',
+    '{file_type}': 'image',
+    '{md5}': '0123456789abcdef0123456789abcdef',
+    '{md5_8}': '01234567',
+    '{uuid}': '123e4567-e89b-12d3-a456-426614174000',
+    '{ext}': 'png',
+  }
+
+  let rendered = source
+  Object.entries(replacements).forEach(([token, value]) => {
+    rendered = rendered.split(token).join(value)
+  })
+
+  rendered = rendered.replaceAll('\\', '/').replace(/\/+$/g, '')
+  return rendered || DEFAULT_UPLOAD_PATH_PATTERN
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -78,9 +104,9 @@ function Preference({
   hint,
   children,
 }: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
+  label: string
+  hint?: string
+  children: React.ReactNode
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
@@ -92,7 +118,7 @@ function Preference({
       </div>
       <div className="shrink-0">{children}</div>
     </div>
-  );
+  )
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -104,133 +130,140 @@ function TabPills({
   value,
   onChange,
 }: {
-  tabs: { value: Tab; label: string; icon: React.ElementType }[];
-  value: Tab;
-  onChange: (v: Tab) => void;
+  tabs: { value: Tab; label: string; icon: React.ElementType }[]
+  value: Tab
+  onChange: (v: Tab) => void
 }) {
   return (
-    <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted/70 p-1 text-muted-foreground">
-      {tabs.map((tab) => {
-        const active = value === tab.value;
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => onChange(tab.value)}
-            className={cn(
-              "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all",
-              active
-                ? "bg-background text-foreground shadow-sm"
-                : "hover:text-foreground"
-            )}
-          >
-            <tab.icon className="size-3.5" strokeWidth={1.8} />
-            {tab.label}
-          </button>
-        );
-      })}
+    <div className="overflow-x-auto pb-1">
+      <div className="inline-flex min-w-max items-center justify-center rounded-lg bg-muted/70 p-1 text-muted-foreground">
+        {tabs.map((tab) => {
+          const active = value === tab.value
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => onChange(tab.value)}
+              className={cn(
+                'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all',
+                active
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'hover:text-foreground'
+              )}
+            >
+              <tab.icon className="size-3.5" strokeWidth={1.8} />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
-  );
+  )
 }
 
 /* ────────────────────────────────────────────────────────────
  * SettingsPage
  * ──────────────────────────────────────────────────────────── */
 export default function SettingsPage() {
-  const { t } = useI18n();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("general");
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState(false);
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const [tab, setTab] = useState<Tab>('general')
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState(false)
   const [providerDrafts, setProviderDrafts] = useState<
     Record<string, OAuthProviderDraft>
-  >({});
-  const [providerTouched, setProviderTouched] = useState<Record<string, boolean>>(
-    {}
-  );
+  >({})
+  const [providerTouched, setProviderTouched] = useState<
+    Record<string, boolean>
+  >({})
 
   const { data, isLoading } = useQuery({
-    queryKey: ["settings"],
+    queryKey: ['settings'],
     queryFn: () => settingsApi.get().then((r) => r.data.data),
-  });
+  })
 
   useEffect(() => {
-    if (data) setForm(data);
-  }, [data]);
+    if (data) setForm(data)
+  }, [data])
 
   const { data: providerList } = useQuery<OAuthProviderItem[]>({
-    queryKey: ["auth", "providers"],
+    queryKey: ['auth', 'providers'],
     queryFn: () => authProviderApi.list().then((r) => r.data.data),
-    enabled: tab === "auth",
-  });
+    enabled: tab === 'auth',
+  })
 
   useEffect(() => {
-    if (!providerList) return;
+    if (!providerList) return
     setProviderDrafts(
       Object.fromEntries(
         providerList.map((provider) => [
           provider.key,
           {
             enabled: provider.enabled,
-            client_id: provider.client_id ?? "",
-            client_secret: "",
+            client_id: provider.client_id ?? '',
+            client_secret: '',
           },
         ])
       )
-    );
-    setProviderTouched({});
-  }, [providerList]);
+    )
+    setProviderTouched({})
+  }, [providerList])
 
   const mutation = useMutation({
     mutationFn: () => settingsApi.update(form),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      queryClient.invalidateQueries({ queryKey: ["auth", "providers"] });
-      setSaved(true);
-      toast.success(t("settings.saved"));
-      setTimeout(() => setSaved(false), 2000);
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['auth', 'providers'] })
+      setSaved(true)
+      toast.success(t('settings.saved'))
+      setTimeout(() => setSaved(false), 2000)
     },
-    onError: () => toast.error(t("toast.error")),
-  });
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? t('toast.error')
+      toast.error(msg)
+    },
+  })
 
   const updateField = (key: string, value: string) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }))
 
   const toggleField = (key: string) =>
     setForm((prev) => ({
       ...prev,
-      [key]: prev[key] === "true" ? "false" : "true",
-    }));
+      [key]: prev[key] === 'true' ? 'false' : 'true',
+    }))
 
   const resetForm = () => {
-    if (data) setForm(data);
-  };
+    if (data) setForm(data)
+  }
 
-  const boolOf = (key: string): boolean => form[key] === "true";
+  const boolOf = (key: string): boolean => form[key] === 'true'
 
   /* ── storage tab ─────────────────────────────────────── */
   const { data: storageList } = useQuery<StorageListItem[]>({
-    queryKey: ["storage", "list"],
+    queryKey: ['storage', 'list'],
     queryFn: () => storageApi.list().then((r) => r.data.data),
-    enabled: tab === "storage",
-  });
+    enabled: tab === 'storage',
+  })
 
   const setDefaultMutation = useMutation({
     mutationFn: (id: string) => storageApi.setDefault(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["storage", "list"] });
-      toast.success(t("settings.saved"));
+      queryClient.invalidateQueries({ queryKey: ['storage', 'list'] })
+      toast.success(t('settings.saved'))
     },
-    onError: () => toast.error(t("toast.error")),
-  });
+    onError: () => toast.error(t('toast.error')),
+  })
 
   const saveProviderMutation = useMutation({
     mutationFn: ({
       provider,
       payload,
     }: {
-      provider: string;
-      payload: OAuthProviderDraft;
+      provider: string
+      payload: OAuthProviderDraft
     }) =>
       authProviderApi.update(provider, {
         enabled: payload.enabled,
@@ -238,18 +271,17 @@ export default function SettingsPage() {
         client_secret: payload.client_secret,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "providers"] });
-      queryClient.invalidateQueries({ queryKey: ["auth", "options"] });
-      toast.success(t("settings.saved"));
+      queryClient.invalidateQueries({ queryKey: ['auth', 'providers'] })
+      queryClient.invalidateQueries({ queryKey: ['auth', 'options'] })
+      toast.success(t('settings.saved'))
     },
     onError: (err: unknown) => {
       const msg =
-        (
-          err as { response?: { data?: { message?: string } } }
-        )?.response?.data?.message ?? t("toast.error");
-      toast.error(msg);
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? t('toast.error')
+      toast.error(msg)
     },
-  });
+  })
 
   /* ── early loading state ─────────────────────────────── */
   if (isLoading) {
@@ -259,15 +291,31 @@ export default function SettingsPage() {
         <Skeleton className="h-9 w-80" />
         <Skeleton className="h-64 rounded-xl" />
       </div>
-    );
+    )
   }
 
   const tabs: { value: Tab; label: string; icon: React.ElementType }[] = [
-    { value: "general", label: t("settings.general"), icon: SettingsIcon },
-    { value: "auth", label: t("settings.auth"), icon: Shield },
-    { value: "storage", label: t("settings.storageTab"), icon: HardDrive },
-    { value: "email", label: t("settings.email"), icon: Mail },
-  ];
+    { value: 'general', label: t('settings.general'), icon: SettingsIcon },
+    { value: 'upload', label: t('settings.uploadTab'), icon: Upload },
+    { value: 'auth', label: t('settings.auth'), icon: Shield },
+    { value: 'storage', label: t('settings.storageTab'), icon: HardDrive },
+    { value: 'email', label: t('settings.email'), icon: Mail },
+  ]
+
+  const uploadPattern =
+    form['upload.path_pattern'] ?? DEFAULT_UPLOAD_PATH_PATTERN
+  const uploadPatternPreview = previewUploadPathPattern(uploadPattern)
+  const uploadPatternVariables = [
+    { token: '{year}', description: t('settings.uploadVarYear') },
+    { token: '{month}', description: t('settings.uploadVarMonth') },
+    { token: '{day}', description: t('settings.uploadVarDay') },
+    { token: '{user_id}', description: t('settings.uploadVarUserId') },
+    { token: '{file_type}', description: t('settings.uploadVarFileType') },
+    { token: '{md5}', description: t('settings.uploadVarMd5') },
+    { token: '{md5_8}', description: t('settings.uploadVarMd58') },
+    { token: '{uuid}', description: t('settings.uploadVarUuid') },
+    { token: '{ext}', description: t('settings.uploadVarExt') },
+  ]
 
   const updateProviderDraft = (
     provider: string,
@@ -279,107 +327,118 @@ export default function SettingsPage() {
         ...prev[provider],
         ...patch,
       },
-    }));
+    }))
 
   const getProviderDraft = (provider: OAuthProviderItem): OAuthProviderDraft =>
     providerDrafts[provider.key] ?? {
       enabled: provider.enabled,
-      client_id: provider.client_id ?? "",
-      client_secret: "",
-    };
+      client_id: provider.client_id ?? '',
+      client_secret: '',
+    }
 
   const clientIdLabel = (provider: string) =>
-    provider === "wechat" ? t("settings.oauthAppId") : t("settings.oauthClientId");
+    provider === 'wechat'
+      ? t('settings.oauthAppId')
+      : t('settings.oauthClientId')
 
   const clientSecretLabel = (provider: string) =>
-    provider === "wechat"
-      ? t("settings.oauthAppSecret")
-      : t("settings.oauthClientSecret");
+    provider === 'wechat'
+      ? t('settings.oauthAppSecret')
+      : t('settings.oauthClientSecret')
 
-  const getProviderStatus = (provider: OAuthProviderItem, draft: OAuthProviderDraft) => {
-    if (draft.enabled) return t("settings.oauthStatusEnabled");
-    if (provider.is_configured) return t("settings.oauthStatusConfigured");
-    return t("settings.oauthStatusEmpty");
-  };
+  const getProviderStatus = (
+    provider: OAuthProviderItem,
+    draft: OAuthProviderDraft
+  ) => {
+    if (draft.enabled) return t('settings.oauthStatusEnabled')
+    if (provider.is_configured) return t('settings.oauthStatusConfigured')
+    return t('settings.oauthStatusEmpty')
+  }
 
-  const providerMissingFields = (provider: OAuthProviderItem, draft: OAuthProviderDraft) => {
-    if (!draft.enabled) return false;
-    return !draft.client_id.trim() || (!draft.client_secret.trim() && !provider.has_secret);
-  };
+  const providerMissingFields = (
+    provider: OAuthProviderItem,
+    draft: OAuthProviderDraft
+  ) => {
+    if (!draft.enabled) return false
+    return (
+      !draft.client_id.trim() ||
+      (!draft.client_secret.trim() && !provider.has_secret)
+    )
+  }
 
   const handleSaveProvider = (provider: OAuthProviderItem) => {
-    const draft = getProviderDraft(provider);
-    setProviderTouched((prev) => ({ ...prev, [provider.key]: true }));
+    const draft = getProviderDraft(provider)
+    setProviderTouched((prev) => ({ ...prev, [provider.key]: true }))
 
     if (draft.enabled && !provider.site_url_valid) {
-      toast.error(t("settings.oauthSiteUrlInvalid"));
-      return;
+      toast.error(t('settings.oauthSiteUrlInvalid'))
+      return
     }
     if (providerMissingFields(provider, draft)) {
-      toast.error(t("settings.oauthMissingFields"));
-      return;
+      toast.error(t('settings.oauthMissingFields'))
+      return
     }
 
     saveProviderMutation.mutate({
       provider: provider.key,
       payload: draft,
-    });
-  };
+    })
+  }
 
   /* ── render ──────────────────────────────────────────── */
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
-        title={t("settings.title")}
-        description={t("settings.description")}
+        title={t('settings.title')}
+        description={t('settings.description')}
       />
 
       <TabPills tabs={tabs} value={tab} onChange={setTab} />
 
       {/* ── General ──────────────────────────────────── */}
-      {tab === "general" && (
+      {tab === 'general' && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("settings.generalDesc")}</CardTitle>
+            <CardTitle>{t('settings.generalDesc')}</CardTitle>
           </CardHeader>
           <CardContent className="divide-y">
             <Preference
-              label={t("settings.siteName")}
-              hint={t("settings.siteNameHint")}
+              label={t('settings.siteName')}
+              hint={t('settings.siteNameHint')}
             >
               <Input
-                value={form.site_name ?? ""}
-                onChange={(e) => updateField("site_name", e.target.value)}
+                value={form.site_name ?? ''}
+                onChange={(e) => updateField('site_name', e.target.value)}
                 className="w-56"
               />
             </Preference>
             <Preference
-              label={t("settings.siteUrl")}
-              hint={t("settings.siteUrlHint")}
+              label={t('settings.siteUrl')}
+              hint={t('settings.siteUrlHint')}
             >
               <Input
-                value={form.site_url ?? ""}
-                onChange={(e) => updateField("site_url", e.target.value)}
-                placeholder={t("settings.siteUrlPlaceholder")}
+                value={form.site_url ?? ''}
+                onChange={(e) => updateField('site_url', e.target.value)}
+                placeholder={t('settings.siteUrlPlaceholder')}
                 className="w-64"
               />
             </Preference>
             <Preference
-              label={t("settings.allowRegistration")}
-              hint={t("settings.allowRegistrationHint")}
+              label={t('settings.allowRegistration')}
+              hint={t('settings.allowRegistrationHint')}
             >
               <Switch
-                checked={boolOf("allow_registration")}
-                onCheckedChange={() => toggleField("allow_registration")}
+                checked={boolOf('allow_registration')}
+                onCheckedChange={() => toggleField('allow_registration')}
               />
             </Preference>
             <Preference
-              label={t("settings.defaultQuota")}
-              hint={t("settings.defaultQuotaHint")}
+              label={t('settings.defaultQuota')}
+              hint={t('settings.defaultQuotaHint')}
             >
               <Input
-                value={form.default_quota ?? ""}
-                onChange={(e) => updateField("default_quota", e.target.value)}
+                value={form.default_quota ?? ''}
+                onChange={(e) => updateField('default_quota', e.target.value)}
                 placeholder="10 GB"
                 className="w-32"
               />
@@ -387,7 +446,7 @@ export default function SettingsPage() {
           </CardContent>
           <CardFooter className="justify-end gap-2">
             <Button variant="outline" size="sm" onClick={resetForm}>
-              {t("settings.reset")}
+              {t('settings.reset')}
             </Button>
             <Button
               size="sm"
@@ -397,12 +456,91 @@ export default function SettingsPage() {
               {saved ? (
                 <>
                   <Check className="size-3.5" />
-                  {t("settings.saved")}
+                  {t('settings.saved')}
                 </>
               ) : mutation.isPending ? (
-                t("settings.saving")
+                t('settings.saving')
               ) : (
-                t("settings.saveSettings")
+                t('settings.saveSettings')
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {tab === 'upload' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.uploadDesc')}</CardTitle>
+            <CardDescription>{t('settings.uploadHint')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-2">
+              <Label htmlFor="upload-path-pattern">
+                {t('settings.uploadPathPattern')}
+              </Label>
+              <Input
+                id="upload-path-pattern"
+                value={uploadPattern}
+                onChange={(e) =>
+                  updateField('upload.path_pattern', e.target.value)
+                }
+                placeholder={t('settings.uploadPathPatternPlaceholder')}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('settings.uploadPathPatternHint')}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">
+                {t('settings.uploadPathPatternVariables')}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {uploadPatternVariables.map((item) => (
+                  <div
+                    key={item.token}
+                    className="flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2"
+                  >
+                    <Badge variant="secondary" className="font-mono">
+                      {item.token}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {item.description}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">
+                {t('settings.uploadPathPatternPreview')}
+              </div>
+              <code className="block overflow-x-auto rounded-lg border bg-muted/30 px-3 py-2 font-mono text-xs">
+                {uploadPatternPreview}
+              </code>
+            </div>
+          </CardContent>
+          <CardFooter className="justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={resetForm}>
+              {t('settings.reset')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+            >
+              {saved ? (
+                <>
+                  <Check className="size-3.5" />
+                  {t('settings.saved')}
+                </>
+              ) : mutation.isPending ? (
+                t('settings.saving')
+              ) : (
+                t('settings.saveSettings')
               )}
             </Button>
           </CardFooter>
@@ -410,67 +548,67 @@ export default function SettingsPage() {
       )}
 
       {/* ── Auth ─────────────────────────────────────── */}
-      {tab === "auth" && (
+      {tab === 'auth' && (
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>{t("settings.authDesc")}</CardTitle>
+              <CardTitle>{t('settings.authDesc')}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               <Preference
-                label={t("settings.twoFactor")}
-                hint={t("settings.twoFactorHint")}
+                label={t('settings.twoFactor')}
+                hint={t('settings.twoFactorHint')}
               >
                 <Switch
-                  checked={boolOf("two_factor_required")}
-                  onCheckedChange={() => toggleField("two_factor_required")}
+                  checked={boolOf('two_factor_required')}
+                  onCheckedChange={() => toggleField('two_factor_required')}
                 />
               </Preference>
-              <Preference label={t("settings.passwordMinLength")}>
+              <Preference label={t('settings.passwordMinLength')}>
                 <Input
-                  value={form.password_min_length ?? ""}
+                  value={form.password_min_length ?? ''}
                   onChange={(e) =>
-                    updateField("password_min_length", e.target.value)
+                    updateField('password_min_length', e.target.value)
                   }
                   placeholder="10"
                   className="w-20"
                 />
               </Preference>
               <Preference
-                label={t("settings.sessionTimeout")}
-                hint={t("settings.sessionTimeoutHint")}
+                label={t('settings.sessionTimeout')}
+                hint={t('settings.sessionTimeoutHint')}
               >
                 <Input
-                  value={form.session_timeout ?? ""}
+                  value={form.session_timeout ?? ''}
                   onChange={(e) =>
-                    updateField("session_timeout", e.target.value)
+                    updateField('session_timeout', e.target.value)
                   }
                   placeholder="7d"
                   className="w-24"
                 />
               </Preference>
               <Preference
-                label={t("settings.allowGuestUpload")}
-                hint={t("settings.allowGuestUploadHint")}
+                label={t('settings.allowGuestUpload')}
+                hint={t('settings.allowGuestUploadHint')}
               >
                 <Switch
-                  checked={boolOf("allow_guest_upload")}
-                  onCheckedChange={() => toggleField("allow_guest_upload")}
+                  checked={boolOf('allow_guest_upload')}
+                  onCheckedChange={() => toggleField('allow_guest_upload')}
                 />
               </Preference>
               <Preference
-                label={t("settings.allowPublicGallery")}
-                hint={t("settings.allowPublicGalleryHint")}
+                label={t('settings.allowPublicGallery')}
+                hint={t('settings.allowPublicGalleryHint')}
               >
                 <Switch
-                  checked={boolOf("allow_public_gallery")}
-                  onCheckedChange={() => toggleField("allow_public_gallery")}
+                  checked={boolOf('allow_public_gallery')}
+                  onCheckedChange={() => toggleField('allow_public_gallery')}
                 />
               </Preference>
             </CardContent>
             <CardFooter className="justify-end gap-2">
               <Button variant="outline" size="sm" onClick={resetForm}>
-                {t("settings.reset")}
+                {t('settings.reset')}
               </Button>
               <Button
                 size="sm"
@@ -480,12 +618,12 @@ export default function SettingsPage() {
                 {saved ? (
                   <>
                     <Check className="size-3.5" />
-                    {t("settings.saved")}
+                    {t('settings.saved')}
                   </>
                 ) : mutation.isPending ? (
-                  t("settings.saving")
+                  t('settings.saving')
                 ) : (
-                  t("settings.saveSettings")
+                  t('settings.saveSettings')
                 )}
               </Button>
             </CardFooter>
@@ -493,17 +631,21 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t("settings.oauthProvidersTitle")}</CardTitle>
-              <CardDescription>{t("settings.oauthProvidersHint")}</CardDescription>
+              <CardTitle>{t('settings.oauthProvidersTitle')}</CardTitle>
+              <CardDescription>
+                {t('settings.oauthProvidersHint')}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {(providerList ?? []).map((provider) => {
-                  const draft = getProviderDraft(provider);
+                  const draft = getProviderDraft(provider)
                   const isPending =
                     saveProviderMutation.isPending &&
-                    saveProviderMutation.variables?.provider === provider.key;
-                  const missing = providerTouched[provider.key] && providerMissingFields(provider, draft);
+                    saveProviderMutation.variables?.provider === provider.key
+                  const missing =
+                    providerTouched[provider.key] &&
+                    providerMissingFields(provider, draft)
                   return (
                     <div
                       key={provider.key}
@@ -530,14 +672,16 @@ export default function SettingsPage() {
                         <Switch
                           checked={draft.enabled}
                           onCheckedChange={(checked) =>
-                            updateProviderDraft(provider.key, { enabled: checked })
+                            updateProviderDraft(provider.key, {
+                              enabled: checked,
+                            })
                           }
                         />
                       </div>
 
                       {!provider.site_url_valid && (
                         <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-                          {t("settings.oauthSiteUrlInvalid")}
+                          {t('settings.oauthSiteUrlInvalid')}
                         </div>
                       )}
 
@@ -551,8 +695,16 @@ export default function SettingsPage() {
                                 client_id: e.target.value,
                               })
                             }
-                            className={cn(missing && !draft.client_id.trim() && "border-red-500")}
-                            placeholder={provider.key === "wechat" ? "wx123..." : "client-id"}
+                            className={cn(
+                              missing &&
+                                !draft.client_id.trim() &&
+                                'border-red-500'
+                            )}
+                            placeholder={
+                              provider.key === 'wechat'
+                                ? 'wx123...'
+                                : 'client-id'
+                            }
                           />
                         </div>
 
@@ -570,29 +722,35 @@ export default function SettingsPage() {
                               missing &&
                                 !draft.client_secret.trim() &&
                                 !provider.has_secret &&
-                                "border-red-500"
+                                'border-red-500'
                             )}
                             placeholder={
                               provider.has_secret
-                                ? t("settings.oauthSecretConfigured")
-                                : provider.key === "wechat"
-                                  ? "app-secret"
-                                  : "client-secret"
+                                ? t('settings.oauthSecretConfigured')
+                                : provider.key === 'wechat'
+                                  ? 'app-secret'
+                                  : 'client-secret'
                             }
                           />
                         </div>
 
                         <div className="grid gap-2 sm:col-span-2">
-                          <Label>{t("settings.oauthCallbackUrl")}</Label>
+                          <Label>{t('settings.oauthCallbackUrl')}</Label>
                           <div className="flex items-center gap-2">
-                            <Input value={provider.callback_url} readOnly className="font-mono text-xs" />
+                            <Input
+                              value={provider.callback_url}
+                              readOnly
+                              className="font-mono text-xs"
+                            />
                             <Button
                               type="button"
                               variant="outline"
                               size="icon"
                               onClick={() => {
-                                navigator.clipboard.writeText(provider.callback_url);
-                                toast.success(t("toast.copied"));
+                                navigator.clipboard.writeText(
+                                  provider.callback_url
+                                )
+                                toast.success(t('toast.copied'))
                               }}
                             >
                               <Copy className="size-4" />
@@ -603,9 +761,11 @@ export default function SettingsPage() {
 
                       <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
                         <div className="min-w-0 truncate">
-                          <span className="font-medium">{t("settings.oauthScopes")}</span>
+                          <span className="font-medium">
+                            {t('settings.oauthScopes')}
+                          </span>
                           <span className="ml-2 font-mono">
-                            {provider.scopes.join(" ")}
+                            {provider.scopes.join(' ')}
                           </span>
                         </div>
                         <Button
@@ -613,12 +773,14 @@ export default function SettingsPage() {
                           onClick={() => handleSaveProvider(provider)}
                           disabled={isPending}
                         >
-                          {isPending && <Loader2 className="size-4 animate-spin" />}
-                          {t("settings.saveProvider")}
+                          {isPending && (
+                            <Loader2 className="size-4 animate-spin" />
+                          )}
+                          {t('settings.saveProvider')}
                         </Button>
                       </div>
                     </div>
-                  );
+                  )
                 })}
 
                 {providerList == null &&
@@ -632,24 +794,24 @@ export default function SettingsPage() {
       )}
 
       {/* ── Default storage ──────────────────────────── */}
-      {tab === "storage" && (
+      {tab === 'storage' && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("settings.storageTabDesc")}</CardTitle>
-            <CardDescription>{t("settings.storageTabHint")}</CardDescription>
+            <CardTitle>{t('settings.storageTabDesc')}</CardTitle>
+            <CardDescription>{t('settings.storageTabHint')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {(storageList ?? []).map((d) => {
-              const vendor = resolveLogoVendor(d.provider, d.driver);
-              const checked = d.is_default;
+              const vendor = resolveLogoVendor(d.provider, d.driver)
+              const checked = d.is_default
               return (
                 <label
                   key={d.id}
                   className={cn(
-                    "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+                    'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors',
                     checked
-                      ? "border-foreground/30 bg-muted/30"
-                      : "hover:bg-muted/30"
+                      ? 'border-foreground/30 bg-muted/30'
+                      : 'hover:bg-muted/30'
                   )}
                 >
                   <input
@@ -659,7 +821,7 @@ export default function SettingsPage() {
                     disabled={!d.is_active || setDefaultMutation.isPending}
                     onChange={() => {
                       if (!checked && d.is_active)
-                        setDefaultMutation.mutate(d.id);
+                        setDefaultMutation.mutate(d.id)
                     }}
                     className="size-4 accent-foreground"
                   />
@@ -680,7 +842,7 @@ export default function SettingsPage() {
                           variant="outline"
                           className="h-4 px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground"
                         >
-                          {t("storage.idleBadge")}
+                          {t('storage.idleBadge')}
                         </Badge>
                       )}
                     </div>
@@ -692,11 +854,11 @@ export default function SettingsPage() {
                     {formatSize(d.used_bytes)}
                   </span>
                 </label>
-              );
+              )
             })}
             {storageList != null && storageList.length === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                {t("storage.noStorage")}
+                {t('storage.noStorage')}
               </div>
             )}
           </CardContent>
@@ -704,38 +866,38 @@ export default function SettingsPage() {
       )}
 
       {/* ── Email ────────────────────────────────────── */}
-      {tab === "email" && (
+      {tab === 'email' && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("settings.emailDesc")}</CardTitle>
+            <CardTitle>{t('settings.emailDesc')}</CardTitle>
           </CardHeader>
           <CardContent className="divide-y">
-            <Preference label={t("settings.smtpServer")}>
+            <Preference label={t('settings.smtpServer')}>
               <Input
-                value={form.smtp_host ?? ""}
-                onChange={(e) => updateField("smtp_host", e.target.value)}
+                value={form.smtp_host ?? ''}
+                onChange={(e) => updateField('smtp_host', e.target.value)}
                 placeholder="smtp.kite.dev"
                 className="w-64"
               />
             </Preference>
-            <Preference label={t("settings.smtpPort")}>
+            <Preference label={t('settings.smtpPort')}>
               <Input
-                value={form.smtp_port ?? ""}
-                onChange={(e) => updateField("smtp_port", e.target.value)}
+                value={form.smtp_port ?? ''}
+                onChange={(e) => updateField('smtp_port', e.target.value)}
                 placeholder="587"
                 className="w-24"
               />
             </Preference>
-            <Preference label={t("settings.smtpTls")}>
+            <Preference label={t('settings.smtpTls')}>
               <Switch
-                checked={boolOf("smtp_tls")}
-                onCheckedChange={() => toggleField("smtp_tls")}
+                checked={boolOf('smtp_tls')}
+                onCheckedChange={() => toggleField('smtp_tls')}
               />
             </Preference>
-            <Preference label={t("settings.smtpFrom")}>
+            <Preference label={t('settings.smtpFrom')}>
               <Input
-                value={form.smtp_from ?? ""}
-                onChange={(e) => updateField("smtp_from", e.target.value)}
+                value={form.smtp_from ?? ''}
+                onChange={(e) => updateField('smtp_from', e.target.value)}
                 placeholder="no-reply@kite.dev"
                 className="w-64"
               />
@@ -745,14 +907,14 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.info(t("settings.testMailSent"))}
+              onClick={() => toast.info(t('settings.testMailSent'))}
             >
               <Mail className="size-3.5" />
-              {t("settings.sendTestMail")}
+              {t('settings.sendTestMail')}
             </Button>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={resetForm}>
-                {t("settings.reset")}
+                {t('settings.reset')}
               </Button>
               <Button
                 size="sm"
@@ -762,12 +924,12 @@ export default function SettingsPage() {
                 {saved ? (
                   <>
                     <Check className="size-3.5" />
-                    {t("settings.saved")}
+                    {t('settings.saved')}
                   </>
                 ) : mutation.isPending ? (
-                  t("settings.saving")
+                  t('settings.saving')
                 ) : (
-                  t("settings.saveSettings")
+                  t('settings.saveSettings')
                 )}
               </Button>
             </div>
@@ -775,5 +937,5 @@ export default function SettingsPage() {
         </Card>
       )}
     </div>
-  );
+  )
 }

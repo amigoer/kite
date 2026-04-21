@@ -87,7 +87,7 @@ logs/
 
 # Local specific assets (added during testing, not for version control)
 web/admin/public/login-bg.jpg
-kite
+/kite
 .agents/rules/dev-env.md
 .claude/settings.local.json
 

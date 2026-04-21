@@ -558,6 +558,10 @@ const en = {
     // Tabs
     general: 'General',
     generalDesc: 'Site information',
+    uploadTab: 'Upload',
+    uploadDesc: 'Upload rules',
+    uploadHint:
+      'Configure the storage path template used for future uploads. Changes apply immediately after saving.',
     auth: 'Auth',
     authDesc: 'Authentication & security',
     storageTab: 'Default storage',
@@ -575,6 +579,21 @@ const en = {
     allowRegistrationHint: 'Allow anyone to create an account',
     defaultQuota: 'Default quota',
     defaultQuotaHint: 'Initial storage for new users',
+    uploadPathPattern: 'Path template',
+    uploadPathPatternHint:
+      'Use fixed variables to shape the storage key. The underlying filename stays decoupled from the original upload name.',
+    uploadPathPatternPlaceholder: '{year}/{month}/{md5_8}/{uuid}.{ext}',
+    uploadPathPatternVariables: 'Available variables',
+    uploadPathPatternPreview: 'Preview',
+    uploadVarYear: 'Four-digit year, e.g. 2026',
+    uploadVarMonth: 'Two-digit month, e.g. 04',
+    uploadVarDay: 'Two-digit day, e.g. 21',
+    uploadVarUserId: 'Uploader user ID, or guest for anonymous uploads',
+    uploadVarFileType: 'File category: image / video / audio / file',
+    uploadVarMd5: 'Full file MD5 hash',
+    uploadVarMd58: 'First 8 characters of the MD5 hash',
+    uploadVarUuid: 'File record UUID',
+    uploadVarExt: 'Lowercase extension, falling back to bin when missing',
     // Preferences — auth
     twoFactor: 'Two-factor auth',
     twoFactorHint: 'Enforce for all administrators',

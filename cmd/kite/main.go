@@ -116,7 +116,7 @@ func main() {
 	storageRouter := storage.NewRouter(storageMgr, usageFn, policyFn)
 
 	imageSvc := service.NewImageService(cfg.Upload.ThumbWidth, cfg.Upload.ThumbQuality)
-	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, storageMgr, storageRouter, imageSvc, cfg.Upload)
+	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, storageMgr, storageRouter, imageSvc, cfg.Upload)
 
 	// Load embedded assets: the built SPA under admin/dist and the landing
 	// page templates under template/.
@@ -135,6 +135,7 @@ func main() {
 		AuthSvc:           authSvc,
 		FileSvc:           fileSvc,
 		AuthConfig:        cfg.Auth,
+		UploadPathPattern: cfg.Upload.PathPattern,
 		SiteName:          cfg.Site.Name,
 		SiteURL:           cfg.Site.URL,
 		AllowRegistration: cfg.Auth.AllowRegistration,
