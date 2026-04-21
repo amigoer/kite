@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+WEB_DIR="web/admin"
+
+require_clean_unstaged_files() {
+  local blocked=()
+  local file
+
+  for file in "$@"; do
+    if ! git diff --quiet -- "${file}"; then
+      blocked+=("${file}")
+    fi
+  done
+
+  if [ "${#blocked[@]}" -gt 0 ]; then
+    echo "pre-commit: 以下文件同时存在未暂存改动，无法安全自动格式化："
+    printf '  - %s\n' "${blocked[@]}"
+    echo "pre-commit: 请先整理这些文件的暂存状态后再提交。"
+    exit 1
+  fi
+}
+
+run_go_tidy() {
+  require_clean_unstaged_files go.mod go.sum
+
+  echo "pre-commit: 执行 go mod tidy..."
+  GOPATH="${GOPATH:-${HOME}/go}" \
+  GOMODCACHE="${GOMODCACHE:-${HOME}/go/pkg/mod}" \
+    go mod tidy
+
+  git add -- go.mod go.sum
+}
+
+cd "${ROOT_DIR}"
+
+staged_go_files=()
+staged_go_related_files=()
+staged_web_format_files=()
+
+while IFS= read -r -d '' file; do
+  case "${file}" in
+    *.go)
+      if [ -f "${file}" ]; then
+        staged_go_files+=("${file}")
+        staged_go_related_files+=("${file}")
+      fi
+      ;;
+    go.mod|go.sum)
+      if [ -f "${file}" ]; then
+        staged_go_related_files+=("${file}")
+      fi
+      ;;
+  esac
+
+  case "${file}" in
+    ${WEB_DIR}/package-lock.json)
+      ;;
+    ${WEB_DIR}/*.js|${WEB_DIR}/*.jsx|${WEB_DIR}/*.mjs|${WEB_DIR}/*.cjs|${WEB_DIR}/*.ts|${WEB_DIR}/*.tsx|${WEB_DIR}/*.json|${WEB_DIR}/*.css|${WEB_DIR}/*.md|${WEB_DIR}/*.html)
+      if [ -f "${file}" ]; then
+        staged_web_format_files+=("${file}")
+      fi
+      ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [ "${#staged_go_related_files[@]}" -eq 0 ] && [ "${#staged_web_format_files[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+if [ "${#staged_go_files[@]}" -gt 0 ]; then
+  require_clean_unstaged_files "${staged_go_files[@]}"
+  echo "pre-commit: 格式化 Go 文件..."
+  gofmt -w "${staged_go_files[@]}"
+  git add -- "${staged_go_files[@]}"
+fi
+
+if [ "${#staged_go_related_files[@]}" -gt 0 ]; then
+  run_go_tidy
+fi
+
+if [ "${#staged_web_format_files[@]}" -gt 0 ]; then
+  if [ ! -x "${WEB_DIR}/node_modules/.bin/prettier" ]; then
+    echo "pre-commit: 缺少 Prettier，请先在 ${WEB_DIR} 执行 npm install。"
+    exit 1
+  fi
+
+  require_clean_unstaged_files "${staged_web_format_files[@]}"
+  echo "pre-commit: 格式化前端文件..."
+  (
+    cd "${ROOT_DIR}/${WEB_DIR}"
+    ./node_modules/.bin/prettier --write --ignore-unknown "${staged_web_format_files[@]#${WEB_DIR}/}"
+  )
+  git add -- "${staged_web_format_files[@]}"
+fi

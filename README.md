@@ -46,6 +46,16 @@ make dev
 
 This starts the Go backend and the admin frontend development server.
 
+Enable the repository Git hooks once after cloning:
+
+```bash
+make hooks-install
+```
+
+The `pre-commit` hook focuses on quick fixes before a commit: it formats staged Go and admin frontend files and runs `go mod tidy`.
+
+The `pre-push` hook runs the slower validation steps in an isolated checkout of `HEAD`: `go test`, Go build verification, and the admin frontend build check.
+
 ### Production Build
 
 ```bash

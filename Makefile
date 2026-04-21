@@ -1,10 +1,11 @@
 APP_NAME   := kite
 BUILD_DIR  := build
 WEB_DIR    := web/admin
+HOOKS_DIR  := .githooks
 GOFLAGS    := -trimpath
 LDFLAGS    := -s -w
 
-.PHONY: all build dev clean web-install web-build web-dev run
+.PHONY: all build dev clean web-install web-build web-dev run hooks-install
 
 ## ── 生产构建 ──────────────────────────────────────────────
 
@@ -54,3 +55,11 @@ web-dev:
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf $(WEB_DIR)/dist
+
+## ── Git Hooks ───────────────────────────────────────────
+
+hooks-install:
+	@git config core.hooksPath $(HOOKS_DIR)
+	@chmod +x $(HOOKS_DIR)/pre-commit
+	@chmod +x $(HOOKS_DIR)/pre-push
+	@echo "==> Git hooks enabled via $(HOOKS_DIR)"

@@ -316,14 +316,6 @@ func boolToString(v bool) string {
 	return "false"
 }
 
-func providerKeys() []string {
-	keys := make([]string, 0, len(oauthProviders))
-	for _, provider := range oauthProviders {
-		keys = append(keys, provider.Key)
-	}
-	return keys
-}
-
 func formatOAuthError(provider string, err error) error {
 	return fmt.Errorf("%s oauth: %w", provider, err)
 }

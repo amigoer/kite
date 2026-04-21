@@ -46,6 +46,16 @@ make dev
 
 该命令会同时启动 Go 后端和管理后台前端开发服务。
 
+首次克隆仓库后，建议执行一次下面的命令启用 Git Hook：
+
+```bash
+make hooks-install
+```
+
+`pre-commit` 负责提交前的快速修正：自动格式化已暂存的 Go 与管理后台代码，并执行 `go mod tidy`。
+
+`pre-push` 会在一个隔离的 `HEAD` 临时检出目录里执行较慢的完整校验，包括 `go test`、Go 构建校验，以及管理后台构建校验。
+
 ### 生产构建
 
 ```bash

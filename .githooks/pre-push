@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+WEB_DIR="web/admin"
+TMP_DIR=""
+CHECKOUT_DIR=""
+
+cleanup() {
+  if [ -n "${CHECKOUT_DIR}" ] && [ -d "${CHECKOUT_DIR}" ]; then
+    git -C "${ROOT_DIR}" worktree remove --force "${CHECKOUT_DIR}" >/dev/null 2>&1 || true
+  fi
+
+  if [ -n "${TMP_DIR}" ] && [ -d "${TMP_DIR}" ]; then
+    rm -rf "${TMP_DIR}"
+  fi
+}
+
+has_changes_since_upstream() {
+  local upstream_ref
+
+  if ! upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null)"; then
+    return 0
+  fi
+
+  if ! git diff --quiet "${upstream_ref}...HEAD" -- "$@"; then
+    return 0
+  fi
+
+  return 1
+}
+
+prepare_check_workspace() {
+  TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kite-pre-push.XXXXXX")"
+  CHECKOUT_DIR="${TMP_DIR}/repo"
+  trap cleanup EXIT
+
+  git -C "${ROOT_DIR}" worktree add --detach "${CHECKOUT_DIR}" HEAD >/dev/null 2>&1
+
+  if [ -d "${ROOT_DIR}/${WEB_DIR}/node_modules" ] && [ ! -e "${CHECKOUT_DIR}/${WEB_DIR}/node_modules" ]; then
+    ln -s "${ROOT_DIR}/${WEB_DIR}/node_modules" "${CHECKOUT_DIR}/${WEB_DIR}/node_modules"
+  fi
+}
+
+run_go_checks() {
+  local packages=()
+  local pkg
+
+  while IFS= read -r pkg; do
+    case "${pkg}" in
+      *"/web/admin/node_modules/"*)
+        continue
+        ;;
+    esac
+    packages+=("${pkg}")
+  done < <(cd "${CHECKOUT_DIR}" && go list ./...)
+
+  if [ "${#packages[@]}" -eq 0 ]; then
+    echo "pre-push: 未找到可测试的 Go 包，跳过 Go 校验。"
+    return
+  fi
+
+  echo "pre-push: 运行 Go 测试..."
+  (
+    cd "${CHECKOUT_DIR}"
+    GOPATH="${GOPATH:-${HOME}/go}" \
+    GOMODCACHE="${GOMODCACHE:-${HOME}/go/pkg/mod}" \
+      go test "${packages[@]}"
+  )
+
+  echo "pre-push: 校验 Go 构建..."
+  (
+    cd "${CHECKOUT_DIR}"
+    GOPATH="${GOPATH:-${HOME}/go}" \
+    GOMODCACHE="${GOMODCACHE:-${HOME}/go/pkg/mod}" \
+      go build -trimpath -o "${TMP_DIR}/kite" ./cmd/kite
+  )
+}
+
+run_web_build_check() {
+  if [ ! -f "${CHECKOUT_DIR}/${WEB_DIR}/package.json" ]; then
+    echo "pre-push: 未找到前端工程，跳过管理后台构建校验。"
+    return
+  fi
+
+  if [ ! -x "${CHECKOUT_DIR}/${WEB_DIR}/node_modules/.bin/tsc" ] || [ ! -x "${CHECKOUT_DIR}/${WEB_DIR}/node_modules/.bin/vite" ]; then
+    echo "pre-push: 缺少前端依赖，请先在 ${WEB_DIR} 执行 npm install。"
+    exit 1
+  fi
+
+  echo "pre-push: 校验管理后台构建..."
+  (
+    cd "${CHECKOUT_DIR}/${WEB_DIR}"
+    ./node_modules/.bin/tsc -b
+    ./node_modules/.bin/vite build
+  )
+}
+
+should_run_go_checks=false
+should_run_web_checks=false
+
+if has_changes_since_upstream '*.go' 'go.mod' 'go.sum'; then
+  should_run_go_checks=true
+fi
+
+if has_changes_since_upstream "${WEB_DIR}"; then
+  should_run_web_checks=true
+fi
+
+if ! ${should_run_go_checks} && ! ${should_run_web_checks}; then
+  echo "pre-push: 当前分支相对上游没有 Go 或管理后台变更，跳过完整校验。"
+  exit 0
+fi
+
+prepare_check_workspace
+
+if ${should_run_go_checks} || ${should_run_web_checks}; then
+  run_web_build_check
+fi
+
+if ${should_run_go_checks}; then
+  run_go_checks
+fi
