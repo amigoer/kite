@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/amigoer/kite/internal/model"
 	"gorm.io/gorm"
@@ -58,4 +59,28 @@ func (r *FileReplicaRepo) DeleteByFile(ctx context.Context, fileID string) error
 		return fmt.Errorf("delete file replicas: %w", err)
 	}
 	return nil
+}
+
+// MarkStalePending flips replica rows that have been stuck at "pending" past
+// the given staleness threshold to "failed". Background replication happens
+// in goroutines that do not survive process restarts, so if the server is
+// killed between the successful Put and the status update, the row would
+// otherwise be stuck forever. Callers run this on startup to surface
+// orphans to operators. Returns the number of rows flipped.
+func (r *FileReplicaRepo) MarkStalePending(ctx context.Context, olderThan time.Duration) (int64, error) {
+	if olderThan <= 0 {
+		return 0, fmt.Errorf("mark stale replicas: olderThan must be positive, got %s", olderThan)
+	}
+	cutoff := time.Now().Add(-olderThan)
+	res := r.db.WithContext(ctx).
+		Model(&model.FileReplica{}).
+		Where("status = ? AND updated_at < ?", model.ReplicaStatusPending, cutoff).
+		Updates(map[string]any{
+			"status":    model.ReplicaStatusFailed,
+			"error_msg": "startup reconciliation: replica was stuck at pending past staleness threshold",
+		})
+	if res.Error != nil {
+		return 0, fmt.Errorf("mark stale replicas: %w", res.Error)
+	}
+	return res.RowsAffected, nil
 }

@@ -68,6 +68,30 @@ func NewFileService(
 	}
 }
 
+// ReconcileStaleReplicas flips replica rows that are stuck at "pending"
+// past the staleness threshold to "failed" so they are visible to
+// operators. Background replication runs in goroutines that do not
+// survive a process restart, so without this step a crash mid-replication
+// would leave rows stuck at pending forever. Intended to be called once
+// on application startup.
+//
+// olderThan gates what counts as stale — anything with updated_at beyond
+// now-olderThan is marked failed. Uploads that legitimately take minutes
+// to replicate large files should bias this toward 30min+.
+func (s *FileService) ReconcileStaleReplicas(ctx context.Context, olderThan time.Duration) (int64, error) {
+	if s.replicaRepo == nil {
+		return 0, nil
+	}
+	flipped, err := s.replicaRepo.MarkStalePending(ctx, olderThan)
+	if err != nil {
+		return 0, fmt.Errorf("reconcile stale replicas: %w", err)
+	}
+	if flipped > 0 {
+		log.Printf("replica reconciliation: marked %d stale pending rows as failed (threshold=%s)", flipped, olderThan)
+	}
+	return flipped, nil
+}
+
 // UploadParams carries the parameters for an upload.
 type UploadParams struct {
 	UserID   string
@@ -264,7 +288,13 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 	if err := s.fileRepo.Create(ctx, file); err != nil {
 		// Roll back by deleting the uploaded bytes. Quota is released by the
 		// deferred releaseQuota above because quotaReserved is still true.
-		_ = primary.Driver.Delete(ctx, storageKey)
+		// A failed delete here leaves an orphan object — log it loudly so an
+		// operator can reconcile manually; silently swallowing the error
+		// would let storage usage drift without any signal.
+		if delErr := primary.Driver.Delete(ctx, storageKey); delErr != nil {
+			log.Printf("upload: ORPHAN after create-record failure — primary=%s key=%q delete=%v (create err: %v)",
+				primary.Meta.ID, storageKey, delErr, err)
+		}
 		return nil, fmt.Errorf("upload create record: %w", err)
 	}
 

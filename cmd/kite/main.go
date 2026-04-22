@@ -129,6 +129,18 @@ func main() {
 	imageSvc := service.NewImageService(cfg.Upload.ThumbWidth, cfg.Upload.ThumbQuality)
 	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, storageMgr, storageRouter, imageSvc, cfg.Upload)
 
+	// Reconcile any replica rows left stranded in "pending" by a previous
+	// crash. Background replication goroutines don't survive a process
+	// restart, so without this step the row would be stuck forever and the
+	// operator would have no signal that the replica never completed.
+	// 30 minutes covers legitimate large-file replication comfortably while
+	// still surfacing true orphans before the next upload wave.
+	reconcileCtx, reconcileCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if _, err := fileSvc.ReconcileStaleReplicas(reconcileCtx, 30*time.Minute); err != nil {
+		slog.Warn("replica reconciliation on startup failed", "err", err)
+	}
+	reconcileCancel()
+
 	// Load embedded assets: the built SPA under admin/dist and the landing
 	// page templates under template/.
 	var adminFS fs.FS
