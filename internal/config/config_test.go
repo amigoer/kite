@@ -52,8 +52,10 @@ func TestDefaultConfig_AuthDefaults(t *testing.T) {
 	if cfg.Auth.RefreshTokenExpiry != 7*24*time.Hour {
 		t.Errorf("RefreshTokenExpiry: want 168h, got %v", cfg.Auth.RefreshTokenExpiry)
 	}
-	if !cfg.Auth.AllowRegistration {
-		t.Error("AllowRegistration should default to true")
+	// Fresh installs keep registration closed — operators opt into public
+	// signups once rate limits, captcha, and email verification are set up.
+	if cfg.Auth.AllowRegistration {
+		t.Error("AllowRegistration should default to false on new installs")
 	}
 }
 

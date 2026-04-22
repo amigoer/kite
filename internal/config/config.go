@@ -29,14 +29,14 @@ type SiteConfig struct {
 
 // UploadConfig holds the upload-pipeline configuration.
 type UploadConfig struct {
-	MaxFileSize     int64    `json:"max_file_size"`     // max bytes per file, default 100MB
-	AllowedTypes    []string `json:"allowed_types"`     // allowed MIME prefixes (e.g. ["image/", "video/"]); empty allows all
-	ForbiddenExts   []string `json:"forbidden_exts"`    // blocked file extensions (e.g. [".exe", ".bat"])
-	AutoWebP        bool     `json:"auto_webp"`         // convert uploaded images to WebP
-	ThumbWidth      int      `json:"thumb_width"`       // thumbnail width, default 300px
-	ThumbQuality    int      `json:"thumb_quality"`     // thumbnail quality 1-100, default 80
-	PathPattern     string   `json:"path_pattern"`      // storage key template, default "{year}/{month}/{md5_8}/{uuid}.{ext}"
-	AllowDuplicate  bool     `json:"allow_duplicate"`   // allow duplicate files with identical MD5
+	MaxFileSize    int64    `json:"max_file_size"`   // max bytes per file, default 100MB
+	AllowedTypes   []string `json:"allowed_types"`   // allowed MIME prefixes (e.g. ["image/", "video/"]); empty allows all
+	ForbiddenExts  []string `json:"forbidden_exts"`  // blocked file extensions (e.g. [".exe", ".bat"])
+	AutoWebP       bool     `json:"auto_webp"`       // convert uploaded images to WebP
+	ThumbWidth     int      `json:"thumb_width"`     // thumbnail width, default 300px
+	ThumbQuality   int      `json:"thumb_quality"`   // thumbnail quality 1-100, default 80
+	PathPattern    string   `json:"path_pattern"`    // storage key template, default "{year}/{month}/{md5_8}/{uuid}.{ext}"
+	AllowDuplicate bool     `json:"allow_duplicate"` // allow duplicate files with identical MD5
 }
 
 // AuthConfig holds authentication settings.
@@ -83,7 +83,13 @@ func DefaultConfig() Config {
 		Auth: AuthConfig{
 			AccessTokenExpiry:  2 * time.Hour,
 			RefreshTokenExpiry: 7 * 24 * time.Hour,
-			AllowRegistration:  true,
+			// New installs default to closed registration. An operator who
+			// stands up a fresh instance hasn't had a chance to configure
+			// rate limiting, captchas, or email verification yet, so leaving
+			// the front door open risks abuse from day one. Admins can flip
+			// this on from the settings page once they're ready for public
+			// signups.
+			AllowRegistration: false,
 		},
 		Server: ServerConfig{
 			Host: "0.0.0.0",
