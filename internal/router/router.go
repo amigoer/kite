@@ -8,6 +8,7 @@
 package router
 
 import (
+	"context"
 	"io/fs"
 	"time"
 
@@ -35,10 +36,15 @@ type Config struct {
 	SiteName            string
 	SiteURL             string
 	AllowRegistration   bool
-	AdminFS             fs.FS  // Embedded SPA assets (web/admin/dist).
-	TemplateFS          fs.FS  // Embedded Go templates (web/template).
-	DataDir             string // Data directory backing the local storage driver.
-	ReloadStorage       func() // Rebuilds the storage manager after CRUD on storage configs.
+	// StaticAllowedCORSOrigins is the compile-/boot-time whitelist of origins
+	// permitted to issue credentialed cross-origin requests against
+	// /api/v1/*. Typically contains the canonical SiteURL and any dev-only
+	// frontend origin supplied via env.
+	StaticAllowedCORSOrigins []string
+	AdminFS                  fs.FS  // Embedded SPA assets (web/admin/dist).
+	TemplateFS               fs.FS  // Embedded Go templates (web/template).
+	DataDir                  string // Data directory backing the local storage driver.
+	ReloadStorage            func() // Rebuilds the storage manager after CRUD on storage configs.
 }
 
 // Setup constructs a fully wired gin.Engine: it creates the realtime metrics
@@ -48,10 +54,6 @@ func Setup(cfg Config) *gin.Engine {
 	r := gin.New()
 
 	realtimeCollector := handler.NewRealtimeSystemStatusCollector()
-	r.Use(middleware.Recovery())
-	r.Use(middleware.AccessLog())
-	r.Use(middleware.CORS())
-	r.Use(realtimeCollector.Middleware())
 
 	userRepo := repo.NewUserRepo(cfg.DB)
 	fileRepo := repo.NewFileRepo(cfg.DB)
@@ -61,6 +63,25 @@ func Setup(cfg Config) *gin.Engine {
 	storageRepo := repo.NewStorageConfigRepo(cfg.DB)
 	settingRepo := repo.NewSettingRepo(cfg.DB)
 	accessLogRepo := repo.NewFileAccessLogRepo(cfg.DB)
+
+	// CORS must come early so it wins over every other middleware — in
+	// particular it runs before AccessLog so preflight 204s don't hit the
+	// auth/rate-limit stack. The static whitelist is merged with a dynamic
+	// list from the settings table so operators can grant additional origins
+	// without a redeploy.
+	r.Use(middleware.Recovery())
+	r.Use(middleware.AccessLog())
+	r.Use(middleware.CORS(middleware.CORSConfig{
+		AllowedOrigins: buildStaticCORSOrigins(cfg),
+		DynamicAllowedOrigins: func() []string {
+			raw, err := settingRepo.GetOrDefault(context.Background(), service.CORSAllowedOriginsSettingKey, "")
+			if err != nil {
+				return nil
+			}
+			return service.ParseCORSAllowedOrigins(raw)
+		},
+	}))
+	r.Use(realtimeCollector.Middleware())
 	settingDefaults := service.DefaultSettings(
 		cfg.SiteName,
 		cfg.SiteURL,
@@ -125,6 +146,21 @@ func Setup(cfg Config) *gin.Engine {
 	registerStatic(r, cfg, settingRepo, settingDefaults)
 
 	return r
+}
+
+// buildStaticCORSOrigins produces the compile-/boot-time allow-list for
+// credentialed cross-origin requests. The canonical site URL is always
+// included so the admin UI served from the same host works even without any
+// explicit configuration. Additional origins supplied by the caller (e.g.
+// from KITE_CORS_ORIGINS) are appended verbatim; the middleware normalizes
+// scheme/host casing and strips trailing slashes.
+func buildStaticCORSOrigins(cfg Config) []string {
+	origins := make([]string, 0, 1+len(cfg.StaticAllowedCORSOrigins))
+	if cfg.SiteURL != "" {
+		origins = append(origins, cfg.SiteURL)
+	}
+	origins = append(origins, cfg.StaticAllowedCORSOrigins...)
+	return origins
 }
 
 // authRateLimit returns the runtime-configurable rate limit applied to
