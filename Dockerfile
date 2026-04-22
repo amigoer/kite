@@ -14,7 +14,14 @@ RUN npm run build
 # only (sqlite via glebarez/modernc.org, no CGO needed).
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend
 ARG TARGETOS TARGETARCH
+# Build identity stamped into the Go binary via -ldflags. CI/release tooling
+# overrides these; local builds fall back to "dev" + current HEAD SHA.
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
 WORKDIR /src
+
+RUN apk add --no-cache git
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -22,10 +29,20 @@ RUN go mod download
 COPY . .
 COPY --from=frontend /web/dist ./web/admin/dist
 
+# If the caller didn't pass COMMIT/BUILD_DATE explicitly, derive them from
+# the repo checkout so the resulting image still reports something useful.
+RUN : "${COMMIT:=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}" \
+    && : "${BUILD_DATE:=$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
+    && echo "building kite ${VERSION} (${COMMIT}) on ${BUILD_DATE}"
+
 ENV CGO_ENABLED=0 \
     GOFLAGS=-trimpath
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o /out/kite ./cmd/kite
+    go build -ldflags="-s -w \
+      -X github.com/amigoer/kite/internal/version.Version=${VERSION} \
+      -X github.com/amigoer/kite/internal/version.Commit=${COMMIT} \
+      -X github.com/amigoer/kite/internal/version.Date=${BUILD_DATE}" \
+    -o /out/kite ./cmd/kite
 
 # ---- Stage 3: minimal runtime ----
 FROM alpine:3.20

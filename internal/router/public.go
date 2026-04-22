@@ -7,16 +7,25 @@ import (
 
 	"github.com/amigoer/kite/internal/handler"
 	"github.com/amigoer/kite/internal/repo"
+	"github.com/amigoer/kite/internal/version"
 	"github.com/gin-gonic/gin"
 )
 
 // registerHealth exposes a lightweight liveness probe used by load balancers
-// and uptime monitors.
+// and uptime monitors. The response also surfaces the build identity so an
+// operator hitting `curl /api/v1/health` can confirm which binary is live
+// without shelling into the container — useful when diagnosing an outage
+// after a rollout.
 func registerHealth(v1 *gin.RouterGroup) {
 	v1.GET("/health", func(c *gin.Context) {
+		info := version.Get()
 		handler.Success(c, gin.H{
-			"status": "ok",
-			"ts":     time.Now().Unix(),
+			"status":  "ok",
+			"ts":      time.Now().Unix(),
+			"version": info.Version,
+			"commit":  info.Commit,
+			"date":    info.Date,
+			"go":      info.Go,
 		})
 	})
 }

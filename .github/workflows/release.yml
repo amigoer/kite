@@ -71,6 +71,13 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          # Pass build identity into the Go binary via ldflags inside the
+          # Dockerfile so `/api/v1/health` reports the exact tag/commit/date
+          # of the running image.
+          build-args: |
+            VERSION=${{ steps.meta.outputs.tag }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.release.published_at || github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false

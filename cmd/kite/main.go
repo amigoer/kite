@@ -27,6 +27,7 @@ import (
 	"github.com/amigoer/kite/internal/router"
 	"github.com/amigoer/kite/internal/service"
 	"github.com/amigoer/kite/internal/storage"
+	"github.com/amigoer/kite/internal/version"
 	"github.com/amigoer/kite/web"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -43,6 +44,16 @@ func main() {
 		Format: logger.ParseFormat(os.Getenv("KITE_LOG_FORMAT")),
 		Output: os.Stdout,
 	})
+
+	// Emit the build identity so operators can tie a running process to a
+	// specific commit when triaging incidents.
+	buildInfo := version.Get()
+	logger.Info("starting kite",
+		slog.String("version", buildInfo.Version),
+		slog.String("commit", buildInfo.Commit),
+		slog.String("build_date", buildInfo.Date),
+		slog.String("go", buildInfo.Go),
+	)
 
 	// Apply environment variable overrides on top of the compiled-in defaults.
 	if port := os.Getenv("KITE_PORT"); port != "" {

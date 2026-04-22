@@ -3,7 +3,19 @@ BUILD_DIR  := build
 WEB_DIR    := web/admin
 HOOKS_DIR  := .githooks
 GOFLAGS    := -trimpath
-LDFLAGS    := -s -w
+
+# Build identity stamped into the binary at link time and surfaced via
+# /api/v1/health. Override VERSION when cutting a tagged release
+# (`make build VERSION=v1.0.0`); git describe is the best fallback for ad-hoc
+# dev builds.
+VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+VERSION_PKG := github.com/amigoer/kite/internal/version
+LDFLAGS    := -s -w \
+              -X $(VERSION_PKG).Version=$(VERSION) \
+              -X $(VERSION_PKG).Commit=$(COMMIT) \
+              -X $(VERSION_PKG).Date=$(BUILD_DATE)
 
 .PHONY: all build dev clean web-install web-build web-dev run hooks-install
 
