@@ -127,6 +127,167 @@ func TestSettingsHandler_GetHidesSMTPPassword(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_GetHidesJWTSecretAndOAuthSecrets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	ctx := context.Background()
+	if err := settingRepo.Set(ctx, service.JWTSecretSettingKey, "jwt-plaintext-secret"); err != nil {
+		t.Fatalf("seed jwt secret: %v", err)
+	}
+	if err := settingRepo.Set(ctx, "oauth_github_client_secret", "gh-secret"); err != nil {
+		t.Fatalf("seed oauth github secret: %v", err)
+	}
+	if err := settingRepo.Set(ctx, "oauth_google_client_id", "google-id"); err != nil {
+		t.Fatalf("seed oauth google id: %v", err)
+	}
+
+	h := NewSettingsHandler(
+		settingRepo,
+		repo.NewUserRepo(db),
+		nil,
+		service.DefaultSettings("Kite", "http://localhost:8080", true, "{year}/{month}/{md5_8}/{uuid}.{ext}", 100*1024*1024, settingsHandlerForbiddenExts),
+	)
+
+	r := gin.New()
+	r.GET("/settings", h.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /settings status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Data map[string]string `json:"data"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	for _, key := range []string{
+		service.JWTSecretSettingKey,
+		"oauth_github_client_secret",
+		service.SMTPPasswordSettingKey,
+	} {
+		if _, ok := payload.Data[key]; ok {
+			t.Fatalf("secret %q must not appear in GET response", key)
+		}
+	}
+	// Belt-and-braces: confirm no raw plaintext leaks anywhere in the payload.
+	if bytes.Contains(rec.Body.Bytes(), []byte("jwt-plaintext-secret")) {
+		t.Fatal("jwt secret plaintext must never appear in GET /settings response body")
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("gh-secret")) {
+		t.Fatal("oauth github client secret must never appear in GET /settings response body")
+	}
+	if payload.Data[service.SecretConfiguredKey(service.JWTSecretSettingKey)] != "true" {
+		t.Fatalf("expected jwt_secret_configured=true, got %q", payload.Data[service.SecretConfiguredKey(service.JWTSecretSettingKey)])
+	}
+	if payload.Data[service.SecretConfiguredKey("oauth_github_client_secret")] != "true" {
+		t.Fatalf("expected oauth_github_client_secret_configured=true, got %q", payload.Data[service.SecretConfiguredKey("oauth_github_client_secret")])
+	}
+	// Non-secret OAuth fields (client_id, enabled) should still flow through.
+	if payload.Data["oauth_google_client_id"] != "google-id" {
+		t.Fatalf("expected oauth_google_client_id to be returned, got %q", payload.Data["oauth_google_client_id"])
+	}
+}
+
+func TestSettingsHandler_UpdateRejectsJWTSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	if err := settingRepo.Set(context.Background(), service.JWTSecretSettingKey, "original-secret"); err != nil {
+		t.Fatalf("seed jwt secret: %v", err)
+	}
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	body := map[string]any{
+		"settings": map[string]string{
+			service.JWTSecretSettingKey: "attacker-chosen-secret",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for jwt_secret write, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// The stored value must be untouched.
+	saved, err := settingRepo.Get(req.Context(), service.JWTSecretSettingKey)
+	if err != nil {
+		t.Fatalf("Get jwt_secret: %v", err)
+	}
+	if saved != "original-secret" {
+		t.Fatalf("jwt_secret was overwritten: %q", saved)
+	}
+}
+
+func TestSettingsHandler_UpdateStripsConfiguredFlags(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newSettingsHandlerTestDB(t)
+	settingRepo := repo.NewSettingRepo(db)
+	h := NewSettingsHandler(settingRepo, repo.NewUserRepo(db), nil, nil)
+
+	r := gin.New()
+	r.PUT("/settings", h.Update)
+
+	// Mimic a UI that round-trips GET's sentinel flags back through PUT.
+	body := map[string]any{
+		"settings": map[string]string{
+			service.SMTPPasswordConfiguredSettingKey: "true",
+			"jwt_secret_configured":                  "true",
+			service.SiteNameSettingKey:               "MySite",
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /settings status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// The sentinel flags must never be persisted — they'd clobber the real secret.
+	for _, key := range []string{
+		service.SMTPPasswordConfiguredSettingKey,
+		"jwt_secret_configured",
+	} {
+		if _, err := settingRepo.Get(req.Context(), key); err == nil {
+			t.Fatalf("sentinel flag %q must not be persisted", key)
+		}
+	}
+	// But legitimate settings must still go through.
+	saved, err := settingRepo.Get(req.Context(), service.SiteNameSettingKey)
+	if err != nil {
+		t.Fatalf("Get site_name: %v", err)
+	}
+	if saved != "MySite" {
+		t.Fatalf("unexpected site_name: %q", saved)
+	}
+}
+
 func TestSettingsHandler_UpdateAcceptsValidUploadMaxFileSize(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

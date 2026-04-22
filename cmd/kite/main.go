@@ -215,7 +215,7 @@ func loadRuntimeConfig(settingRepo *repo.SettingRepo, cfg *config.Config) {
 	if v, ok := settings["site_url"]; ok {
 		cfg.Site.URL = v
 	}
-	if v, ok := settings["jwt_secret"]; ok {
+	if v, ok := settings[service.JWTSecretSettingKey]; ok {
 		cfg.Auth.JWTSecret = v
 	}
 	if _, ok := settings["allow_registration"]; ok {
@@ -236,7 +236,7 @@ func ensureJWTSecret(settingRepo *repo.SettingRepo, cfg *config.Config) error {
 		return fmt.Errorf("generate jwt secret: %w", err)
 	}
 	secret := hex.EncodeToString(b)
-	if err := settingRepo.Set(context.Background(), "jwt_secret", secret); err != nil {
+	if err := settingRepo.Set(context.Background(), service.JWTSecretSettingKey, secret); err != nil {
 		return fmt.Errorf("persist jwt secret: %w", err)
 	}
 	cfg.Auth.JWTSecret = secret

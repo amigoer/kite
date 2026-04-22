@@ -27,6 +27,12 @@ func NewSettingsHandler(settingRepo *repo.SettingRepo, userRepo *repo.UserRepo, 
 }
 
 // Get returns all system settings.
+//
+// Secrets (JWT signing key, SMTP password, per-provider OAuth client secrets)
+// are stripped from the response and replaced with a "<key>_configured" flag
+// so the admin UI can show a "Set"/"Not set" badge without ever seeing the
+// plaintext. Anyone with read access to the settings API must never be able
+// to exfiltrate the JWT secret — that would let them forge arbitrary tokens.
 func (h *SettingsHandler) Get(c *gin.Context) {
 	settings, err := h.settingRepo.GetAll(c.Request.Context())
 	if err != nil {
@@ -34,11 +40,33 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 		return
 	}
 	merged := service.ResolveSettings(h.defaults, settings)
-	merged[service.SMTPPasswordConfiguredSettingKey] = "false"
-	if strings.TrimSpace(settings[service.SMTPPasswordSettingKey]) != "" {
-		merged[service.SMTPPasswordConfiguredSettingKey] = "true"
+
+	// Collect every secret key the operator might have configured: both the
+	// ones the defaults seed (e.g. smtp_password) and the ones only present
+	// once the operator writes them (jwt_secret, oauth_*_client_secret).
+	secretKeys := map[string]struct{}{
+		service.JWTSecretSettingKey:    {},
+		service.SMTPPasswordSettingKey: {},
 	}
-	delete(merged, service.SMTPPasswordSettingKey)
+	for key := range settings {
+		if service.IsSecretSettingKey(key) {
+			secretKeys[key] = struct{}{}
+		}
+	}
+	for key := range merged {
+		if service.IsSecretSettingKey(key) {
+			secretKeys[key] = struct{}{}
+		}
+	}
+
+	for key := range secretKeys {
+		configured := "false"
+		if strings.TrimSpace(settings[key]) != "" {
+			configured = "true"
+		}
+		merged[service.SecretConfiguredKey(key)] = configured
+		delete(merged, key)
+	}
 	Success(c, merged)
 }
 
@@ -52,6 +80,24 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, "invalid settings data: "+err.Error())
 		return
+	}
+
+	// Reject writes to read-only secrets (currently only jwt_secret). Rotating
+	// the JWT key via this endpoint would both invalidate every active session
+	// and let an admin ship tokens signed with an attacker-controlled value.
+	for key := range req.Settings {
+		if service.IsReadOnlySecretSettingKey(key) {
+			BadRequest(c, key+" cannot be modified through the settings API")
+			return
+		}
+	}
+	// Silently drop every "*_configured" sentinel — those are GET-only flags
+	// emitted by Get(); accepting them would overwrite the real secret key
+	// with the literal string "true"/"false".
+	for key := range req.Settings {
+		if service.IsSecretConfiguredKey(key) {
+			delete(req.Settings, key)
+		}
 	}
 
 	if raw, ok := req.Settings[service.UploadPathPatternSettingKey]; ok {
@@ -163,7 +209,6 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		}
 		req.Settings[key] = trimmed
 	}
-	delete(req.Settings, service.SMTPPasswordConfiguredSettingKey)
 
 	if err := h.settingRepo.SetBatch(c.Request.Context(), req.Settings); err != nil {
 		ServerError(c, "failed to update settings")
@@ -207,7 +252,8 @@ func (h *SettingsHandler) TestEmail(c *gin.Context) {
 		resolved[key] = value
 	}
 	for key, value := range req.Settings {
-		if key == service.SMTPPasswordConfiguredSettingKey {
+		// Drop GET-only sentinel flags — they aren't real SMTP fields.
+		if service.IsSecretConfiguredKey(key) {
 			continue
 		}
 		resolved[key] = value
