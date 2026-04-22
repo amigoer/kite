@@ -132,12 +132,13 @@ func (h *AuthHandler) ExchangeOAuth(c *gin.Context) {
 		return
 	}
 
-	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	writeAuthCookies(c, tokenPair)
 	Success(c, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_at":    tokenPair.ExpiresAt,
-		"return_to":     returnTo,
+		"access_token":       tokenPair.AccessToken,
+		"refresh_token":      tokenPair.RefreshToken,
+		"expires_at":         tokenPair.ExpiresAt,
+		"refresh_expires_at": tokenPair.RefreshExpiresAt,
+		"return_to":          returnTo,
 	})
 }
 
@@ -169,12 +170,13 @@ func (h *AuthHandler) OnboardOAuth(c *gin.Context) {
 		return
 	}
 
-	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	writeAuthCookies(c, tokenPair)
 	Success(c, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_at":    tokenPair.ExpiresAt,
-		"return_to":     returnTo,
+		"access_token":       tokenPair.AccessToken,
+		"refresh_token":      tokenPair.RefreshToken,
+		"expires_at":         tokenPair.ExpiresAt,
+		"refresh_expires_at": tokenPair.RefreshExpiresAt,
+		"return_to":          returnTo,
 	})
 }
 
@@ -282,13 +284,25 @@ func clearOAuthStateCookie(c *gin.Context) {
 	})
 }
 
+// accessTokenCookieName and refreshTokenCookieName are the cookies the web UI
+// relies on exclusively — tokens are never exposed to JavaScript. Mobile and
+// API clients can still read the JSON body of /auth/login + /auth/refresh.
+const (
+	accessTokenCookieName  = "access_token"
+	refreshTokenCookieName = "refresh_token"
+	// refreshTokenCookiePath scopes the refresh cookie to auth endpoints so
+	// non-auth requests don't transmit a long-lived credential. Logout lives
+	// under the same prefix so the clear-cookie write round-trips correctly.
+	refreshTokenCookiePath = "/api/v1/auth"
+)
+
 func writeAccessTokenCookie(c *gin.Context, token string, expiresAt time.Time) {
 	maxAge := maxAgeFromExpiry(expiresAt)
 	if token == "" {
 		maxAge = -1
 	}
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "access_token",
+		Name:     accessTokenCookieName,
 		Value:    token,
 		Path:     "/",
 		Expires:  expiresAt,
@@ -297,6 +311,44 @@ func writeAccessTokenCookie(c *gin.Context, token string, expiresAt time.Time) {
 		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+// writeRefreshTokenCookie sets (or clears, if token is empty) the HttpOnly
+// refresh cookie. SameSite=Strict prevents the refresh token from being sent
+// on cross-site navigations, which combined with the HttpOnly flag and the
+// narrow /api/v1/auth path keeps the long-lived credential out of reach of
+// both XSS and CSRF.
+func writeRefreshTokenCookie(c *gin.Context, token string, expiresAt time.Time) {
+	maxAge := maxAgeFromExpiry(expiresAt)
+	if token == "" {
+		maxAge = -1
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     refreshTokenCookieName,
+		Value:    token,
+		Path:     refreshTokenCookiePath,
+		Expires:  expiresAt,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   isSecureRequest(c),
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// writeAuthCookies rotates both the access and refresh cookies after a
+// successful login, refresh, OAuth exchange, or credential reset. Callers
+// pass the refresh-token expiry separately because in the current config it
+// lives much longer than the access token.
+func writeAuthCookies(c *gin.Context, tokenPair *service.TokenPair) {
+	if tokenPair == nil {
+		return
+	}
+	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	refreshExpiry := tokenPair.RefreshExpiresAt
+	if refreshExpiry.IsZero() {
+		refreshExpiry = tokenPair.ExpiresAt
+	}
+	writeRefreshTokenCookie(c, tokenPair.RefreshToken, refreshExpiry)
 }
 
 func isSecureRequest(c *gin.Context) bool {

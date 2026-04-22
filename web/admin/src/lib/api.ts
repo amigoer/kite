@@ -1,37 +1,35 @@
 import axios from 'axios'
 
+// withCredentials ensures the browser attaches HttpOnly auth cookies
+// (access_token, refresh_token) on every request. The frontend never sees
+// those values — the server reads them directly.
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
+// On 401, try exactly one silent refresh. The refresh endpoint reads the
+// refresh cookie server-side and rotates both cookies on success, so we
+// just need to retry the original request. We use the bare axios import
+// (not `api`) for the refresh call so this interceptor doesn't loop on
+// the refresh POST itself.
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401) {
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken && !error.config._retry) {
-        error.config._retry = true
-        try {
-          const { data } = await axios.post('/api/v1/auth/refresh', {
-            refresh_token: refreshToken,
-          })
-          const tokens = data.data
-          localStorage.setItem('access_token', tokens.access_token)
-          localStorage.setItem('refresh_token', tokens.refresh_token)
-          error.config.headers.Authorization = `Bearer ${tokens.access_token}`
-          return api(error.config)
-        } catch {
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
+    if (error.response?.status === 401 && !error.config?._retry) {
+      error.config._retry = true
+      try {
+        await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true })
+        return api(error.config)
+      } catch {
+        // Refresh failed — credentials are fully stale. Bounce to login
+        // unless the user is already there, which would cause a loop.
+        if (
+          typeof window !== 'undefined' &&
+          !window.location.pathname.startsWith('/login') &&
+          !window.location.pathname.startsWith('/register')
+        ) {
           window.location.href = '/login'
         }
       }

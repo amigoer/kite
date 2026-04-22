@@ -71,7 +71,7 @@ type ProfileTab = 'basic' | 'security' | 'identities' | 'preferences'
  * Page
  * ────────────────────────────────────────────────────────────*/
 export default function ProfilePage() {
-  const { user, applyTokensAndRefresh } = useAuth()
+  const { user, refreshProfile } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
@@ -85,8 +85,8 @@ export default function ProfilePage() {
     avatarUrl: user?.avatar_url ?? '',
   })
   // Resync the form when the signed-in identity changes (e.g. after
-  // applyTokensAndRefresh). Tracked via user_id so same-user updates
-  // (like a successful save) don't clobber the user's edits.
+  // refreshProfile). Tracked via user_id so same-user updates (like a
+  // successful save) don't clobber the user's in-progress edits.
   const [syncedUserId, setSyncedUserId] = useState<string | null>(
     user?.user_id ?? null
   )
@@ -167,11 +167,7 @@ export default function ProfilePage() {
         avatar_url: uploaded,
       })
 
-      const tokens = {
-        access_token: localStorage.getItem('access_token') ?? '',
-        refresh_token: localStorage.getItem('refresh_token') ?? '',
-      }
-      if (tokens.access_token) await applyTokensAndRefresh(tokens)
+      await refreshProfile()
       return uploaded
     },
     onSuccess: (url) => {
@@ -189,11 +185,7 @@ export default function ProfilePage() {
       }),
     onSuccess: async (res) => {
       const updated: User = res.data.data
-      const tokens = {
-        access_token: localStorage.getItem('access_token') ?? '',
-        refresh_token: localStorage.getItem('refresh_token') ?? '',
-      }
-      if (tokens.access_token) await applyTokensAndRefresh(tokens)
+      await refreshProfile()
       toast.success(t('profile.profileSaved'))
       setProfileForm({
         nickname: updated.nickname ?? '',
@@ -235,11 +227,7 @@ export default function ProfilePage() {
     mutationFn: (vars: { email: string; code: string }) =>
       authApi.confirmEmailChange(vars.email, vars.code),
     onSuccess: async () => {
-      const tokens = {
-        access_token: localStorage.getItem('access_token') ?? '',
-        refresh_token: localStorage.getItem('refresh_token') ?? '',
-      }
-      if (tokens.access_token) await applyTokensAndRefresh(tokens)
+      await refreshProfile()
       toast.success(t('profile.emailChangedToast'))
       setEmailDialogOpen(false)
       resetEmailDialog()
@@ -281,11 +269,7 @@ export default function ProfilePage() {
         new_password: passwordForm.newPassword,
       }),
     onSuccess: async () => {
-      const tokens = {
-        access_token: localStorage.getItem('access_token') ?? '',
-        refresh_token: localStorage.getItem('refresh_token') ?? '',
-      }
-      if (tokens.access_token) await applyTokensAndRefresh(tokens)
+      await refreshProfile()
       queryClient.invalidateQueries({ queryKey: ['auth', 'identities'] })
       toast.success(t('profile.passwordSetSaved'))
       setPasswordForm({

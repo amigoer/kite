@@ -764,8 +764,10 @@ export default function FilesPage() {
 
         const xhr = new XMLHttpRequest()
         xhr.open('POST', '/api/v1/upload')
-        const token = localStorage.getItem('access_token')
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        // Auth cookies are HttpOnly and same-origin; withCredentials tells
+        // the browser to attach them on this cross-instance XHR call the
+        // same way axios would with its withCredentials flag.
+        xhr.withCredentials = true
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {

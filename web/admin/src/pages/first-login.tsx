@@ -1,64 +1,65 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Loader2, ShieldAlert } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
-import { authApi } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { KiteLogo } from "@/components/kite-logo";
-import { toast } from "sonner";
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2, ShieldAlert } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
+import { authApi } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { KiteLogo } from '@/components/kite-logo'
+import { toast } from 'sonner'
 
 export default function FirstLoginPage() {
-  const { applyTokensAndRefresh } = useAuth();
-  const navigate = useNavigate();
+  const { refreshProfile } = useAuth()
+  const navigate = useNavigate()
   const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-  const [loading, setLoading] = useState(false);
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  })
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
-    if (form.username === "admin") {
-      toast.error("新用户名不能仍然是 admin");
-      return;
+    if (form.username === 'admin') {
+      toast.error('新用户名不能仍然是 admin')
+      return
     }
-    if (form.password === "admin") {
-      toast.error("新密码不能仍然是 admin");
-      return;
+    if (form.password === 'admin') {
+      toast.error('新密码不能仍然是 admin')
+      return
     }
     if (form.password !== form.confirmPassword) {
-      toast.error("两次输入的密码不一致，请重新核对");
-      return;
+      toast.error('两次输入的密码不一致，请重新核对')
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
     try {
-      const { data } = await authApi.firstLoginReset({
+      await authApi.firstLoginReset({
         new_username: form.username,
         new_email: form.email,
         new_password: form.password,
-      });
-      await applyTokensAndRefresh(data.data);
-      toast.success("账号已重置，欢迎使用 Kite！");
-      navigate("/user/dashboard", { replace: true });
+      })
+      // Server set fresh HttpOnly cookies on the reset response; we
+      // only need to pull in the new profile.
+      await refreshProfile()
+      toast.success('账号已重置，欢迎使用 Kite！')
+      navigate('/user/dashboard', { replace: true })
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? "重置失败，请稍后重试";
-      toast.error(msg);
+          ?.message ?? '重置失败，请稍后重试'
+      toast.error(msg)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const update =
-    (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   return (
     <>
@@ -82,9 +83,7 @@ export default function FirstLoginPage() {
           <h2 className="text-2xl font-semibold tracking-tight">
             完成首次配置
           </h2>
-          <p className="text-sm text-muted-foreground">
-            设置管理员账号信息
-          </p>
+          <p className="text-sm text-muted-foreground">设置管理员账号信息</p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-3 pt-2">
@@ -95,7 +94,7 @@ export default function FirstLoginPage() {
               autoCapitalize="none"
               autoCorrect="off"
               value={form.username}
-              onChange={update("username")}
+              onChange={update('username')}
               placeholder="请输入新用户名"
               required
               minLength={3}
@@ -112,7 +111,7 @@ export default function FirstLoginPage() {
               autoComplete="email"
               autoCorrect="off"
               value={form.email}
-              onChange={update("email")}
+              onChange={update('email')}
               placeholder="name@example.com"
               required
             />
@@ -125,7 +124,7 @@ export default function FirstLoginPage() {
               type="password"
               autoComplete="new-password"
               value={form.password}
-              onChange={update("password")}
+              onChange={update('password')}
               placeholder="至少 6 位"
               required
               minLength={6}
@@ -140,7 +139,7 @@ export default function FirstLoginPage() {
               type="password"
               autoComplete="new-password"
               value={form.confirmPassword}
-              onChange={update("confirmPassword")}
+              onChange={update('confirmPassword')}
               placeholder="再次输入新密码"
               required
             />
@@ -148,7 +147,7 @@ export default function FirstLoginPage() {
 
           <Button type="submit" className="mt-2" disabled={loading}>
             {loading && <Loader2 className="size-4 animate-spin" />}
-            {loading ? "保存中..." : "保存并继续"}
+            {loading ? '保存中...' : '保存并继续'}
           </Button>
         </form>
 
@@ -157,5 +156,5 @@ export default function FirstLoginPage() {
         </p>
       </div>
     </>
-  );
+  )
 }

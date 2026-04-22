@@ -37,11 +37,15 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-// TokenPair bundles an access token with its refresh token.
+// TokenPair bundles an access token with its refresh token. ExpiresAt marks
+// when the access token stops validating; RefreshExpiresAt is the longer
+// window during which the refresh token can still mint new pairs, and is
+// used by the web UI to scope the refresh cookie's MaxAge.
 type TokenPair struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	AccessToken      string    `json:"access_token"`
+	RefreshToken     string    `json:"refresh_token"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
 }
 
 // AuthService encapsulates authentication business logic.
@@ -431,6 +435,7 @@ func (s *AuthService) IssueTokenPair(user *model.User) (*TokenPair, error) {
 func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 	now := time.Now()
 	accessExpiry := now.Add(s.cfg.AccessTokenExpiry)
+	refreshExpiry := now.Add(s.cfg.RefreshTokenExpiry)
 
 	accessClaims := &JWTClaims{
 		UserID:   user.ID,
@@ -452,7 +457,7 @@ func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 		Username: user.Username,
 		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.RefreshTokenExpiry)),
+			ExpiresAt: jwt.NewNumericDate(refreshExpiry),
 			IssuedAt:  jwt.NewNumericDate(now),
 			Subject:   user.ID,
 		},
@@ -463,9 +468,10 @@ func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 	}
 
 	return &TokenPair{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresAt:    accessExpiry,
+		AccessToken:      accessToken,
+		RefreshToken:     refreshToken,
+		ExpiresAt:        accessExpiry,
+		RefreshExpiresAt: refreshExpiry,
 	}, nil
 }
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/amigoer/kite/internal/middleware"
@@ -107,8 +108,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Also set a cookie for the web UI.
-	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	// The web UI relies exclusively on HttpOnly cookies — the JSON body keeps
+	// non-browser clients (CLIs, mobile, integration tests) working.
+	writeAuthCookies(c, tokenPair)
 
 	Success(c, tokenPair)
 }
@@ -155,31 +157,55 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 type refreshRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refresh_token"`
 }
 
-// RefreshToken exchanges a refresh token for a new access token.
+// RefreshToken exchanges a refresh token for a new access token. The token is
+// read from the HttpOnly cookie for browser clients, with a fallback to the
+// JSON body for API/CLI clients that don't use cookies.
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req refreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "refresh_token is required")
+	token := extractRefreshToken(c)
+	if token == "" {
+		Unauthorized(c, "refresh_token is required")
 		return
 	}
 
-	tokenPair, err := h.authSvc.RefreshToken(req.RefreshToken)
+	tokenPair, err := h.authSvc.RefreshToken(token)
 	if err != nil {
 		Unauthorized(c, "invalid refresh token")
 		return
 	}
 
-	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	// Refresh rotation — issue a fresh cookie pair so the refresh token itself
+	// is replaced on every use. The body still carries the new pair for CLI
+	// clients.
+	writeAuthCookies(c, tokenPair)
 	Success(c, tokenPair)
 }
 
-// Logout clears the access token cookie.
+// Logout clears the access and refresh cookies. The access token in the
+// Authorization header is still usable until it expires — there's no
+// server-side revocation store — but the browser session is gone.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	writeAccessTokenCookie(c, "", time.Unix(0, 0))
+	writeRefreshTokenCookie(c, "", time.Unix(0, 0))
 	Success(c, nil)
+}
+
+// extractRefreshToken returns the refresh token from (in order) the HttpOnly
+// cookie and the JSON body. The body path exists so integration tests and
+// non-browser API consumers can still call /auth/refresh.
+func extractRefreshToken(c *gin.Context) string {
+	if cookie, err := c.Cookie(refreshTokenCookieName); err == nil {
+		if t := strings.TrimSpace(cookie); t != "" {
+			return t
+		}
+	}
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err == nil {
+		return strings.TrimSpace(req.RefreshToken)
+	}
+	return ""
 }
 
 // GetProfile returns information about the currently authenticated user.
@@ -298,7 +324,7 @@ func (h *AuthHandler) FirstLoginReset(c *gin.Context) {
 		return
 	}
 
-	writeAccessTokenCookie(c, tokenPair.AccessToken, tokenPair.ExpiresAt)
+	writeAuthCookies(c, tokenPair)
 	Success(c, tokenPair)
 }
 
