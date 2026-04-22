@@ -22,6 +22,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # web/embed.go carries `//go:embed all:admin/dist` which resolves at
+      # compile time — go vet, go test and go build all fail if the
+      # directory is empty. web/admin/dist is gitignored (the artifact is
+      # built per-run, not committed) so CI has to produce it before any
+      # Go step runs. This mirrors the Dockerfile, where `npm run build`
+      # always precedes `go build`.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/admin/package-lock.json
+
+      - name: Build admin SPA (for go:embed)
+        working-directory: web/admin
+        run: |
+          npm ci
+          npm run build
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
