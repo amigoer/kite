@@ -39,9 +39,9 @@ ENV CGO_ENABLED=0 \
     GOFLAGS=-trimpath
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w \
-      -X github.com/amigoer/kite/internal/version.Version=${VERSION} \
-      -X github.com/amigoer/kite/internal/version.Commit=${COMMIT} \
-      -X github.com/amigoer/kite/internal/version.Date=${BUILD_DATE}" \
+      -X github.com/kite-plus/kite/internal/version.Version=${VERSION} \
+      -X github.com/kite-plus/kite/internal/version.Commit=${COMMIT} \
+      -X github.com/kite-plus/kite/internal/version.Date=${BUILD_DATE}" \
     -o /out/kite ./cmd/kite
 
 # ---- Stage 3: minimal runtime ----

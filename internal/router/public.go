@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/amigoer/kite/internal/handler"
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/version"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/handler"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/version"
 )
 
 // registerHealth exposes a lightweight liveness probe used by load balancers

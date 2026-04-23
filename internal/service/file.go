@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/config"
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/storage"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
+	"github.com/kite-plus/kite/internal/config"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/storage"
 )
 
 var (

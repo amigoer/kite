@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 // OAuthProviderAdminHandler manages third-party login provider settings.

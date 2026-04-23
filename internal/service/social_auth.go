@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
 	"gorm.io/gorm"
 )
 

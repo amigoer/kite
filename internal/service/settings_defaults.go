@@ -26,7 +26,7 @@ const (
 	defaultSiteName       = "Kite"
 	defaultSiteKeywords   = "图床,媒体托管,自部署,图片托管,S3,PicGo,开源"
 	defaultSiteFaviconURL = "/favicon.svg"
-	defaultSiteGitHubURL  = "https://github.com/amigoer/kite"
+	defaultSiteGitHubURL  = "https://github.com/kite-plus/kite"
 	defaultSiteFooterText = "开源自部署媒体托管系统"
 )
 

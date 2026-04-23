@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/middleware"
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/middleware"
+	"github.com/kite-plus/kite/internal/service"
 	"gorm.io/gorm"
 )
 

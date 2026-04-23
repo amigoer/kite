@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestAlbumRepo_CreateAndGetByID(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestFileAccessLogRepo_Create(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestFileService_UploadBlocksDangerousExtensionByDefault(t *testing.T) {

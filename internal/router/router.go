@@ -12,13 +12,13 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/amigoer/kite/internal/config"
-	"github.com/amigoer/kite/internal/handler"
-	"github.com/amigoer/kite/internal/middleware"
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/service"
-	"github.com/amigoer/kite/internal/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/config"
+	"github.com/kite-plus/kite/internal/handler"
+	"github.com/kite-plus/kite/internal/middleware"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/service"
+	"github.com/kite-plus/kite/internal/storage"
 	"gorm.io/gorm"
 )
 

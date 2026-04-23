@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 func loadResolvedSettings(ctx context.Context, settingRepo *repo.SettingRepo, defaults map[string]string) map[string]string {

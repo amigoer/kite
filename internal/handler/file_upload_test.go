@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 func TestRespondUploadError(t *testing.T) {

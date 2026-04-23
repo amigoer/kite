@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/amigoer/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/repo"
 )
 
 var (

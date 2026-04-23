@@ -1,8 +1,8 @@
 package router
 
 import (
-	"github.com/amigoer/kite/internal/handler"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/handler"
 )
 
 // registerSettingsAdmin wires the admin-only system settings endpoints. The

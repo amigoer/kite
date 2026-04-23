@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

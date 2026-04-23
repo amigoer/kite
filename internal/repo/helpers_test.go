@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/amigoer/kite/internal/model"
 	"github.com/glebarez/sqlite"
+	"github.com/kite-plus/kite/internal/model"
 	"gorm.io/gorm"
 )
 

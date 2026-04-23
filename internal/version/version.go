@@ -23,9 +23,9 @@ const (
 
 // The following vars are overwritten at link time:
 //
-//	go build -ldflags "-X github.com/amigoer/kite/internal/version.Version=v1.0.0 \
-//	                   -X github.com/amigoer/kite/internal/version.Commit=$(git rev-parse HEAD) \
-//	                   -X github.com/amigoer/kite/internal/version.Date=$(date -u +%FT%TZ)"
+//	go build -ldflags "-X github.com/kite-plus/kite/internal/version.Version=v1.0.0 \
+//	                   -X github.com/kite-plus/kite/internal/version.Commit=$(git rev-parse HEAD) \
+//	                   -X github.com/kite-plus/kite/internal/version.Date=$(date -u +%FT%TZ)"
 var (
 	Version = unknownVersion // Semver or git tag (e.g. "v1.0.0" or "v1.0.0-5-g<sha>").
 	Commit  = unknownCommit  // Short or full git SHA.

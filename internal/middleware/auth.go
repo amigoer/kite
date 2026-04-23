@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 // Context keys written by [Auth] and consumed by downstream handlers.

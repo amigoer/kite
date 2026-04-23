@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestUserRepo_CreateAndGetByID(t *testing.T) {

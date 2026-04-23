@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestFileReplicaRepo_CreateAndList(t *testing.T) {

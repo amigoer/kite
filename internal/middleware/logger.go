@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/amigoer/kite/internal/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/logger"
 )
 
 // skipAccessLogPaths lists request paths that should not produce an access-log

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/google/uuid"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
 	"gorm.io/gorm"
 )
 

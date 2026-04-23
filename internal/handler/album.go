@@ -3,11 +3,11 @@ package handler
 import (
 	"strconv"
 
-	"github.com/amigoer/kite/internal/middleware"
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/kite-plus/kite/internal/middleware"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
 )
 
 // AlbumHandler handles album (folder) management HTTP requests.

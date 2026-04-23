@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 // makeFile is a convenience helper for building model.File test fixtures.

@@ -119,7 +119,7 @@ export default function CompleteSocialPage() {
             }
             minLength={3}
             maxLength={32}
-            placeholder="amigoer"
+            placeholder="username"
             required
           />
         </div>

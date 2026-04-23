@@ -1089,7 +1089,7 @@ export default function SettingsPage() {
                   onChange={(e) =>
                     updateField('site_header_nav_github_url', e.target.value)
                   }
-                  placeholder="https://github.com/amigoer/kite"
+                  placeholder="https://github.com/kite-plus/kite"
                 />
                 <p className="text-xs text-muted-foreground">
                   {t('settings.siteHeaderGitHubUrlHint')}

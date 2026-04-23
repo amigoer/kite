@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/glebarez/sqlite"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
 	"gorm.io/gorm"
 )
 

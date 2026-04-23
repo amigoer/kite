@@ -1,4 +1,4 @@
-module github.com/amigoer/kite
+module github.com/kite-plus/kite
 
 go 1.25.7
 

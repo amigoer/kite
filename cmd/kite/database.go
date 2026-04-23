@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/amigoer/kite/internal/config"
 	"github.com/glebarez/sqlite"
+	"github.com/kite-plus/kite/internal/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

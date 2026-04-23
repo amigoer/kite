@@ -10,11 +10,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/amigoer/kite/internal/config"
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/storage"
 	"github.com/glebarez/sqlite"
+	"github.com/kite-plus/kite/internal/config"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/storage"
 	"gorm.io/gorm"
 )
 

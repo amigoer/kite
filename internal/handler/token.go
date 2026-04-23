@@ -3,10 +3,10 @@ package handler
 import (
 	"time"
 
-	"github.com/amigoer/kite/internal/middleware"
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/middleware"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 // TokenHandler handles API token management HTTP requests.

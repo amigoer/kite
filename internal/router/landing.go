@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/amigoer/kite/internal/repo"
-	"github.com/amigoer/kite/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/repo"
+	"github.com/kite-plus/kite/internal/service"
 )
 
 // publicUser is the subset of user fields the landing-page templates need to

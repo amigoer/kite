@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amigoer/kite/internal/config"
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kite-plus/kite/internal/config"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/repo"
 	"golang.org/x/crypto/bcrypt"
 )
 

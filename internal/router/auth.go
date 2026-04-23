@@ -1,9 +1,9 @@
 package router
 
 import (
-	"github.com/amigoer/kite/internal/handler"
-	"github.com/amigoer/kite/internal/repo"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/handler"
+	"github.com/kite-plus/kite/internal/repo"
 )
 
 // registerAuthPublic wires unauthenticated authentication endpoints under

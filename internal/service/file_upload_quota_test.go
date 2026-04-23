@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 // TestFileService_UploadBumpsStorageUsed verifies the happy path: a successful

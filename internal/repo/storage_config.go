@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amigoer/kite/internal/model"
-	"github.com/amigoer/kite/internal/storage"
+	"github.com/kite-plus/kite/internal/model"
+	"github.com/kite-plus/kite/internal/storage"
 	"gorm.io/gorm"
 )
 

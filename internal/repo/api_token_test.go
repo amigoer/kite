@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amigoer/kite/internal/model"
+	"github.com/kite-plus/kite/internal/model"
 )
 
 func TestAPITokenRepo_CreateAndGetByHash(t *testing.T) {

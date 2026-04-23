@@ -1,8 +1,8 @@
 package router
 
 import (
-	"github.com/amigoer/kite/internal/handler"
 	"github.com/gin-gonic/gin"
+	"github.com/kite-plus/kite/internal/handler"
 )
 
 // registerAlbumRoutes wires folder CRUD endpoints. Both /albums and /folders
