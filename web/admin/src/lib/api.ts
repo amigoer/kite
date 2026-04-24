@@ -91,6 +91,15 @@ export const authApi = {
     api.post('/auth/email-change/request', { new_email: newEmail }),
   confirmEmailChange: (newEmail: string, code: string) =>
     api.post('/auth/email-change/confirm', { new_email: newEmail, code }),
+  // TOTP 2FA — setup returns the otpauth URI + raw secret; enable
+  // confirms with a 6-digit code; disable requires password + code;
+  // verify exchanges a login challenge for real tokens.
+  setupTotp: () => api.post('/auth/2fa/setup'),
+  enableTotp: (code: string) => api.post('/auth/2fa/enable', { code }),
+  disableTotp: (password: string, code: string) =>
+    api.post('/auth/2fa/disable', { password, code }),
+  verifyTotp: (challengeToken: string, code: string) =>
+    api.post('/auth/2fa/verify', { challenge_token: challengeToken, code }),
 }
 
 // Files
@@ -191,6 +200,10 @@ export const userApi = {
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/admin/users/${id}`, data),
   delete: (id: string) => api.delete(`/admin/users/${id}`),
+  // Admin lockout recovery: strips TOTP from a user who lost their
+  // authenticator device. Bumps token_version on the target user so
+  // any session in flight on that account is forcibly rotated.
+  resetTotp: (id: string) => api.post(`/admin/users/${id}/2fa/reset`),
 }
 
 // Stats — 当前用户维度（仅展示自己的数据）

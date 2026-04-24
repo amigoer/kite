@@ -1028,6 +1028,32 @@ const en = {
     search: 'Search',
     shortcuts: 'Shortcuts',
   },
+
+  twoFactor: {
+    enableTitle: 'Enable two-factor auth',
+    enableScanDesc:
+      'Scan the QR code with your authenticator app, or enter the key manually.',
+    enableConfirmDesc:
+      'Enter the 6-digit code shown in your authenticator app to finish setup.',
+    manualKey: 'Manual entry key',
+    manualKeyHint:
+      'Use this key if your authenticator app does not support QR scanning.',
+    scannedContinue: "I've scanned it, continue",
+    enterCode: 'Verification code',
+    back: 'Back',
+    confirmEnable: 'Enable two-factor auth',
+    enableSuccess: 'Two-factor auth enabled',
+    setupFailed: 'Failed to start 2FA setup',
+    codeInvalid: 'Invalid code, please try again',
+    secretCopied: 'Secret copied',
+    secretCopyFailed: 'Could not copy secret',
+    disableTitle: 'Disable two-factor auth',
+    disableDesc:
+      'Enter your password and a current code to turn off two-factor auth on this account.',
+    confirmDisable: 'Disable',
+    disableSuccess: 'Two-factor auth disabled',
+    disableFailed: 'Could not disable two-factor auth',
+  },
 } as const
 
 export default en

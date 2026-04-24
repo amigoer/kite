@@ -984,6 +984,28 @@ const zh: Translations = {
     search: '搜索',
     shortcuts: '快捷键',
   },
+
+  twoFactor: {
+    enableTitle: '启用两步验证',
+    enableScanDesc: '用身份验证器扫描二维码，或手动输入密钥。',
+    enableConfirmDesc: '输入身份验证器显示的 6 位动态码以完成设置。',
+    manualKey: '手动输入密钥',
+    manualKeyHint: '如果身份验证器不支持扫码，可以手动输入这串密钥。',
+    scannedContinue: '已扫码，继续',
+    enterCode: '动态码',
+    back: '返回',
+    confirmEnable: '启用两步验证',
+    enableSuccess: '两步验证已启用',
+    setupFailed: '启动两步验证失败',
+    codeInvalid: '验证码不正确，请重试',
+    secretCopied: '密钥已复制',
+    secretCopyFailed: '复制失败，请手动选择',
+    disableTitle: '停用两步验证',
+    disableDesc: '请输入账号密码和当前动态码以停用该账号的两步验证。',
+    confirmDisable: '停用',
+    disableSuccess: '两步验证已停用',
+    disableFailed: '无法停用两步验证',
+  },
 }
 
 export default zh

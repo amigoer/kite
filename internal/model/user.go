@@ -23,9 +23,16 @@ type User struct {
 	// token whose claim value is lower than the user row's — which is how
 	// a password change invalidates every outstanding session that was
 	// issued before it.
-	TokenVersion int       `gorm:"column:token_version;not null;default:0" json:"-"`
-	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+	TokenVersion int `gorm:"column:token_version;not null;default:0" json:"-"`
+	// TOTP-based second factor. TOTPSecret is only populated while the
+	// user is enrolling or already enrolled; the secret is the bare Base32
+	// string (pquerna/otp's canonical form). Never surfaced over JSON —
+	// callers only care whether the feature is on.
+	TOTPSecret      *string    `gorm:"column:totp_secret" json:"-"`
+	TOTPEnabled     bool       `gorm:"column:totp_enabled;not null;default:false" json:"totp_enabled"`
+	TOTPConfirmedAt *time.Time `gorm:"column:totp_confirmed_at" json:"-"`
+	CreatedAt       time.Time  `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
 func (User) TableName() string { return "users" }

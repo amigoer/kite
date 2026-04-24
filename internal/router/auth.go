@@ -20,6 +20,10 @@ func registerAuthPublic(v1 *gin.RouterGroup, h *handler.AuthHandler, settingRepo
 	g.POST("/refresh", h.RefreshToken)
 	g.POST("/oauth/exchange", h.ExchangeOAuth)
 	g.POST("/oauth/onboard", h.OnboardOAuth)
+	// /2fa/verify is public because the caller only holds a challenge
+	// token at this point — they've passed the password step but don't
+	// yet have a session cookie to present to middleware.Auth.
+	g.POST("/2fa/verify", h.VerifyTOTP)
 }
 
 // registerAuthAuthed wires authenticated profile and credential endpoints.
@@ -35,6 +39,9 @@ func registerAuthAuthed(authed *gin.RouterGroup, h *handler.AuthHandler) {
 	authed.POST("/auth/email-change/request", h.RequestEmailChange)
 	authed.POST("/auth/email-change/confirm", h.ConfirmEmailChange)
 	authed.DELETE("/auth/identities/:provider", h.UnlinkIdentity)
+	authed.POST("/auth/2fa/setup", h.SetupTOTP)
+	authed.POST("/auth/2fa/enable", h.EnableTOTP)
+	authed.POST("/auth/2fa/disable", h.DisableTOTP)
 }
 
 // registerAuthAdmin wires admin-only provider configuration endpoints.

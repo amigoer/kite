@@ -90,7 +90,11 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// Login authenticates a user and returns a token pair.
+// Login authenticates a user. If the account has TOTP enabled, the
+// response carries `pending_2fa: true` along with a short-lived
+// challenge token that the client must exchange at /auth/2fa/verify —
+// no session cookies are set at this stage, so a stolen
+// username/password alone can't mint a session.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +102,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	tokenPair, err := h.authSvc.Login(c.Request.Context(), req.Username, req.Password)
+	result, err := h.authSvc.LoginOrChallenge(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) || errors.Is(err, service.ErrUserInactive) {
 			Unauthorized(c, err.Error())
@@ -108,11 +112,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if result.Challenge != nil {
+		Success(c, gin.H{
+			"pending_2fa":     true,
+			"challenge_token": result.Challenge.Token,
+			"expires_at":      result.Challenge.ExpiresAt,
+		})
+		return
+	}
+
 	// The web UI relies exclusively on HttpOnly cookies — the JSON body keeps
 	// non-browser clients (CLIs, mobile, integration tests) working.
-	writeAuthCookies(c, tokenPair)
+	writeAuthCookies(c, result.Tokens)
 
-	Success(c, tokenPair)
+	Success(c, result.Tokens)
 }
 
 type registerRequest struct {
@@ -229,6 +242,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		"password_must_change": user.PasswordMustChange,
 		"storage_limit":        user.StorageLimit,
 		"storage_used":         user.StorageUsed,
+		"totp_enabled":         user.TOTPEnabled,
 		"created_at":           user.CreatedAt,
 	})
 }

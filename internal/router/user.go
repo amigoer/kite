@@ -28,4 +28,5 @@ func registerUserAdmin(admin *gin.RouterGroup, userH *handler.UserHandler, fileH
 	admin.POST("/admin/users", userH.Create)
 	admin.PUT("/admin/users/:id", userH.Update)
 	admin.DELETE("/admin/users/:id", userH.Delete)
+	admin.POST("/admin/users/:id/2fa/reset", userH.ResetTOTP)
 }

@@ -37,6 +37,10 @@ import {
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
 import { SocialProviderLogo } from '@/components/social-provider-logo'
+import {
+  DisableTwoFactorDialog,
+  EnableTwoFactorDialog,
+} from '@/components/two-factor-dialog'
 import { cn, formatSize } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -51,6 +55,7 @@ interface User {
   avatar_url?: string
   has_local_password?: boolean
   role: string
+  totp_enabled?: boolean
   created_at?: string
 }
 
@@ -99,6 +104,8 @@ export default function ProfilePage() {
   }
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false)
+  const [twoFactorEnableOpen, setTwoFactorEnableOpen] = useState(false)
+  const [twoFactorDisableOpen, setTwoFactorDisableOpen] = useState(false)
   // Email-change flow is a 2-step dialog: request a code (sent via SMTP to
   // the target address) and then confirm it. Owning this state at the page
   // level keeps the resend countdown alive across step transitions.
@@ -428,14 +435,6 @@ export default function ProfilePage() {
   const joinedDate = user?.created_at
     ? new Date(user.created_at).toLocaleDateString()
     : t('profile.accountUnknownDate')
-
-  const openSecuritySettings = () => {
-    if (user?.role === 'admin') {
-      navigate('/admin/settings')
-      return
-    }
-    navigate('/user/tokens')
-  }
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -962,13 +961,28 @@ export default function ProfilePage() {
               icon={ShieldCheck}
               title={t('profile.twoFactor')}
               badge={
-                <Badge variant="secondary" className="text-[10px]">
-                  {t('profile.twoFactorOff')}
-                </Badge>
+                user.totp_enabled ? (
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-500/30 bg-emerald-500/5 text-[10px] text-emerald-600 dark:text-emerald-400"
+                  >
+                    {t('profile.twoFactorOn')}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t('profile.twoFactorOff')}
+                  </Badge>
+                )
               }
               description={t('profile.twoFactorDesc')}
-              actionLabel={t('profile.enable')}
-              onAction={openSecuritySettings}
+              actionLabel={
+                user.totp_enabled ? t('profile.disable') : t('profile.enable')
+              }
+              onAction={() =>
+                user.totp_enabled
+                  ? setTwoFactorDisableOpen(true)
+                  : setTwoFactorEnableOpen(true)
+              }
             />
             <SecurityRow
               icon={Mail}
@@ -1286,6 +1300,18 @@ export default function ProfilePage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* —— Two-factor dialogs —— */}
+      <EnableTwoFactorDialog
+        open={twoFactorEnableOpen}
+        onOpenChange={setTwoFactorEnableOpen}
+        onSuccess={() => refreshProfile()}
+      />
+      <DisableTwoFactorDialog
+        open={twoFactorDisableOpen}
+        onOpenChange={setTwoFactorDisableOpen}
+        onSuccess={() => refreshProfile()}
+      />
 
       {/* —— Email change dialog —— */}
       <Dialog

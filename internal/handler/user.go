@@ -207,6 +207,26 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	Success(c, nil)
 }
 
+// ResetTOTP is the admin-side lockout recovery path. A user who has
+// lost access to their authenticator can ask an administrator to
+// strip the secret from their account, after which they'll see the
+// normal password-only login flow and can re-enroll at their leisure.
+// token_version is bumped so any session currently on the account
+// (including one held by whoever might be masquerading as them) is
+// forcibly rotated.
+func (h *UserHandler) ResetTOTP(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.authSvc.AdminResetTOTP(c.Request.Context(), id); err != nil {
+		if errors.Is(err, service.ErrTOTPNotEnabled) {
+			Fail(c, 400, 40000, err.Error())
+			return
+		}
+		ServerError(c, "failed to reset 2fa")
+		return
+	}
+	Success(c, nil)
+}
+
 // Stats returns usage statistics scoped to the current user.
 // Admins wanting site-wide data should call AdminStats instead.
 func (h *UserHandler) Stats(c *gin.Context) {
