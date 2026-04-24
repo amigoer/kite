@@ -561,7 +561,18 @@ export default function ProfilePage() {
                   htmlFor="avatar-file"
                   aria-label={t('profile.changeAvatar')}
                   className={cn(
-                    'group/avatar relative shrink-0 cursor-pointer rounded-full ring-2 ring-background transition-[box-shadow] focus-within:ring-ring focus-within:ring-offset-2',
+                    // Base ring uses `ring-border/60` — previously this
+                    // was `ring-2 ring-background`, which was a hairline
+                    // "knockout" trick that only shows when the avatar
+                    // sits on a different bg than `background`; the
+                    // profile hero's card is `bg-card` ≈ `bg-background`
+                    // in light mode, so the rim was invisible at rest and
+                    // the avatar just bled into the card. A visible
+                    // border/60 hairline matches the sidebar and header
+                    // identity treatment so the same face reads the same
+                    // in every surface. The focus-within override keeps
+                    // its normal ring-ring + offset for keyboard users.
+                    'group/avatar relative shrink-0 cursor-pointer rounded-full ring-1 ring-border/60 transition-[box-shadow] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
                     avatarUploadMutation.isPending && 'pointer-events-none'
                   )}
                 >
@@ -571,7 +582,14 @@ export default function ProfilePage() {
                       alt={displayName}
                       className="object-cover"
                     />
-                    <AvatarFallback className="text-3xl font-semibold">
+                    {/* Solid-fill fallback (bg-foreground / text-background)
+                        mirrors the sidebar's size-8 and the header's size-6
+                        avatars — otherwise the hero falls back to the
+                        default `bg-muted` pale-grey which reads as
+                        "unconfigured placeholder" rather than the user's
+                        identity. text-3xl keeps the glyph proportional to
+                        the size-20/24 circle. */}
+                    <AvatarFallback className="bg-foreground text-3xl font-semibold text-background">
                       {displayName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
