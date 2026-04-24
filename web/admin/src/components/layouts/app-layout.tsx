@@ -685,11 +685,17 @@ export default function AppLayout() {
           }}
         >
           <DialogContent
-            // Slightly rounded, softer shadow (previously shadow-2xl was
-            // too heavy against the dimmed backdrop); kept p-0 + overflow-
-            // hidden so the internal border-b/border-t strips render
-            // flush to the rounded corners.
-            className="max-h-[min(85vh,560px)] w-[min(90vw,560px)] gap-0 overflow-hidden rounded-xl border-border/60 p-0 shadow-xl md:max-h-[560px] md:w-[600px] [&>button]:hidden"
+            // bg-popover + sm:p-0 together kill the "gray ring" effect:
+            // the base DialogContent uses bg-background and sm:p-6, and
+            // since bg-background (6% L) is darker than the inner
+            // Command's bg-popover (11% L) in dark mode, the 24px
+            // padding strip was rendering as a visible halo. Matching
+            // backgrounds + zero padding at all breakpoints makes the
+            // dialog a single continuous surface.
+            // Light mode gets a soft, far-throw shadow; dark mode
+            // drops it — black haze on a near-black overlay just
+            // renders as a rectangular vignette.
+            className="max-h-[min(85vh,560px)] w-[min(90vw,560px)] gap-0 overflow-hidden rounded-xl border-border/60 bg-popover p-0 shadow-[0_24px_48px_-12px_rgb(0_0_0_/_0.22),0_4px_12px_-4px_rgb(0_0_0_/_0.08)] sm:p-0 dark:shadow-none md:max-h-[560px] md:w-[600px] [&>button]:hidden"
           >
             <DialogTitle className="sr-only">{t('common.search')}</DialogTitle>
             <Command shouldFilter={false} className="rounded-none bg-popover">
