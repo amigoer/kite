@@ -508,21 +508,30 @@ export default function AppLayout() {
               <div className="mx-1 h-5 w-px bg-border" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
+                  {/* Identity trigger: aligned with the sidebar's identity
+                      card (size-8 solid-fill avatar + semibold name) so
+                      the same user reads as the same visual token in both
+                      places. Previously the header used a size-5 avatar
+                      with the default muted fallback, which looked like a
+                      generic placeholder instead of "amigoer's account".
+                      The handle (@username) is intentionally omitted —
+                      the trigger is a closed-state affordance; full
+                      identity lives inside the dropdown body below. */}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-2 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="gap-2 px-2 text-[12px] hover:bg-accent"
                   >
-                    <Avatar className="size-5">
+                    <Avatar className="size-6 ring-1 ring-border/60">
                       <AvatarImage
                         src={user.avatar_url}
                         alt={user.username ?? ''}
                       />
-                      <AvatarFallback className="text-[10px] font-medium">
+                      <AvatarFallback className="bg-foreground text-[10px] font-medium text-background">
                         {user.username?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{displayName}</span>
+                    <span className="font-semibold">{displayName}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
