@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -430,11 +431,30 @@ func (h *FileHandler) serveFile(c *gin.Context, _ string, forceDownload bool) {
 		return
 	}
 
-	// Fetch the file contents.
-	reader, size, err := h.fileSvc.GetFileContent(c.Request.Context(), file)
-	if err != nil {
-		ServerError(c, "failed to read file")
-		return
+	// Optional WebP variant: when the canonical file was uploaded with
+	// the keep_original=true sidecar policy, a `<storage_key>.webp`
+	// neighbour exists and the client can request it via ?fmt=webp.
+	// Falls through transparently to the canonical file when no sidecar
+	// is present, so the same URL always works for any image.
+	wantWebP := !forceDownload && c.Query("dl") != "1" &&
+		c.Query("fmt") == "webp" && file.FileType == model.FileTypeImage
+
+	var reader io.ReadCloser
+	var size int64
+	servedFromSidecar := false
+	if wantWebP {
+		if r, sz, sErr := h.fileSvc.GetWebPSidecarContent(c.Request.Context(), file); sErr == nil {
+			reader = r
+			size = sz
+			servedFromSidecar = true
+		}
+	}
+	if reader == nil {
+		reader, size, err = h.fileSvc.GetFileContent(c.Request.Context(), file)
+		if err != nil {
+			ServerError(c, "failed to read file")
+			return
+		}
 	}
 	defer reader.Close()
 
@@ -443,11 +463,18 @@ func (h *FileHandler) serveFile(c *gin.Context, _ string, forceDownload bool) {
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.OriginalName))
 	} else {
 		contentType = file.MimeType
+		if servedFromSidecar {
+			contentType = "image/webp"
+		}
 		switch file.FileType {
 		case model.FileTypeImage:
 			c.Header("Content-Disposition", "inline")
 			c.Header("Cache-Control", "public, max-age=31536000, immutable")
-			c.Header("ETag", file.HashMD5)
+			etag := file.HashMD5
+			if servedFromSidecar {
+				etag = file.HashMD5 + ".webp"
+			}
+			c.Header("ETag", etag)
 		case model.FileTypeVideo, model.FileTypeAudio:
 			c.Header("Accept-Ranges", "bytes")
 		default:

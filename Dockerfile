@@ -47,7 +47,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 # ---- Stage 3: minimal runtime ----
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata libwebp-tools \
     && addgroup -S kite \
     && adduser -S -G kite -h /app kite \
     && mkdir -p /app/data \

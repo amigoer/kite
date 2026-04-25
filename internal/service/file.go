@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ type FileService struct {
 	storageMgr  *storage.Manager
 	router      *storage.Router
 	imageSvc    *ImageService
+	webpSvc     *WebPService
 	cfg         config.UploadConfig
 }
 
@@ -53,6 +55,7 @@ func NewFileService(
 	storageMgr *storage.Manager,
 	router *storage.Router,
 	imageSvc *ImageService,
+	webpSvc *WebPService,
 	cfg config.UploadConfig,
 ) *FileService {
 	return &FileService{
@@ -64,6 +67,7 @@ func NewFileService(
 		storageMgr:  storageMgr,
 		router:      router,
 		imageSvc:    imageSvc,
+		webpSvc:     webpSvc,
 		cfg:         cfg,
 	}
 }
@@ -185,6 +189,27 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 		return nil, err
 	}
 
+	// 6b. Optional WebP transcoding. When enabled in settings, PNG/JPEG
+	// uploads are passed through cwebp before any hashing or storage
+	// happens. Two flavours:
+	//
+	//   - keep_original=false (replace): the canonical bytes BECOME the
+	//     WebP. Hash, mime, extension and storage key all reflect that;
+	//     the user sees the file with a .webp suffix and an
+	//     image/webp content type.
+	//   - keep_original=true (sidecar): the canonical row stays the
+	//     original PNG/JPEG. The encoded WebP is written alongside at
+	//     <storageKey>.webp on the same primary driver. Serve handlers
+	//     can opt into the sidecar via ?fmt=webp.
+	//
+	// Failures (cwebp missing, encode error, output bigger than input)
+	// degrade silently to "no transcode" so a flaky cwebp install
+	// can never block an upload.
+	var webpSidecarBytes []byte
+	if fileType == model.FileTypeImage {
+		webpSidecarBytes, data, mimeType, effectiveName = s.maybeTranscodeWebP(ctx, data, mimeType, effectiveName)
+	}
+
 	// 7. Compute the MD5 hash.
 	hash := md5.Sum(data)
 	hashMD5 := hex.EncodeToString(hash[:])
@@ -258,6 +283,19 @@ func (s *FileService) Upload(ctx context.Context, params UploadParams) (*UploadR
 	primary, replicaTargets, err := s.writePrimary(ctx, plan, storageKey, data, mimeType)
 	if err != nil {
 		return nil, fmt.Errorf("upload put file: %w", err)
+	}
+
+	// 12b. Sidecar WebP variant (only set when keep_original=true).
+	// We write to the same primary driver because that is what the
+	// serve handler will reach for first; replica drivers don't
+	// receive the sidecar in v1, which is acceptable since the
+	// sidecar is purely an optimisation — the original is still
+	// the canonical file.
+	if webpSidecarBytes != nil {
+		sidecarKey := storageKey + ".webp"
+		if putErr := primary.Driver.Put(ctx, sidecarKey, bytes.NewReader(webpSidecarBytes), int64(len(webpSidecarBytes)), "image/webp"); putErr != nil {
+			log.Printf("upload: webp sidecar write failed for %s: %v (continuing with original only)", storageKey, putErr)
+		}
 	}
 
 	// 13. For images, capture dimensions and generate a thumbnail on the primary storage only.
@@ -788,4 +826,112 @@ func classifyFileType(mimeType string) string {
 	default:
 		return model.FileTypeFile
 	}
+}
+
+// maybeTranscodeWebP runs the WebP transcoding decision against the
+// current admin settings. Returns four values:
+//
+//   - sidecar: bytes to write at <storageKey>.webp, or nil if no sidecar
+//     should be created (either feature is off, replace mode is in use, or
+//     the encode failed/grew the file)
+//   - newData: the canonical bytes for storage (replaced WebP in replace
+//     mode, original in every other case)
+//   - newMime: the canonical mime ("image/webp" in replace mode, original
+//     otherwise)
+//   - newName: the canonical original_name with .webp suffix in replace
+//     mode, original otherwise
+//
+// Any error reading settings or running cwebp is treated as "skip
+// transcoding" and silently logged. The upload itself never fails because
+// of a webp problem.
+func (s *FileService) maybeTranscodeWebP(ctx context.Context, data []byte, mime, name string) (sidecar []byte, newData []byte, newMime string, newName string) {
+	if s.webpSvc == nil || !s.webpSvc.Available() {
+		return nil, data, mime, name
+	}
+	if !IsTranscodableMime(mime) {
+		return nil, data, mime, name
+	}
+
+	enabled, _ := s.settingRepo.GetOrDefault(ctx, ImageAutoWebPEnabledSettingKey, "false")
+	if strings.TrimSpace(enabled) != "true" {
+		return nil, data, mime, name
+	}
+
+	minKBRaw, _ := s.settingRepo.GetOrDefault(ctx, ImageAutoWebPMinSizeKBSettingKey, defaultImageAutoWebPMinSizeKB)
+	minKB, parseErr := strconv.Atoi(strings.TrimSpace(minKBRaw))
+	if parseErr != nil || minKB < 0 {
+		minKB, _ = strconv.Atoi(defaultImageAutoWebPMinSizeKB)
+	}
+	if int64(len(data)) < int64(minKB)*1024 {
+		return nil, data, mime, name
+	}
+
+	qualityRaw, _ := s.settingRepo.GetOrDefault(ctx, ImageAutoWebPQualitySettingKey, defaultImageAutoWebPQuality)
+	quality, parseErr := strconv.Atoi(strings.TrimSpace(qualityRaw))
+	if parseErr != nil {
+		quality, _ = strconv.Atoi(defaultImageAutoWebPQuality)
+	}
+
+	encoded, err := s.webpSvc.Encode(ctx, data, quality)
+	if err != nil {
+		log.Printf("upload: webp encode failed for %q: %v (keeping original)", name, err)
+		return nil, data, mime, name
+	}
+	// If the encoded output is not smaller than the original, the
+	// transcode is a net loss — typical for tiny PNG icons that already
+	// compress well. Skip silently.
+	if len(encoded) >= len(data) {
+		return nil, data, mime, name
+	}
+
+	keepOriginalRaw, _ := s.settingRepo.GetOrDefault(ctx, ImageAutoWebPKeepOriginalSettingKey, "true")
+	keepOriginal := strings.TrimSpace(keepOriginalRaw) == "true"
+
+	if keepOriginal {
+		// Sidecar mode: original is canonical, webp is a sibling.
+		return encoded, data, mime, name
+	}
+	// Replace mode: webp becomes canonical. Rewrite extension on the
+	// original_name so download disposition matches the actual bytes.
+	return nil, encoded, "image/webp", swapExtension(name, "webp")
+}
+
+// swapExtension returns name with its trailing extension replaced by the
+// given new extension (without leading dot). If the name has no
+// extension, the new extension is appended.
+func swapExtension(name, newExt string) string {
+	dot := strings.LastIndex(name, ".")
+	if dot < 0 {
+		return name + "." + newExt
+	}
+	return name[:dot] + "." + newExt
+}
+
+// HasWebPSidecar reports whether a sidecar webp variant is present on
+// the same storage backend as the canonical file. The serve handler
+// uses this to honour `?fmt=webp` requests.
+func (s *FileService) HasWebPSidecar(ctx context.Context, file *model.File) bool {
+	if file == nil {
+		return false
+	}
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
+	if err != nil {
+		return false
+	}
+	r, _, err := driver.Get(ctx, file.StorageKey+".webp")
+	if err != nil {
+		return false
+	}
+	_ = r.Close()
+	return true
+}
+
+// GetWebPSidecarContent opens the sidecar webp variant for `file`. The
+// caller is responsible for closing the returned reader.
+func (s *FileService) GetWebPSidecarContent(ctx context.Context, file *model.File) (io.ReadCloser, int64, error) {
+	driver, err := s.storageDriverForConfig(ctx, file.StorageConfigID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get storage driver: %w", err)
+	}
+	return driver.Get(ctx, file.StorageKey+".webp")
 }

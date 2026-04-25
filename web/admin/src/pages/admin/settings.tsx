@@ -1246,6 +1246,80 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>{t('settings.webpTitle')}</CardTitle>
+              <CardDescription>{t('settings.webpHint')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <Preference
+                label={t('settings.webpEnabled')}
+                hint={t('settings.webpEnabledHint')}
+              >
+                <Switch
+                  checked={boolOf('image_auto_webp_enabled')}
+                  onCheckedChange={() => toggleField('image_auto_webp_enabled')}
+                />
+              </Preference>
+              {boolOf('image_auto_webp_enabled') && (
+                <>
+                  <Preference
+                    label={t('settings.webpKeepOriginal')}
+                    hint={t('settings.webpKeepOriginalHint')}
+                  >
+                    <Switch
+                      checked={boolOf('image_auto_webp_keep_original')}
+                      onCheckedChange={() =>
+                        toggleField('image_auto_webp_keep_original')
+                      }
+                    />
+                  </Preference>
+                  <div className="grid gap-2 sm:max-w-xs">
+                    <Label htmlFor="webp-quality">
+                      {t('settings.webpQuality')}
+                    </Label>
+                    <Input
+                      id="webp-quality"
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={form['image_auto_webp_quality'] ?? '80'}
+                      onChange={(e) =>
+                        updateField(
+                          'image_auto_webp_quality',
+                          e.target.value.replace(/\D/g, '').slice(0, 3)
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.webpQualityHint')}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:max-w-xs">
+                    <Label htmlFor="webp-min-size">
+                      {t('settings.webpMinSize')}
+                    </Label>
+                    <Input
+                      id="webp-min-size"
+                      type="number"
+                      min={0}
+                      value={form['image_auto_webp_min_size_kb'] ?? '50'}
+                      onChange={(e) =>
+                        updateField(
+                          'image_auto_webp_min_size_kb',
+                          e.target.value.replace(/\D/g, '').slice(0, 6)
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.webpMinSizeHint')}
+                    </p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>{t('settings.dangerousExtensionsTitle')}</CardTitle>
               <CardDescription>
                 {t('settings.dangerousExtensionsHint')}

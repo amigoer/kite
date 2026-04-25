@@ -658,6 +658,19 @@ const zh: Translations = {
     uploadVarMd58: '文件 MD5 前 8 位',
     uploadVarUuid: '文件记录 UUID',
     uploadVarExt: '小写扩展名，缺失时回退为 bin',
+    webpTitle: '图片自动转 WebP',
+    webpHint:
+      '上传 PNG / JPEG 时自动调用 cwebp 转码。运行环境需提供 cwebp 命令；缺失时本设置静默降级为不转换。',
+    webpEnabled: '启用 WebP 自动转换',
+    webpEnabledHint:
+      '默认关闭。开启后仅对 PNG / JPEG 生效，其他图片格式不受影响。',
+    webpKeepOriginal: '保留原图',
+    webpKeepOriginalHint:
+      '开启时原图作为主文件保留，WebP 作为 ?fmt=webp 旁支文件存放；关闭时直接以 WebP 替换原图。',
+    webpQuality: '质量 (1–100)',
+    webpQualityHint: '对应 cwebp -q 参数。80 在多数场景下兼顾画质和体积。',
+    webpMinSize: '最小转换体积 (KB)',
+    webpMinSizeHint: '小于该体积的图片不转换，避免小图标转换后变大。',
     dangerousExtensionsTitle: '危险后缀处理',
     dangerousExtensionsHint:
       '为危险扩展名单独指定处理方式。自动改名会同步影响页面展示名、下载名和底层对象扩展名。',

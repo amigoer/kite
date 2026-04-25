@@ -252,7 +252,8 @@ func newUploadPathTestService(t *testing.T) (*FileService, func(), *repo.Setting
 
 	uploadCfg := config.DefaultConfig().Upload
 	imageSvc := NewImageService(uploadCfg.ThumbWidth, uploadCfg.ThumbQuality)
-	svc := NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, manager, router, imageSvc, uploadCfg)
+	webpSvc := NewWebPService()
+	svc := NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, manager, router, imageSvc, webpSvc, uploadCfg)
 
 	return svc, func() {}, settingRepo
 }
