@@ -20,6 +20,20 @@ const (
 	SiteHeaderNavGitHubURLSettingKey = "site_header_nav_github_url"
 	SiteFooterTextSettingKey         = "site_footer_text"
 	SiteFooterCopyrightSettingKey    = "site_footer_copyright"
+
+	// Image -> WebP auto-conversion. Off by default; transcoding requires
+	// the `cwebp` binary to be on PATH at runtime (shipped in the Docker
+	// image via `libwebp-tools`). Failures during transcoding silently
+	// fall back to keeping the original — see service/webp.go.
+	ImageAutoWebPEnabledSettingKey      = "image_auto_webp_enabled"
+	ImageAutoWebPQualitySettingKey      = "image_auto_webp_quality"
+	ImageAutoWebPKeepOriginalSettingKey = "image_auto_webp_keep_original"
+	ImageAutoWebPMinSizeKBSettingKey    = "image_auto_webp_min_size_kb"
+)
+
+const (
+	defaultImageAutoWebPQuality   = "80"
+	defaultImageAutoWebPMinSizeKB = "50"
 )
 
 const (
@@ -60,6 +74,10 @@ func DefaultSettings(siteName, siteURL string, allowRegistration bool, uploadPat
 		SiteFaviconURLSettingKey:                defaultSiteFaviconURL,
 		SiteHeaderNavGitHubURLSettingKey:        defaultSiteGitHubURL,
 		SiteFooterTextSettingKey:                defaultSiteFooterText,
+		ImageAutoWebPEnabledSettingKey:          "false",
+		ImageAutoWebPQualitySettingKey:          defaultImageAutoWebPQuality,
+		ImageAutoWebPKeepOriginalSettingKey:     "true",
+		ImageAutoWebPMinSizeKBSettingKey:        defaultImageAutoWebPMinSizeKB,
 	}
 }
 
@@ -93,6 +111,10 @@ func ResolveSettings(defaults, overrides map[string]string) map[string]string {
 	merged[UploadMaxFileSizeMBSettingKey] = resolveSettingValue(defaults, overrides, UploadMaxFileSizeMBSettingKey, strings.TrimSpace(defaults[UploadMaxFileSizeMBSettingKey]), false)
 	merged[UploadDangerousExtensionRulesSettingKey] = resolveDangerousExtensionRulesSetting(defaults, overrides)
 	merged[UploadDangerousRenameSuffixSettingKey] = resolveDangerousRenameSuffixSetting(defaults, overrides)
+	merged[ImageAutoWebPEnabledSettingKey] = resolveSettingValue(defaults, overrides, ImageAutoWebPEnabledSettingKey, "false", false)
+	merged[ImageAutoWebPQualitySettingKey] = resolveSettingValue(defaults, overrides, ImageAutoWebPQualitySettingKey, defaultImageAutoWebPQuality, false)
+	merged[ImageAutoWebPKeepOriginalSettingKey] = resolveSettingValue(defaults, overrides, ImageAutoWebPKeepOriginalSettingKey, "true", false)
+	merged[ImageAutoWebPMinSizeKBSettingKey] = resolveSettingValue(defaults, overrides, ImageAutoWebPMinSizeKBSettingKey, defaultImageAutoWebPMinSizeKB, false)
 
 	merged[SiteTitleSettingKey] = resolveSettingValue(defaults, overrides, SiteTitleSettingKey, fmt.Sprintf("%s - 自部署媒体托管系统", siteName), false)
 	merged[SiteKeywordsSettingKey] = resolveSettingValue(defaults, overrides, SiteKeywordsSettingKey, defaultSiteKeywords, true)

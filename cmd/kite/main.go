@@ -127,7 +127,8 @@ func main() {
 	storageRouter := storage.NewRouter(storageMgr, usageFn, policyFn)
 
 	imageSvc := service.NewImageService(cfg.Upload.ThumbWidth, cfg.Upload.ThumbQuality)
-	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, storageMgr, storageRouter, imageSvc, cfg.Upload)
+	webpSvc := service.NewWebPService()
+	fileSvc := service.NewFileService(fileRepo, userRepo, storageRepo, replicaRepo, settingRepo, storageMgr, storageRouter, imageSvc, webpSvc, cfg.Upload)
 
 	// Reconcile any replica rows left stranded in "pending" by a previous
 	// crash. Background replication goroutines don't survive a process

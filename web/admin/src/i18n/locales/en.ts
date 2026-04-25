@@ -682,6 +682,20 @@ const en = {
     uploadVarMd58: 'First 8 characters of the MD5 hash',
     uploadVarUuid: 'File record UUID',
     uploadVarExt: 'Lowercase extension, falling back to bin when missing',
+    webpTitle: 'Auto-convert images to WebP',
+    webpHint:
+      'On upload, run PNG / JPEG bytes through cwebp. The cwebp binary must be on PATH at runtime; if missing, this setting silently falls back to no-op.',
+    webpEnabled: 'Enable WebP conversion',
+    webpEnabledHint:
+      'Off by default. When on, only PNG and JPEG uploads are transcoded — other image formats are untouched.',
+    webpKeepOriginal: 'Keep original',
+    webpKeepOriginalHint:
+      'When on, the original is the canonical file and WebP is served via ?fmt=webp. When off, the WebP replaces the original at upload time.',
+    webpQuality: 'Quality (1–100)',
+    webpQualityHint: 'Maps to cwebp -q. 80 is a good balance for most uploads.',
+    webpMinSize: 'Minimum size (KB)',
+    webpMinSizeHint:
+      'Skip transcoding for files smaller than this — avoids growing tiny icons that already compress well.',
     dangerousExtensionsTitle: 'Dangerous extension handling',
     dangerousExtensionsHint:
       'Configure per-extension actions for dangerous suffixes. Auto-rename also updates the displayed name, download name, and underlying object extension.',
