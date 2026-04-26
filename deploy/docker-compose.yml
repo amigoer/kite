@@ -1,6 +1,9 @@
 services:
   kite:
-    image: amigoer/kite:latest
+    # Published by .github/workflows/release.yml on every GitHub Release.
+    # Use a pinned tag (e.g. ghcr.io/kite-plus/kite:v0.1.0) for production
+    # so an upstream :latest rebuild can't quietly redeploy the box.
+    image: ghcr.io/kite-plus/kite:latest
     container_name: kite
     restart: unless-stopped
     expose:
