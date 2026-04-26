@@ -155,6 +155,15 @@ func Pick(cookieValue, acceptLanguage string) Locale {
 	return DefaultLocale
 }
 
+// formatMessage is a function-valued indirection over fmt.Sprintf. The
+// indirection breaks `go vet`'s printf-wrapper detection at [T] and its
+// callers — without it, vet would see args flowing into Sprintf and treat
+// every call site as a printf-style call expecting matching directives in
+// the *catalogue key* (e.g. `auth.login_failed`), which it never has.
+var formatMessage = func(format string, args ...any) string {
+	return fmt.Sprintf(format, args...)
+}
+
 // T returns the catalogue entry for key in locale, falling back to the
 // English source (and finally to key itself) when the entry is missing.
 //
@@ -168,13 +177,13 @@ func T(locale Locale, key string, args ...any) string {
 			if len(args) == 0 {
 				return msg
 			}
-			return fmt.Sprintf(msg, args...)
+			return formatMessage(msg, args...)
 		}
 		if msg, ok := entries[LocaleEN]; ok && msg != "" {
 			if len(args) == 0 {
 				return msg
 			}
-			return fmt.Sprintf(msg, args...)
+			return formatMessage(msg, args...)
 		}
 	}
 	// Returning the raw key (instead of "") makes missing-translation bugs
@@ -182,5 +191,5 @@ func T(locale Locale, key string, args ...any) string {
 	if len(args) == 0 {
 		return key
 	}
-	return fmt.Sprintf(key, args...)
+	return formatMessage(key, args...)
 }

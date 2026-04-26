@@ -101,6 +101,12 @@ const (
 	KeyOAuthIdentityNotFound     = "oauth.identity_not_found"
 )
 
+// Public surfaces (anonymous gallery / guest upload toggles).
+const (
+	KeyPublicGalleryDisabled     = "public.gallery_disabled"
+	KeyPublicGuestUploadDisabled = "public.guest_upload_disabled"
+)
+
 // Setup wizard (handler messages).
 const (
 	KeySetupAlreadyInitialized      = "setup.already_initialized"
@@ -170,6 +176,8 @@ const (
 	KeyUserListFailed   = "user.list_failed"
 
 	KeySettingsInvalidData               = "settings.invalid_data"
+	KeySettingsInvalidValue              = "settings.invalid_value"
+	KeySettingsInvalidEmpty              = "settings.invalid_empty"
 	KeySettingsGetFailed                 = "settings.get_failed"
 	KeySettingsUpdateFailed              = "settings.update_failed"
 	KeySettingsCannotModify              = "settings.cannot_modify"

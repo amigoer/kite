@@ -518,6 +518,14 @@ var Catalog = map[string]map[Locale]string{
 		LocaleEN: "invalid settings data: %s",
 		LocaleZH: "设置数据无效：%s",
 	},
+	"settings.invalid_value": {
+		LocaleEN: "invalid %s: %s",
+		LocaleZH: "%s 无效：%s",
+	},
+	"settings.invalid_empty": {
+		LocaleEN: "invalid %s: cannot be empty",
+		LocaleZH: "%s 无效：不能为空",
+	},
 	"settings.get_failed": {
 		LocaleEN: "failed to get settings",
 		LocaleZH: "获取设置失败",
@@ -833,6 +841,16 @@ var Catalog = map[string]map[Locale]string{
 	"footer.login": {
 		LocaleEN: "Sign in",
 		LocaleZH: "登录",
+	},
+
+	// ── Public surfaces (gallery / guest upload toggles) ───────────────
+	"public.gallery_disabled": {
+		LocaleEN: "public gallery is disabled",
+		LocaleZH: "公开画廊已关闭",
+	},
+	"public.guest_upload_disabled": {
+		LocaleEN: "guest upload is disabled",
+		LocaleZH: "游客上传已关闭",
 	},
 
 	// ── Setup wizard (template) ─────────────────────────────────────────
