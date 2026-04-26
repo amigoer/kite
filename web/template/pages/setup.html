@@ -104,12 +104,49 @@
                     </div>
 
                     <label class="block text-sm font-medium mb-1.5">驱动</label>
-                    <div class="input-shell rounded-lg px-3 py-2 mb-4">
-                        <select id="dbDriver">
-                            <option value="sqlite">SQLite（默认 · 单文件）</option>
-                            <option value="mysql">MySQL / MariaDB</option>
-                            <option value="postgres">PostgreSQL</option>
-                        </select>
+                    <div class="relative mb-4" id="dbDriverWrap">
+                        <button type="button" id="dbDriverBtn"
+                                class="input-shell rounded-lg px-3 py-2 w-full flex items-center gap-2.5 text-left h-[44px]"
+                                aria-haspopup="listbox" aria-expanded="false">
+                            <span data-driver-display class="flex items-center gap-2.5 flex-1 min-w-0"></span>
+                            <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform" data-chevron fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <ul id="dbDriverMenu" role="listbox"
+                            class="hidden absolute top-full left-0 right-0 mt-1.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg z-20 overflow-hidden">
+                            <!-- 每项：品牌色字标 + 名称 + 描述。data-value 是真正的驱动 key。 -->
+                            <li>
+                                <button type="button" data-value="sqlite" role="option"
+                                        class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 text-left">
+                                    <span class="w-7 h-7 rounded-md flex-shrink-0 inline-flex items-center justify-center text-[11px] font-bold text-white" style="background:#003B57">S</span>
+                                    <span class="flex-1 min-w-0">
+                                        <span class="block text-sm font-medium">SQLite</span>
+                                        <span class="block text-[11px] text-gray-500 dark:text-gray-400">默认 · 单文件 · 零运维</span>
+                                    </span>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" data-value="mysql" role="option"
+                                        class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 text-left">
+                                    <span class="w-7 h-7 rounded-md flex-shrink-0 inline-flex items-center justify-center text-[11px] font-bold text-white" style="background:#00758F">M</span>
+                                    <span class="flex-1 min-w-0">
+                                        <span class="block text-sm font-medium">MySQL / MariaDB</span>
+                                        <span class="block text-[11px] text-gray-500 dark:text-gray-400">远程 · 多实例 · 兼容</span>
+                                    </span>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" data-value="postgres" role="option"
+                                        class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 text-left">
+                                    <span class="w-7 h-7 rounded-md flex-shrink-0 inline-flex items-center justify-center text-[11px] font-bold text-white" style="background:#336791">P</span>
+                                    <span class="flex-1 min-w-0">
+                                        <span class="block text-sm font-medium">PostgreSQL</span>
+                                        <span class="block text-[11px] text-gray-500 dark:text-gray-400">远程 · 强一致 · 富类型</span>
+                                    </span>
+                                </button>
+                            </li>
+                        </ul>
+                        <!-- 隐藏 input 保持原 id="dbDriver"，下游 JS 一行都不用改 -->
+                        <input type="hidden" id="dbDriver" value="sqlite">
                     </div>
 
                     <label class="block text-sm font-medium mb-1.5">DSN（连接串）</label>
@@ -368,25 +405,88 @@ docker restart kite
     }
 
     // ---- 数据库步骤 -------------------------------------------------------
-    var driverSelect = $('dbDriver');
-    var dsnInput     = $('dbDSN');
-    var dsnHint      = $('dbDSNHint');
-    var dbStatus     = $('dbStatus');
+    // 驱动用自定义下拉（带 icon + 描述）。隐藏 input 是事实来源，保留
+    // change 事件以便 DSN 占位符联动。
+    var driverInput   = $('dbDriver');
+    var driverWrap    = $('dbDriverWrap');
+    var driverBtn     = $('dbDriverBtn');
+    var driverMenu    = $('dbDriverMenu');
+    var driverDisplay = driverBtn.querySelector('[data-driver-display]');
+    var driverChevron = driverBtn.querySelector('[data-chevron]');
+    var dsnInput      = $('dbDSN');
+    var dsnHint       = $('dbDSNHint');
+    var dbStatus      = $('dbStatus');
+
+    // 单一来源：trigger 显示 + 弹层显示都从这里生成。颜色和字标
+    // 沿用各家官方品牌色（深些更稳重，跟卡片背景对比足够）。
+    var driverMeta = {
+        sqlite:   { color: '#003B57', letter: 'S', name: 'SQLite',           hint: '默认 · 单文件 · 零运维' },
+        mysql:    { color: '#00758F', letter: 'M', name: 'MySQL / MariaDB',  hint: '远程 · 多实例 · 兼容' },
+        postgres: { color: '#336791', letter: 'P', name: 'PostgreSQL',       hint: '远程 · 强一致 · 富类型' }
+    };
+
+    function badge(meta) {
+        var s = document.createElement('span');
+        s.className = 'w-7 h-7 rounded-md flex-shrink-0 inline-flex items-center justify-center text-[11px] font-bold text-white';
+        s.style.background = meta.color;
+        s.textContent = meta.letter;
+        return s;
+    }
+    function renderDriverDisplay(value) {
+        var meta = driverMeta[value]; if (!meta) return;
+        driverDisplay.innerHTML = '';
+        var b = badge(meta);
+        var name = document.createElement('span');
+        name.className = 'font-medium text-sm truncate';
+        name.textContent = meta.name;
+        var hint = document.createElement('span');
+        hint.className = 'hidden sm:inline text-[11px] text-gray-500 dark:text-gray-400 truncate';
+        hint.textContent = meta.hint;
+        driverDisplay.appendChild(b);
+        driverDisplay.appendChild(name);
+        driverDisplay.appendChild(hint);
+    }
+    function setMenuOpen(open) {
+        driverMenu.classList.toggle('hidden', !open);
+        driverBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        driverChevron.style.transform = open ? 'rotate(180deg)' : '';
+    }
+    driverBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setMenuOpen(driverMenu.classList.contains('hidden'));
+    });
+    document.addEventListener('click', function(e) {
+        if (!driverWrap.contains(e.target)) setMenuOpen(false);
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') setMenuOpen(false);
+    });
+    driverMenu.querySelectorAll('[data-value]').forEach(function(opt) {
+        opt.addEventListener('click', function() {
+            var v = opt.getAttribute('data-value');
+            driverInput.value = v;
+            renderDriverDisplay(v);
+            setMenuOpen(false);
+            // 下游 syncDSNPlaceholder 监听的是 hidden input 的 change 事件
+            driverInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
 
     function syncDSNPlaceholder() {
-        var d = driverSelect.value;
+        var d = driverInput.value;
         dsnInput.placeholder = dsnTemplates[d] || '';
         dsnHint.textContent = dsnHints[d] || '';
     }
-    driverSelect.addEventListener('change', function() {
+    driverInput.addEventListener('change', function() {
         syncDSNPlaceholder();
-        // 切到当前驱动 → 把 DSN 也填上当前的，便于下一步直接复用
-        if (driverSelect.value === currentDriver) dsnInput.value = currentDSN;
-        else if (!dsnInput.value || dsnInput.value === currentDSN) dsnInput.value = dsnTemplates[driverSelect.value] || '';
+        // 切回当前运行中的驱动 → 自动还原 DSN，省一次手动粘贴
+        if (driverInput.value === currentDriver) dsnInput.value = currentDSN;
+        else if (!dsnInput.value || dsnInput.value === currentDSN) dsnInput.value = dsnTemplates[driverInput.value] || '';
     });
 
-    // 初始：把当前 DB 的驱动选中、DSN 预填
-    driverSelect.value = currentDriver;
+    // 初始：把当前 DB 的驱动选中、DSN 预填、trigger 渲染
+    driverInput.value = currentDriver in driverMeta ? currentDriver : 'sqlite';
+    renderDriverDisplay(driverInput.value);
     dsnInput.value = currentDSN;
     syncDSNPlaceholder();
 
