@@ -67,12 +67,28 @@ func registerHealth(v1 *gin.RouterGroup, db *gorm.DB) {
 	})
 }
 
-// registerSetup wires the first-run installation wizard endpoints. Both
+// registerSetup wires the first-run installation wizard endpoints. All
 // endpoints are intentionally unauthenticated because the instance has no
-// user yet on first boot.
-func registerSetup(v1 *gin.RouterGroup, h *handler.SetupHandler) {
+// user yet on first boot — they instead self-gate by checking the user
+// table's row count and refuse to do anything once a user exists.
+//
+// The endpoints split into two groups:
+//
+//   - GET /setup/status  + POST /setup
+//     The "happy path" — the wizard collects site / admin / storage and
+//     POSTs the lot in one shot once the database driver is set in stone.
+//
+//   - POST /setup/test-database + POST /setup/database
+//     The pre-install database stage — operators can validate a candidate
+//     DSN without committing, then save it (which writes a config file and
+//     prompts the operator to restart so the new driver opens at boot).
+func registerSetup(v1 *gin.RouterGroup, h *handler.SetupHandler, dbH *handler.SetupDatabaseHandler) {
 	v1.GET("/setup/status", h.CheckSetup)
 	v1.POST("/setup", h.Setup)
+	if dbH != nil {
+		v1.POST("/setup/test-database", dbH.TestDatabase)
+		v1.POST("/setup/database", dbH.SaveDatabase)
+	}
 }
 
 // registerPublic wires the opt-in public endpoints that expose the instance

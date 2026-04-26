@@ -1,0 +1,484 @@
+{{define "setup.html"}}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {{template "head_common" .}}
+    <style>
+        .step-pill { transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+        .step-pill.active { background: #111827; color: #fff; }
+        .dark .step-pill.active { background: #fff; color: #111827; }
+        .step-pill.done { background: #10b98122; color: #047857; border-color: #10b98166; }
+        .dark .step-pill.done { color: #34d399; border-color: #10b98166; background: #10b98122; }
+        .panel { animation: fadeIn 0.25s cubic-bezier(0.16,1,0.3,1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .input-shell { border: 1px solid rgb(229,231,235); background: rgba(255,255,255,0.6); }
+        .dark .input-shell { border-color: rgb(31,41,55); background: rgba(17,24,39,0.6); }
+        .input-shell:focus-within { border-color: rgb(17,24,39); }
+        .dark .input-shell:focus-within { border-color: rgb(229,231,235); }
+        .input-shell input, .input-shell select, .input-shell textarea {
+            background: transparent; border: 0; outline: 0; width: 100%;
+        }
+        .toast { transition: opacity 0.3s, transform 0.3s; }
+    </style>
+</head>
+<body class="font-sans antialiased bg-[#fafafa] dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-[100dvh] flex flex-col selection:bg-gray-200 dark:selection:bg-gray-800">
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"
+             style="mask-image: radial-gradient(ellipse at center, white, transparent 75%);
+                    -webkit-mask-image: radial-gradient(ellipse at center, white, transparent 75%);"></div>
+    </div>
+
+    {{template "header" .}}
+
+    <main class="flex-1 relative z-10 w-full pt-20 sm:pt-24 pb-12">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6">
+            <!-- 标题 -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center gap-2 rounded-full border border-gray-200/80 dark:border-gray-800/80 bg-white/50 dark:bg-gray-900/50 backdrop-blur px-3 py-1 text-[11px] font-semibold text-gray-700 dark:text-gray-200 mb-4">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                    首次安装
+                </div>
+                <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">{{.SiteHeaderBrand}} 安装向导</h1>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    花两分钟完成数据库选择、站点信息和管理员账号配置
+                </p>
+            </div>
+
+            <!-- 步骤指示器 -->
+            <div class="flex items-center justify-center gap-1 sm:gap-2 mb-8 overflow-x-auto">
+                <div data-step-pill="1" class="step-pill active inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 whitespace-nowrap">
+                    <span class="step-num inline-flex w-4 h-4 rounded-full bg-current/20 items-center justify-center text-[10px]">1</span>
+                    数据库
+                </div>
+                <span class="text-gray-300 dark:text-gray-700">→</span>
+                <div data-step-pill="2" class="step-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 text-gray-500 whitespace-nowrap">
+                    <span class="step-num inline-flex w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 items-center justify-center text-[10px]">2</span>
+                    站点
+                </div>
+                <span class="text-gray-300 dark:text-gray-700">→</span>
+                <div data-step-pill="3" class="step-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 text-gray-500 whitespace-nowrap">
+                    <span class="step-num inline-flex w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 items-center justify-center text-[10px]">3</span>
+                    管理员
+                </div>
+                <span class="text-gray-300 dark:text-gray-700">→</span>
+                <div data-step-pill="4" class="step-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 text-gray-500 whitespace-nowrap">
+                    <span class="step-num inline-flex w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 items-center justify-center text-[10px]">4</span>
+                    存储
+                </div>
+            </div>
+
+            <!-- 全局错误条 -->
+            <div id="globalError" class="hidden mb-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300"></div>
+
+            <!-- 服务端注入的引导参数。data-* 走 html/template 的属性转义，
+                 比直接把字符串塞进 <script> 安全得多（避免引号/反斜杠
+                 在 JS 字面量里炸出来）。 -->
+            <div id="setupBootstrap"
+                 data-driver="{{.DatabaseDriver}}"
+                 data-dsn="{{.DatabaseDSN}}"
+                 data-can-switch="{{if .DatabaseSwitchEnabled}}1{{else}}0{{end}}"
+                 hidden></div>
+
+            <!-- 卡片容器 -->
+            <div class="rounded-2xl border border-gray-200/80 dark:border-gray-800/80 bg-white/70 dark:bg-gray-900/70 backdrop-blur shadow-sm overflow-hidden">
+                <!-- Step 1: 数据库 -->
+                <section data-step="1" class="panel p-6 sm:p-8">
+                    <h2 class="text-lg font-semibold tracking-tight mb-1">数据库</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        选择存储用户、文件元数据和设置的数据库。SQLite 适合个人/小团队，MySQL/PostgreSQL 适合多实例部署。
+                    </p>
+
+                    <div class="rounded-lg bg-gray-50 dark:bg-gray-800/50 px-4 py-3 mb-5 text-xs text-gray-600 dark:text-gray-300 flex items-start gap-2">
+                        <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div>
+                            当前运行使用 <span class="font-mono font-semibold text-gray-900 dark:text-gray-100">{{.DatabaseDriver}}</span>
+                            <span class="text-gray-400 dark:text-gray-500"> · </span>
+                            <span class="font-mono text-gray-500 dark:text-gray-400 break-all">{{.DatabaseDSN}}</span>
+                            {{if not .DatabaseSwitchEnabled}}
+                            <div class="mt-1 text-amber-600 dark:text-amber-400">运行环境未提供配置文件写入能力，如需切换请设置 <code>KITE_DB_DRIVER</code> 与 <code>KITE_DSN</code> 环境变量并重启。</div>
+                            {{end}}
+                        </div>
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5">驱动</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-4">
+                        <select id="dbDriver">
+                            <option value="sqlite">SQLite（默认 · 单文件）</option>
+                            <option value="mysql">MySQL / MariaDB</option>
+                            <option value="postgres">PostgreSQL</option>
+                        </select>
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5">DSN（连接串）</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-2">
+                        <textarea id="dbDSN" rows="3" class="font-mono text-xs" placeholder="data/kite.db"></textarea>
+                    </div>
+                    <p id="dbDSNHint" class="text-[11px] text-gray-500 dark:text-gray-400 mb-5"></p>
+
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <button type="button" id="dbTestBtn" class="px-3.5 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            测试连接
+                        </button>
+                        {{if .DatabaseSwitchEnabled}}
+                        <button type="button" id="dbSaveBtn" class="px-3.5 py-2 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition disabled:opacity-50">
+                            保存配置并重启
+                        </button>
+                        {{end}}
+                        <span id="dbStatus" class="text-xs"></span>
+                    </div>
+
+                    <div class="mt-7 flex justify-end">
+                        <button type="button" data-next="2" class="px-5 py-2 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 transition">
+                            下一步 →
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Step 2: 站点信息 -->
+                <section data-step="2" class="panel p-6 sm:p-8 hidden">
+                    <h2 class="text-lg font-semibold tracking-tight mb-1">站点信息</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        显示在标题栏与分享链接里。安装完成后可以在 后台 → 设置 修改。
+                    </p>
+
+                    <label class="block text-sm font-medium mb-1.5">站点名称</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-4">
+                        <input id="siteName" type="text" placeholder="Kite" maxlength="64">
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5">站点 URL</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-1.5">
+                        <input id="siteURL" type="url" placeholder="https://files.example.com" value="{{.SuggestedSiteURL}}">
+                    </div>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">用于生成绝对外链；含协议且不带末尾斜杠</p>
+
+                    <div class="mt-7 flex justify-between">
+                        <button type="button" data-prev="1" class="px-5 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            ← 上一步
+                        </button>
+                        <button type="button" data-next="3" class="px-5 py-2 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 transition">
+                            下一步 →
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Step 3: 管理员账号 -->
+                <section data-step="3" class="panel p-6 sm:p-8 hidden">
+                    <h2 class="text-lg font-semibold tracking-tight mb-1">管理员账号</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        这是第一个能登录后台的账号。务必牢记——找回密码需要配置 SMTP 才能用。
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1.5">用户名</label>
+                            <div class="input-shell rounded-lg px-3 py-2">
+                                <input id="adminUsername" type="text" placeholder="admin" maxlength="32">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1.5">邮箱</label>
+                            <div class="input-shell rounded-lg px-3 py-2">
+                                <input id="adminEmail" type="email" placeholder="admin@example.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5 mt-4">密码（至少 6 位）</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-4">
+                        <input id="adminPassword" type="password" placeholder="••••••••" minlength="6" maxlength="64">
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5">再次输入密码</label>
+                    <div class="input-shell rounded-lg px-3 py-2">
+                        <input id="adminPasswordConfirm" type="password" placeholder="••••••••" minlength="6" maxlength="64">
+                    </div>
+
+                    <div class="mt-7 flex justify-between">
+                        <button type="button" data-prev="2" class="px-5 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            ← 上一步
+                        </button>
+                        <button type="button" data-next="4" class="px-5 py-2 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 transition">
+                            下一步 →
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Step 4: 存储 -->
+                <section data-step="4" class="panel p-6 sm:p-8 hidden">
+                    <h2 class="text-lg font-semibold tracking-tight mb-1">存储后端</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        上传的文件存放位置。先用本地存储跑起来，安装完成后到 后台 → 存储 添加 S3、阿里云 OSS、FTP 等。
+                    </p>
+
+                    <label class="block text-sm font-medium mb-1.5">类型</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-4">
+                        <select id="storageScheme">
+                            <option value="local">本地存储（推荐）</option>
+                        </select>
+                    </div>
+
+                    <label class="block text-sm font-medium mb-1.5">存储路径</label>
+                    <div class="input-shell rounded-lg px-3 py-2 mb-1.5">
+                        <input id="storageBasePath" type="text" placeholder="data/uploads" value="{{.SuggestedStorageBasePath}}">
+                    </div>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">相对于工作目录；目录不存在会自动创建</p>
+
+                    <div class="mt-7 flex justify-between">
+                        <button type="button" data-prev="3" class="px-5 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            ← 上一步
+                        </button>
+                        <button type="button" id="finishBtn" class="px-5 py-2 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 transition disabled:opacity-50">
+                            完成安装 ✓
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 完成 -->
+                <section data-step="done" class="panel p-8 hidden text-center">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/40 mb-4">
+                        <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                    <h2 class="text-xl font-bold mb-2">安装完成</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        即将跳转登录页…
+                    </p>
+                    <a href="/login" class="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 transition">
+                        现在登录 →
+                    </a>
+                </section>
+
+                <!-- 切库重启提示 -->
+                <section data-step="restart" class="panel p-8 hidden">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/40">
+                            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0l-7.1 12.25A2 2 0 005 19z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold tracking-tight mb-1">数据库配置已保存，请重启服务</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                新的连接串已写入 <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800">data/config.json</code>。重启进程后再次打开本页面即可继续后续步骤。
+                            </p>
+                            <pre class="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs font-mono text-gray-700 dark:text-gray-300 overflow-x-auto"># systemd
+sudo systemctl restart kite
+
+# Docker
+docker restart kite
+
+# 直接运行
+^C 后再次执行 ./kite</pre>
+                            <a href="/setup" class="mt-5 inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                                重启完成，刷新本页 ↻
+                            </a>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    {{template "footer" .}}
+
+<script>
+(function() {
+    'use strict';
+
+    // ---- DSN 模板 ---------------------------------------------------------
+    var dsnTemplates = {
+        sqlite:   'data/kite.db',
+        mysql:    'user:password@tcp(127.0.0.1:3306)/kite?charset=utf8mb4&parseTime=True&loc=Local',
+        postgres: 'host=127.0.0.1 user=kite password=secret dbname=kite port=5432 sslmode=disable'
+    };
+    var dsnHints = {
+        sqlite:   '相对路径，目录不存在会自动创建。',
+        mysql:    '需开启 utf8mb4。账号至少要有 CREATE / ALTER / SELECT / INSERT / UPDATE / DELETE 权限。',
+        postgres: '账号需要在目标库上拥有 CREATE / USAGE 权限以便首次自动建表。'
+    };
+
+    // 当前服务运行的 DB（从隐藏 div 的 data-* 读取，避免 Go template 直接
+    // 注入到 JS 字面量带来的引号/转义陷阱）
+    var bootstrap     = document.getElementById('setupBootstrap');
+    var currentDriver = bootstrap.getAttribute('data-driver') || 'sqlite';
+    var currentDSN    = bootstrap.getAttribute('data-dsn') || '';
+    var canSwitchDB   = bootstrap.getAttribute('data-can-switch') === '1';
+
+    var $ = function(id) { return document.getElementById(id); };
+    var globalError = $('globalError');
+
+    function showError(msg) {
+        globalError.textContent = msg;
+        globalError.classList.remove('hidden');
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    function clearError() { globalError.classList.add('hidden'); }
+
+    // ---- 步骤切换 ---------------------------------------------------------
+    function showStep(id) {
+        clearError();
+        document.querySelectorAll('section[data-step]').forEach(function(el) {
+            el.classList.toggle('hidden', el.getAttribute('data-step') !== id);
+        });
+        document.querySelectorAll('[data-step-pill]').forEach(function(el) {
+            var n = el.getAttribute('data-step-pill');
+            el.classList.remove('active', 'done');
+            var pillNum = parseInt(n, 10);
+            var current = parseInt(id, 10);
+            if (!isNaN(current)) {
+                if (pillNum === current) el.classList.add('active');
+                else if (pillNum < current) el.classList.add('done');
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-next]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var target = btn.getAttribute('data-next');
+            if (validateStep(btn.closest('section').getAttribute('data-step'))) {
+                showStep(target);
+            }
+        });
+    });
+    document.querySelectorAll('[data-prev]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            showStep(btn.getAttribute('data-prev'));
+        });
+    });
+
+    // ---- 单步校验 ---------------------------------------------------------
+    function validateStep(step) {
+        if (step === '2') {
+            if (!$('siteName').value.trim()) { showError('请填写站点名称'); return false; }
+            var url = $('siteURL').value.trim();
+            if (!url || !/^https?:\/\//i.test(url)) { showError('站点 URL 需以 http:// 或 https:// 开头'); return false; }
+        }
+        if (step === '3') {
+            var u = $('adminUsername').value.trim();
+            if (u.length < 3) { showError('用户名至少 3 个字符'); return false; }
+            if (!/^[\w.-]+$/i.test(u)) { showError('用户名只能包含字母、数字、点和连字符'); return false; }
+            var em = $('adminEmail').value.trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { showError('邮箱格式不正确'); return false; }
+            var p = $('adminPassword').value, p2 = $('adminPasswordConfirm').value;
+            if (p.length < 6) { showError('密码至少 6 位'); return false; }
+            if (p !== p2) { showError('两次输入的密码不一致'); return false; }
+        }
+        return true;
+    }
+
+    // ---- 数据库步骤 -------------------------------------------------------
+    var driverSelect = $('dbDriver');
+    var dsnInput     = $('dbDSN');
+    var dsnHint      = $('dbDSNHint');
+    var dbStatus     = $('dbStatus');
+
+    function syncDSNPlaceholder() {
+        var d = driverSelect.value;
+        dsnInput.placeholder = dsnTemplates[d] || '';
+        dsnHint.textContent = dsnHints[d] || '';
+    }
+    driverSelect.addEventListener('change', function() {
+        syncDSNPlaceholder();
+        // 切到当前驱动 → 把 DSN 也填上当前的，便于下一步直接复用
+        if (driverSelect.value === currentDriver) dsnInput.value = currentDSN;
+        else if (!dsnInput.value || dsnInput.value === currentDSN) dsnInput.value = dsnTemplates[driverSelect.value] || '';
+    });
+
+    // 初始：把当前 DB 的驱动选中、DSN 预填
+    driverSelect.value = currentDriver;
+    dsnInput.value = currentDSN;
+    syncDSNPlaceholder();
+
+    function setDBStatus(text, kind) {
+        dbStatus.textContent = text;
+        dbStatus.className = 'text-xs ' + (kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : kind === 'err' ? 'text-red-600 dark:text-red-400' : 'text-gray-500');
+    }
+
+    function postJSON(path, body) {
+        return fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function(r) { return r.json().then(function(j) { return { status: r.status, body: j }; }); });
+    }
+
+    $('dbTestBtn').addEventListener('click', function() {
+        clearError();
+        setDBStatus('连接中…', 'pending');
+        var driver = driverSelect.value;
+        var dsn = dsnInput.value.trim();
+        if (!dsn) { setDBStatus('请填写 DSN', 'err'); return; }
+        postJSON('/api/v1/setup/test-database', { driver: driver, dsn: dsn })
+            .then(function(res) {
+                if (res.status === 200 && res.body && res.body.code === 0) setDBStatus('连接成功 ✓', 'ok');
+                else setDBStatus(res.body && res.body.message || '连接失败', 'err');
+            })
+            .catch(function(e) { setDBStatus(e.message || '连接异常', 'err'); });
+    });
+
+    var saveBtn = $('dbSaveBtn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            clearError();
+            var driver = driverSelect.value;
+            var dsn = dsnInput.value.trim();
+            if (!dsn) { setDBStatus('请填写 DSN', 'err'); return; }
+            // 没切库就没必要走这条路径
+            if (driver === currentDriver && dsn === currentDSN) {
+                setDBStatus('与当前一致，直接进入下一步', 'pending');
+                return;
+            }
+            saveBtn.disabled = true;
+            setDBStatus('保存中…', 'pending');
+            postJSON('/api/v1/setup/database', { driver: driver, dsn: dsn })
+                .then(function(res) {
+                    if (res.status === 200 && res.body && res.body.code === 0) showStep('restart');
+                    else setDBStatus(res.body && res.body.message || '保存失败', 'err');
+                })
+                .catch(function(e) { setDBStatus(e.message || '保存异常', 'err'); })
+                .finally(function() { saveBtn.disabled = false; });
+        });
+    }
+
+    // ---- 完成安装 ---------------------------------------------------------
+    $('finishBtn').addEventListener('click', function() {
+        clearError();
+        // 收集 4 个步骤的输入
+        var payload = {
+            site_name: $('siteName').value.trim() || 'Kite',
+            site_url: $('siteURL').value.trim().replace(/\/+$/, ''),
+            admin_username: $('adminUsername').value.trim(),
+            admin_email: $('adminEmail').value.trim(),
+            admin_password: $('adminPassword').value,
+            storage_scheme: $('storageScheme').value,
+            storage_config: {
+                base_path: $('storageBasePath').value.trim() || 'data/uploads'
+            }
+        };
+
+        var btn = $('finishBtn');
+        btn.disabled = true;
+        btn.textContent = '安装中…';
+        postJSON('/api/v1/setup', payload)
+            .then(function(res) {
+                if (res.status === 200 && res.body && res.body.code === 0) {
+                    showStep('done');
+                    setTimeout(function() { window.location.href = '/login'; }, 1500);
+                    return;
+                }
+                showError((res.body && res.body.message) || '安装失败，请检查表单');
+                btn.disabled = false;
+                btn.textContent = '完成安装 ✓';
+            })
+            .catch(function(e) {
+                showError(e.message || '安装请求失败');
+                btn.disabled = false;
+                btn.textContent = '完成安装 ✓';
+            });
+    });
+})();
+</script>
+</body>
+</html>
+{{end}}
