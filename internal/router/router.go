@@ -46,6 +46,22 @@ type Config struct {
 	TemplateFS               fs.FS  // Embedded Go templates (web/template).
 	DataDir                  string // Data directory backing the local storage driver.
 	ReloadStorage            func() // Rebuilds the storage manager after CRUD on storage configs.
+
+	// CurrentDatabase exposes the driver / DSN the running process opened, so
+	// the install wizard can render an "already-using-X" badge and pre-fill
+	// the DSN field. The DSN string itself is shown in the UI, so callers
+	// should pass a non-secret-leaking summary if the DB password is
+	// sensitive (e.g. "[redacted]") — this is a deliberate trade-off; the
+	// wizard runs before any auth so anyone reaching it can already write a
+	// new DSN to the config file.
+	CurrentDatabase config.DatabaseConfig
+
+	// SaveDatabaseConfig persists a chosen driver / DSN to the config file
+	// the next process boot will read. It's wired by main.go since only the
+	// process entry point knows where the config file lives. Nil disables
+	// the wizard's "switch database" step (the page falls back to read-only
+	// display + an env-var hint).
+	SaveDatabaseConfig func(driver, dsn string) error
 }
 
 // Setup constructs a fully wired gin.Engine: it creates the realtime metrics
@@ -119,6 +135,17 @@ func Setup(cfg Config) *gin.Engine {
 	settingsHandler := handler.NewSettingsHandler(settingRepo, userRepo, emailSvc, settingDefaults)
 	userHandler := handler.NewUserHandler(userRepo, fileRepo, accessLogRepo, cfg.AuthSvc)
 	setupHandler := handler.NewSetupHandler(userRepo, settingRepo, storageRepo, cfg.StorageMgr, cfg.AuthSvc, cfg.ReloadStorage)
+
+	// The database-stage handler is only useful when the entry point gave us
+	// a way to persist the choice. Skipping the constructor when that hook
+	// is missing keeps registerSetup's nil-check meaningful.
+	var setupDBHandler *handler.SetupDatabaseHandler
+	if cfg.SaveDatabaseConfig != nil {
+		setupDBHandler = handler.NewSetupDatabaseHandler(
+			func() (int64, error) { return userRepo.Count(context.Background()) },
+			cfg.SaveDatabaseConfig,
+		)
+	}
 	systemStatusHandler := handler.NewSystemStatusRealtimeHandler(realtimeCollector)
 	updateCheckSvc := service.NewUpdateCheckService()
 	updateCheckHandler := handler.NewUpdateCheckHandler(updateCheckSvc)
@@ -130,7 +157,7 @@ func Setup(cfg Config) *gin.Engine {
 	registerHealth(v1, cfg.DB)
 	registerSystemStatusStream(v1, systemStatusHandler)
 	registerAuthPublic(v1, authHandler, settingRepo)
-	registerSetup(v1, setupHandler)
+	registerSetup(v1, setupHandler, setupDBHandler)
 	registerPublic(v1, fileHandler, fileRepo, settingRepo)
 
 	authed := v1.Group("")
@@ -158,6 +185,17 @@ func Setup(cfg Config) *gin.Engine {
 		AdminMW:         middleware.AdminOnly(),
 		AuthRateLimitMW: authRateLimit(settingRepo),
 	})
+
+	// Mount the install wizard *before* the landing pages so the
+	// uninstalled-redirect middleware (registered next) sees /setup first
+	// and lets it through. Landing routes get the redirect applied via the
+	// landing group below.
+	registerSetupPage(r, cfg, settingRepo, settingDefaults)
+
+	// Funnel anonymous landing-page hits to /setup until the system is
+	// installed. The middleware short-circuits on a small allow-list so it
+	// can't accidentally swallow API calls or asset fetches.
+	r.Use(installRedirectMiddleware(settingRepo))
 
 	registerLanding(r, cfg, userRepo, fileRepo, settingRepo, settingDefaults)
 	registerStatic(r, cfg, settingRepo, settingDefaults)

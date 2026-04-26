@@ -55,6 +55,15 @@ func main() {
 		slog.String("go", buildInfo.Go),
 	)
 
+	// Layer the on-disk config file (written by the install wizard) on top of
+	// the defaults. The file is optional; missing or partial files degrade
+	// silently to "use whatever cfg already has". Env vars still win — they
+	// override both defaults and file contents.
+	configFilePath := resolveConfigFilePath()
+	if err := loadConfigFile(configFilePath, &cfg); err != nil {
+		logger.Warn("load config file", slog.String("path", configFilePath), slog.String("err", err.Error()))
+	}
+
 	// Apply environment variable overrides on top of the compiled-in defaults.
 	if port := os.Getenv("KITE_PORT"); port != "" {
 		fmt.Sscanf(port, "%d", &cfg.Server.Port)
@@ -93,6 +102,12 @@ func main() {
 	settingRepo := repo.NewSettingRepo(db)
 	loadRuntimeConfig(settingRepo, &cfg)
 
+	// Existing instances upgraded to this binary already have a populated
+	// users table — without this migration they'd be flagged "uninstalled"
+	// and the install wizard would pop up next boot. Stamping the flag once,
+	// based on user-table population, grandfathers them in.
+	grandfatherInstalledFlag(db, settingRepo)
+
 	migrateAbsoluteURLs(db)
 
 	if err := ensureJWTSecret(settingRepo, &cfg); err != nil {
@@ -111,9 +126,14 @@ func main() {
 
 	authSvc := service.NewAuthService(userRepo, tokenRepo, settingRepo, cfg.Auth)
 
-	// On first boot (no user rows yet), create a default admin account so the
-	// operator can log in.
-	seedDefaultAdmin(userRepo, authSvc)
+	// On a brand-new install we leave the user table empty so the install
+	// wizard at /setup can create the first admin with the operator's
+	// chosen credentials. The KITE_LEGACY_BOOTSTRAP escape hatch keeps the
+	// old "auto-create admin/admin" behaviour available for scripted /
+	// container-based deployments that don't want to drive a wizard.
+	if isInstalled(settingRepo) || os.Getenv("KITE_LEGACY_BOOTSTRAP") == "1" {
+		seedDefaultAdmin(userRepo, authSvc)
+	}
 
 	// usageFn and policyFn bridge the storage router to the rest of the
 	// application: the router needs per-config bytes used and the upload
@@ -176,6 +196,18 @@ func main() {
 		DataDir:                  dataDir,
 		ReloadStorage: func() {
 			reloadStorage(storageRepo, storageMgr)
+		},
+		// Hand the wizard a snapshot of the running database choice and a
+		// callback that persists a new choice to the config file. The
+		// snapshot intentionally carries the full DSN — anyone who can hit
+		// /setup before installation completes can already overwrite it, so
+		// hiding it on display would only frustrate legitimate operators.
+		CurrentDatabase: cfg.Database,
+		SaveDatabaseConfig: func(driver, dsn string) error {
+			next := cfg
+			next.Database.Driver = driver
+			next.Database.DSN = dsn
+			return writeConfigFile(configFilePath, &next)
 		},
 	})
 
@@ -272,6 +304,43 @@ func ensureJWTSecret(settingRepo *repo.SettingRepo, cfg *config.Config) error {
 	cfg.Auth.JWTSecret = secret
 	logger.Info("generated new JWT secret and saved to settings")
 	return nil
+}
+
+// isInstalled reads the persisted "have we run the install wizard?" flag. We
+// resolve install state from the settings table rather than user-table
+// presence so an instance that nukes its admin (e.g. for a credential
+// rotation) doesn't accidentally re-trigger the wizard on the next boot.
+func isInstalled(settingRepo *repo.SettingRepo) bool {
+	val, err := settingRepo.Get(context.Background(), "is_installed")
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(val), "true")
+}
+
+// grandfatherInstalledFlag stamps the is_installed flag on existing
+// pre-wizard installs. Without this, every previously deployed instance
+// would briefly flash the wizard on the upgrade boot — bad UX and a small
+// security window where anyone could clobber the running config. The
+// migration is one-shot: once the flag is set, the function is a no-op.
+func grandfatherInstalledFlag(db *gorm.DB, settingRepo *repo.SettingRepo) {
+	ctx := context.Background()
+	if isInstalled(settingRepo) {
+		return
+	}
+	var count int64
+	if err := db.Model(&model.User{}).Count(&count).Error; err != nil {
+		return
+	}
+	if count == 0 {
+		// Empty user table → genuine fresh install. Wizard should appear.
+		return
+	}
+	if err := settingRepo.Set(ctx, "is_installed", "true"); err != nil {
+		logger.Warn("grandfather is_installed flag", slog.String("err", err.Error()))
+		return
+	}
+	logger.Info("marked existing install as 'installed' for upgrade compatibility")
 }
 
 // seedDefaultAdmin creates a bootstrap admin account (admin/admin) when the

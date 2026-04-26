@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -60,9 +61,12 @@ type setupRequest struct {
 
 // Setup handles the first-install request.
 func (h *SetupHandler) Setup(c *gin.Context) {
-	// Check whether the system is already initialized.
-	count, err := h.userRepo.Count(c.Request.Context())
-	if err == nil && count > 0 {
+	// "is_installed" is the source of truth for "have we completed the
+	// install wizard?". Gating on user count would conflict with auto-seeded
+	// admin accounts on fresh boots — those would falsely flag the system
+	// as installed and lock the wizard out before the operator ever gets
+	// to use it.
+	if installed, _ := h.settingRepo.Get(c.Request.Context(), "is_installed"); strings.EqualFold(strings.TrimSpace(installed), "true") {
 		BadRequest(c, "system is already initialized")
 		return
 	}
@@ -135,15 +139,15 @@ func (h *SetupHandler) Setup(c *gin.Context) {
 	})
 }
 
-// CheckSetup reports whether the system has completed first-install.
+// CheckSetup reports whether the install wizard has been completed. We read
+// the persisted setting flag rather than the user table count: on a fresh
+// boot with seeding disabled the table is empty *and* the flag is unset (→
+// install not yet run); on an upgraded existing install the table is full
+// *and* the flag is set by the boot-time migration (→ install complete).
+// Coupling the answer to user count instead would mis-classify both halves.
 func (h *SetupHandler) CheckSetup(c *gin.Context) {
-	count, err := h.userRepo.Count(c.Request.Context())
-	if err != nil {
-		ServerError(c, "failed to check setup status")
-		return
-	}
-
+	val, _ := h.settingRepo.Get(c.Request.Context(), "is_installed")
 	Success(c, gin.H{
-		"is_installed": count > 0,
+		"is_installed": strings.EqualFold(strings.TrimSpace(val), "true"),
 	})
 }
