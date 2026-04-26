@@ -41,10 +41,12 @@ type CreatedToken struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-// CreateTokenOutput wraps the one-time payload.
+// CreateTokenOutput wraps the one-time payload. The HTTP status is pinned to
+// 201 by the operation's DefaultStatus — we deliberately don't expose a
+// `Status int` field here because huma reads such a field via reflection and
+// would let its zero value override the default (resulting in a stray 200).
 type CreateTokenOutput struct {
-	Status int `header:"-" doc:"-"`
-	Body   Envelope[CreatedToken]
+	Body Envelope[CreatedToken]
 }
 
 // ListTokensInput is empty — auth context identifies the user.

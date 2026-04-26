@@ -66,9 +66,9 @@ func Register(r *gin.Engine, deps Deps) huma.API {
 	// back to a generic errcodes constant if no specific one was thrown.
 	huma.NewError = func(status int, message string, errs ...error) huma.StatusError {
 		return &APIError{
-			Status: status,
-			Code:   defaultCodeFor(status),
-			Msg:    message,
+			Status:  status,
+			Code:    defaultCodeFor(status),
+			Message: message,
 		}
 	}
 

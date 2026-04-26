@@ -8,8 +8,6 @@
 package api
 
 import (
-	"encoding/json"
-
 	"github.com/kite-plus/kite/internal/errcodes"
 )
 
@@ -37,43 +35,38 @@ type Page[T any] struct {
 }
 
 // APIError is the wire-shape error that huma serialises for non-success
-// outcomes. It satisfies huma.StatusError (via GetStatus) and
-// json.Marshaler (so the body comes out matching the success envelope).
+// outcomes. It satisfies huma.StatusError (via GetStatus) so the HTTP status
+// comes from the Status field, and the remaining fields are JSON-visible so
+// huma's SchemaLinkTransformer copies them onto the response struct it
+// builds via reflection — without that, the body would collapse to just
+// `{"$schema":...}` because the transformer doesn't honour json.Marshaler
+// (it builds a fresh struct type and copies exported fields by reflection).
+//
+// The serialised shape mirrors the success [Envelope] format every legacy
+// client already handles: `{code, message, data}`. Data is always null on
+// errors but the field is present so deserialisers don't have to special-case
+// the missing key.
 type APIError struct {
-	Status int           `json:"-"` // HTTP status, used by huma to set the response code
-	Code   errcodes.Code `json:"-"` // business error code, written into the JSON body
-	Msg    string        `json:"-"` // human-readable message, written into the JSON body
+	Status  int           `json:"-" doc:"-"` // not serialized — huma reads the HTTP status via GetStatus()
+	Code    errcodes.Code `json:"code" doc:"Business error code; non-zero on errors. See errcodes catalog."`
+	Message string        `json:"message" doc:"Human-readable description of the failure."`
+	Data    any           `json:"data" doc:"Always null on errors; present so the wire shape matches the success envelope."`
 }
 
 // Error satisfies the standard error interface so APIError can flow through
 // `if err != nil` like any other error value.
-func (e *APIError) Error() string { return e.Msg }
+func (e *APIError) Error() string { return e.Message }
 
 // GetStatus is what huma calls to decide which HTTP status code to send.
 func (e *APIError) GetStatus() int { return e.Status }
-
-// MarshalJSON emits the {code, message, data: null} envelope. Huma's default
-// would emit RFC 7807 Problem-Details JSON; we override so the wire shape
-// matches the existing gin response format every client already handles.
-func (e *APIError) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    any    `json:"data"`
-	}{
-		Code:    int(e.Code),
-		Message: e.Msg,
-		Data:    nil,
-	})
-}
 
 // Errf builds an APIError from an errcodes constant. The HTTP status is
 // resolved from the catalog so callers don't have to remember the mapping.
 func Errf(code errcodes.Code, format string, args ...any) *APIError {
 	return &APIError{
-		Status: errcodes.HTTPStatus(code),
-		Code:   code,
-		Msg:    sprintf(format, args...),
+		Status:  errcodes.HTTPStatus(code),
+		Code:    code,
+		Message: sprintf(format, args...),
 	}
 }
 
