@@ -24,6 +24,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.PersistentFlags().Int("port", defaultPort, "daemon port")
 
 	root.AddCommand(newVersionCmd(version))
+	root.AddCommand(newServeCmd(version))
 
 	return root
 }
