@@ -7,6 +7,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -18,20 +19,33 @@ import (
 // Serve runs the MCP server on stdin/stdout. It returns when the agent
 // disconnects.
 func Serve(version, baseURL string) error {
+	return ServeWithIO(version, baseURL, nil, nil)
+}
+
+// ServeWithIO is the testable form of Serve: callers may inject their own
+// reader/writer in place of os.Stdin/os.Stdout. Pass nil to use the real
+// stdio.
+func ServeWithIO(version, baseURL string, in io.Reader, out io.Writer) error {
+	srv := buildMCP(version, baseURL)
+	if in == nil && out == nil {
+		return mcpserver.ServeStdio(srv)
+	}
+	stdio := mcpserver.NewStdioServer(srv)
+	return stdio.Listen(context.Background(), in, out)
+}
+
+func buildMCP(version, baseURL string) *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer(
 		"kite",
 		version,
 		mcpserver.WithToolCapabilities(false),
 	)
-
 	c := client.New(baseURL)
-
 	srv.AddTool(createRoomTool(), createRoomHandler(c))
 	srv.AddTool(execTool(), execHandler(c))
 	srv.AddTool(listRoomsTool(), listRoomsHandler(c))
 	srv.AddTool(getRoomHistoryTool(), getRoomHistoryHandler(c))
-
-	return mcpserver.ServeStdio(srv)
+	return srv
 }
 
 func createRoomTool() mcp.Tool {
