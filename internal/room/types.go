@@ -86,3 +86,16 @@ type RoomCreatedPayload struct {
 	Cwd   string `json:"cwd,omitempty"`
 	Shell string `json:"shell,omitempty"`
 }
+
+// ListRoomsFilter narrows the result of a rooms listing.
+type ListRoomsFilter struct {
+	Status Status
+	Limit  int
+}
+
+// GetEventsFilter narrows the result of an events query.
+type GetEventsFilter struct {
+	AfterID int64
+	Limit   int
+	Type    EventType
+}

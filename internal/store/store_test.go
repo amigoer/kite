@@ -70,7 +70,7 @@ func TestListRoomsByStatus(t *testing.T) {
 			t.Fatalf("create: %v", err)
 		}
 	}
-	got, err := s.ListRooms(ctx, ListRoomsFilter{Status: room.StatusActive})
+	got, err := s.ListRooms(ctx, room.ListRoomsFilter{Status: room.StatusActive})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestAppendAndGetEvents(t *testing.T) {
 		t.Error("expected event ID to be assigned")
 	}
 
-	got, err := s.GetEvents(ctx, "r_a", GetEventsFilter{})
+	got, err := s.GetEvents(ctx, "r_a", room.GetEventsFilter{})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestGetEventsAfterID(t *testing.T) {
 			t.Fatalf("append: %v", err)
 		}
 	}
-	got, err := s.GetEvents(ctx, "r_a", GetEventsFilter{AfterID: 2, Limit: 10})
+	got, err := s.GetEvents(ctx, "r_a", room.GetEventsFilter{AfterID: 2, Limit: 10})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

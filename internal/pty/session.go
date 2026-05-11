@@ -3,19 +3,20 @@ package pty
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/creack/pty"
-
-	"github.com/amigoer/kite/internal/room"
 )
 
 // ErrSessionBusy is returned when Exec is called while another command is
@@ -91,7 +92,7 @@ func New(ctx context.Context, shell, cwd string) (*Session, error) {
 // bootstrap silences echo and resets prompts, then waits for the boot marker
 // so callers know subsequent Exec output is clean.
 func (s *Session) bootstrap(ctx context.Context) error {
-	bootID := room.NewCommandID()
+	bootID := newInternalCommandID()
 	output, finish, err := s.exec(`stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; unset PROMPT_COMMAND`, bootID)
 	if err != nil {
 		return err
@@ -150,6 +151,17 @@ func (s *Session) exec(cmdLine, cmdID string) (<-chan []byte, <-chan ExecResult,
 		return nil, nil, fmt.Errorf("write pty: %w", err)
 	}
 	return st.output, st.finish, nil
+}
+
+// Interrupt sends Ctrl+C (SIGINT via the PTY line discipline) to the current
+// foreground command. The current Exec call will see the command finish with
+// whatever exit code bash assigns to interrupted processes (typically 130).
+func (s *Session) Interrupt() error {
+	if s.closed.Load() {
+		return ErrSessionClosed
+	}
+	_, err := s.pty.Write([]byte{0x03})
+	return err
 }
 
 // Close terminates the bash process and waits for the reader to exit.
@@ -270,6 +282,17 @@ func (s *Session) finishCmd(cmdID string, exitCode int, err error) {
 		Err:        err,
 	}
 	close(cur.finish)
+}
+
+// newInternalCommandID returns a command_id matching the marker regex, used
+// only for the boot exec where the caller hasn't supplied one yet.
+func newInternalCommandID() string {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		panic("kite/pty: rand failed: " + err.Error())
+	}
+	enc := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf))
+	return "c_" + enc[:12]
 }
 
 // failPending fires the finish channel with err so callers waiting on a

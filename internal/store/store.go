@@ -83,14 +83,8 @@ func (s *Store) GetRoom(ctx context.Context, id string) (*room.Room, error) {
 	return scanRoom(row)
 }
 
-// ListRoomsFilter filters ListRooms results.
-type ListRoomsFilter struct {
-	Status room.Status // empty = no filter
-	Limit  int         // 0 = no limit
-}
-
 // ListRooms returns rooms ordered by created_at descending.
-func (s *Store) ListRooms(ctx context.Context, filter ListRoomsFilter) ([]*room.Room, error) {
+func (s *Store) ListRooms(ctx context.Context, filter room.ListRoomsFilter) ([]*room.Room, error) {
 	q := `SELECT id, name, created_at, closed_at, status, cwd, shell, metadata FROM rooms`
 	args := []any{}
 	if filter.Status != "" {
@@ -170,15 +164,8 @@ func (s *Store) AppendEvent(ctx context.Context, ev *room.Event) error {
 	return nil
 }
 
-// GetEventsFilter narrows event queries.
-type GetEventsFilter struct {
-	AfterID int64
-	Limit   int
-	Type    room.EventType
-}
-
 // GetEvents returns events for a room with optional filters, ordered by id asc.
-func (s *Store) GetEvents(ctx context.Context, roomID string, filter GetEventsFilter) ([]*room.Event, error) {
+func (s *Store) GetEvents(ctx context.Context, roomID string, filter room.GetEventsFilter) ([]*room.Event, error) {
 	q := `SELECT id, room_id, timestamp, type, payload FROM events WHERE room_id = ?`
 	args := []any{roomID}
 	if filter.AfterID > 0 {
