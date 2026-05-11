@@ -107,6 +107,7 @@ HTTP daemon. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
 ### Documentation
 
+- [docs/OVERVIEW.md](docs/OVERVIEW.md) — the full project introduction
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — process model and data flow
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — HTTP / WebSocket / MCP reference
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) — agent setup recipes
@@ -214,6 +215,7 @@ room、exec、list、history——代理到 HTTP daemon。详见
 
 ### 文档
 
+- [docs/OVERVIEW.md](docs/OVERVIEW.md)：完整的项目介绍
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：进程模型与数据流
 - [docs/PROTOCOL.md](docs/PROTOCOL.md)：HTTP / WebSocket / MCP 协议参考
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)：各 agent 的接入方法
