@@ -52,7 +52,24 @@ make build
 # Open http://127.0.0.1:8787 to watch in real time.
 ```
 
-Or drive it directly from the CLI:
+Or drop into a screen-style interactive shell — one room, no room ids to copy
+around:
+
+```bash
+./bin/kite shell                # creates a room and attaches you to it
+# inside the session:
+kite (r_abc...)> echo hello
+kite (r_abc...)> pwd
+kite (r_abc...)> :status        # meta commands start with ':'
+kite (r_abc...)> :detach        # leave it running (or press Ctrl+D)
+kite (r_abc...)> :close         # close the room and leave
+```
+
+You can re-enter any active room later with `kite attach <id>`, or just
+`kite attach` to jump back into the most recently active one. The room is a
+real persistent bash, so cwd, env, and aliases survive between commands.
+
+Lower-level CLI flows (script-friendly, one-shot):
 
 ```bash
 ID=$(./bin/kite room create --name demo | awk '/created/ {print $3}')
@@ -80,11 +97,13 @@ ID=$(./bin/kite room create --name demo | awk '/created/ {print $3}')
 
 ```text
 kite serve                          # start the daemon
+kite shell                          # create a room and attach to it (screen-style)
+kite attach [id]                    # enter an existing room (latest if id omitted)
 kite room create [--name N]         # create a room
 kite room list                      # list rooms
 kite room show <id>                 # one room's details
 kite room close <id>                # terminate a room
-kite exec <id> -- <command...>      # run a command, stream stdout
+kite exec <id> -- <command...>      # run a single command, stream stdout
 kite replay <id> [--speed 2.0]      # replay events in your terminal
 kite watch <id>                     # open the room in a browser
 kite web                            # open the rooms list in a browser
@@ -93,6 +112,10 @@ kite uninstall <claude|codex>       # undo install
 kite mcp                            # run an MCP server on stdio
 kite doctor                         # diagnose your installation
 ```
+
+Inside `kite shell` / `kite attach`, meta commands start with `:` —
+`:help`, `:detach` (or `Ctrl+D`), `:close`, `:status`, `:history [N]`,
+`:url`, `:clear`.
 
 ### Architecture in one paragraph
 
@@ -162,7 +185,23 @@ make build
 # 打开 http://127.0.0.1:8787 实时观看。
 ```
 
-也可以直接用 CLI 操作：
+也可以像 `screen` 一样进入一个交互式 room —— 一次性接入，不用反复粘贴 room id：
+
+```bash
+./bin/kite shell                # 创建一个 room 并立刻进入
+# 进入后：
+kite (r_abc...)> echo hello
+kite (r_abc...)> pwd
+kite (r_abc...)> :status        # 元命令以 ':' 开头
+kite (r_abc...)> :detach        # 离开但保持 room 运行（或按 Ctrl+D）
+kite (r_abc...)> :close         # 关闭 room 并离开
+```
+
+之后可以用 `kite attach <id>` 回到任意活跃 room，或者直接 `kite attach`
+（不带 id）自动回到最近一个活跃 room。room 是一个真正持久的 bash，cwd、env、
+alias 在多条命令之间会保留。
+
+底层 CLI 流程（适合脚本、单条命令场景）：
 
 ```bash
 ID=$(./bin/kite room create --name demo | awk '/created/ {print $3}')
@@ -189,11 +228,13 @@ ID=$(./bin/kite room create --name demo | awk '/created/ {print $3}')
 
 ```text
 kite serve                          # 启动 daemon
+kite shell                          # 创建一个 room 并进入交互式会话（类 screen）
+kite attach [id]                    # 进入已有 room（不带 id 时取最近活跃的）
 kite room create [--name N]         # 创建 room
 kite room list                      # 列出 room
 kite room show <id>                 # 看单个 room 的详情
 kite room close <id>                # 关闭 room
-kite exec <id> -- <command...>      # 跑命令，stdout 实时输出
+kite exec <id> -- <command...>      # 单次执行命令，stdout 实时输出
 kite replay <id> [--speed 2.0]      # 在终端里回放事件
 kite watch <id>                     # 用浏览器打开这个 room
 kite web                            # 用浏览器打开 room 列表
@@ -202,6 +243,9 @@ kite uninstall <claude|codex>       # 撤销 install
 kite mcp                            # 在 stdio 上启动 MCP server
 kite doctor                         # 诊断当前安装
 ```
+
+`kite shell` / `kite attach` 内部的元命令以 `:` 开头：`:help`、`:detach`
+（或 `Ctrl+D`）、`:close`、`:status`、`:history [N]`、`:url`、`:clear`。
 
 ### 架构一段话
 

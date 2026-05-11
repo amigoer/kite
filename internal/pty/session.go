@@ -234,7 +234,14 @@ func (s *Session) process(carry *bytes.Buffer) {
 			return
 		}
 		if idx[0] > 0 {
-			s.emit(data[:idx[0]])
+			// printf emits "\n__KITE_END_..." so the marker is always on its
+			// own line; strip that leading newline from the command's output
+			// so we don't tack a blank line onto every result.
+			pre := data[:idx[0]]
+			if len(pre) > 0 && pre[len(pre)-1] == '\n' {
+				pre = pre[:len(pre)-1]
+			}
+			s.emit(pre)
 		}
 		match := markerRe.FindSubmatch(data[idx[0]:idx[1]])
 		exitCode, _ := strconv.Atoi(string(match[1]))

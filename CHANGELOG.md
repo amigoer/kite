@@ -6,6 +6,23 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `kite shell` and `kite attach` — screen-style interactive room sessions.
+  Enter a room once, type commands at a `kite (room_id)>` prompt, and detach
+  with `Ctrl+D` or close with `:close`. Meta commands (`:help`, `:detach`,
+  `:close`, `:status`, `:url`, `:history`, `:clear`) start with `:`. `kite
+  attach` with no id auto-resolves to the most recently active room.
+- `source` field on `command.started` events now uniquely identifies which
+  caller initiated a command, allowing concurrent clients to tell their own
+  events apart from background activity.
+
+### Fixed
+
+- Extra trailing blank line after each command's output in the PTY stream. The
+  marker protocol's leading `\n` is now folded into the marker boundary
+  instead of being emitted as user-visible output.
+
 ## [0.1.0] — 2026-05-12
 
 ### Added

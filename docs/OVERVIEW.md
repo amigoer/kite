@@ -96,9 +96,24 @@ it reaches viewers. Trivial idea, surprising amount of plumbing — see
 
 ### A tour through the surfaces
 
-kite gives you four ways to do the same thing. Pick what fits the situation.
+kite gives you five ways to do the same thing. Pick what fits the situation.
 
-#### CLI
+#### Interactive shell (the human-facing default)
+
+```bash
+kite shell                 # creates a room and drops you into it
+# inside:
+kite (r_abc123)> go test ./...
+kite (r_abc123)> :history
+kite (r_abc123)> :detach   # leave it running; come back later with `kite attach`
+```
+
+The same room can be re-entered any time with `kite attach r_abc123`, or with
+just `kite attach` to jump back into the most recently active one. Output
+streams over the room's WebSocket, so anything an agent runs in the same
+room shows up live in your terminal too.
+
+#### CLI (script-friendly, one-shot)
 
 ```bash
 kite serve                           # start the daemon
@@ -180,7 +195,7 @@ In scope:
 - HTTP + WebSocket API on 127.0.0.1
 - Persistent bash session per room, with the marker protocol
 - SQLite event log with WAL
-- CLI: serve / room / exec / watch / replay / install / doctor / mcp
+- CLI: serve / shell / attach / room / exec / watch / replay / install / doctor / mcp
 - MCP stdio server with 4 tools
 - One-click MCP installers for Claude Code + Codex
 - Web viewer (Live + Replay)
@@ -292,11 +307,25 @@ PTY reader 扫描 `__KITE_END_<exit>_<command_id>__`。marker 之前的输出归
 属那条命令；marker 本身在到达 viewer 之前被过滤掉。想法很简单，工程量
 意外地大——细节见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-### 四种使用方式
+### 五种使用方式
 
-kite 提供四种途径做同一件事。按场景选。
+kite 提供五种途径做同一件事。按场景选。
 
-#### CLI
+#### 交互式 shell（推荐给人用）
+
+```bash
+kite shell                 # 创建一个 room 并直接进入
+# 在 room 里面：
+kite (r_abc123)> go test ./...
+kite (r_abc123)> :history
+kite (r_abc123)> :detach   # 离开但保持运行；之后用 `kite attach` 回来
+```
+
+之后可以用 `kite attach r_abc123` 随时回到同一个 room，或者直接
+`kite attach`（不带 id）回到最近活跃的那个。输出走的是 room 的
+WebSocket，所以 agent 在同一个 room 里跑的东西也会在你的终端里实时显示。
+
+#### CLI（适合脚本、单次命令）
 
 ```bash
 kite serve                           # 启动 daemon
@@ -366,7 +395,7 @@ agent 内部调 `kite_create_room` + `kite_exec`；人在浏览器里看。
 - 监听在 127.0.0.1 的 HTTP + WebSocket API
 - 每个 room 一个持久 bash 进程 + marker 协议
 - WAL 模式的 SQLite 事件日志
-- CLI：serve / room / exec / watch / replay / install / doctor / mcp
+- CLI：serve / shell / attach / room / exec / watch / replay / install / doctor / mcp
 - 提供 4 个工具的 MCP stdio server
 - Claude Code + Codex 的一键 MCP 安装器
 - Web viewer（Live + Replay）

@@ -25,6 +25,8 @@ func NewRootCommand(version string) *cobra.Command {
 
 	root.AddCommand(newVersionCmd(version))
 	root.AddCommand(newServeCmd(version))
+	root.AddCommand(newShellCmd())
+	root.AddCommand(newAttachCmd())
 	root.AddCommand(newRoomCmd())
 	root.AddCommand(newExecCmd())
 	root.AddCommand(newWatchCmd())
