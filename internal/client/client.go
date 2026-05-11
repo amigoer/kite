@@ -178,6 +178,29 @@ func (c *Client) GetEvents(ctx context.Context, id string, opts GetEventsOptions
 	return out.Events, out.NextAfterID, nil
 }
 
+// CommandSummary mirrors the daemon's commands response.
+type CommandSummary struct {
+	CommandID  string     `json:"command_id"`
+	Cmd        string     `json:"cmd"`
+	Source     string     `json:"source"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	ExitCode   *int       `json:"exit_code,omitempty"`
+	DurationMs *int64     `json:"duration_ms,omitempty"`
+	OutputSize int        `json:"output_size"`
+}
+
+// GetCommands GETs /api/v1/rooms/{id}/commands.
+func (c *Client) GetCommands(ctx context.Context, id string) ([]*CommandSummary, error) {
+	var out struct {
+		Commands []*CommandSummary `json:"commands"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/v1/rooms/"+id+"/commands", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Commands, nil
+}
+
 // Health GETs /healthz.
 func (c *Client) Health(ctx context.Context) (string, error) {
 	var out map[string]string

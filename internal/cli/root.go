@@ -31,6 +31,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.AddCommand(newWebCmd())
 	root.AddCommand(newReplayCmd())
 	root.AddCommand(newDoctorCmd())
+	root.AddCommand(newMCPCmd(version))
 
 	return root
 }
