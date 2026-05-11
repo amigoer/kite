@@ -171,11 +171,14 @@ func TestExecAfterCloseReturns409(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	execResp, _ := http.Post(
+	execResp, err := http.Post(
 		srv.URL+"/api/v1/rooms/"+created.ID+"/exec",
 		"application/json",
 		strings.NewReader(`{"cmd":"echo no"}`),
 	)
+	if err != nil {
+		t.Fatalf("exec: %v", err)
+	}
 	defer execResp.Body.Close()
 	if execResp.StatusCode != http.StatusConflict {
 		t.Errorf("status: %d", execResp.StatusCode)

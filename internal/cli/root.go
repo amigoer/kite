@@ -25,6 +25,12 @@ func NewRootCommand(version string) *cobra.Command {
 
 	root.AddCommand(newVersionCmd(version))
 	root.AddCommand(newServeCmd(version))
+	root.AddCommand(newRoomCmd())
+	root.AddCommand(newExecCmd())
+	root.AddCommand(newWatchCmd())
+	root.AddCommand(newWebCmd())
+	root.AddCommand(newReplayCmd())
+	root.AddCommand(newDoctorCmd())
 
 	return root
 }
