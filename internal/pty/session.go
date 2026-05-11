@@ -61,12 +61,15 @@ type ExecResult struct {
 
 // New starts a fresh bash process attached to a PTY and returns a Session
 // ready to accept Exec calls. cwd may be empty for the parent's working
-// directory; shell defaults to /bin/bash.
+// directory; shell defaults to /bin/bash. ctx bounds only the bootstrap
+// handshake — the bash process itself runs until Close is called.
 func New(ctx context.Context, shell, cwd string) (*Session, error) {
 	if shell == "" {
 		shell = "/bin/bash"
 	}
-	cmd := exec.CommandContext(ctx, shell, "--noediting", "--norc", "-i")
+	// Intentionally NOT exec.CommandContext: the session must outlive any
+	// single HTTP request. Lifetime is managed by Close.
+	cmd := exec.Command(shell, "--noediting", "--norc", "-i")
 	if cwd != "" {
 		cmd.Dir = cwd
 	}
