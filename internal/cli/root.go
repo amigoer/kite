@@ -32,6 +32,8 @@ func NewRootCommand(version string) *cobra.Command {
 	root.AddCommand(newReplayCmd())
 	root.AddCommand(newDoctorCmd())
 	root.AddCommand(newMCPCmd(version))
+	root.AddCommand(newInstallCmd())
+	root.AddCommand(newUninstallCmd())
 
 	return root
 }
