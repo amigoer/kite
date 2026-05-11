@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS rooms (
+    id         TEXT PRIMARY KEY,
+    name       TEXT,
+    created_at INTEGER NOT NULL,
+    closed_at  INTEGER,
+    status     TEXT NOT NULL,
+    cwd        TEXT,
+    shell      TEXT,
+    metadata   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id    TEXT NOT NULL,
+    timestamp  INTEGER NOT NULL,
+    type       TEXT NOT NULL,
+    payload    BLOB NOT NULL,
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_room_id ON events(room_id, id);
+CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
