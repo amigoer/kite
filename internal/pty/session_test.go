@@ -30,7 +30,7 @@ func TestSessionExecHello(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, "", "")
+	s, err := New(ctx, Options{})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestSessionStatePreservedAcrossExecs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, "", "")
+	s, err := New(ctx, Options{})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSessionFalseReturnsExitOne(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, "", "")
+	s, err := New(ctx, Options{})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestSessionBusyRejectsConcurrent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, "", "")
+	s, err := New(ctx, Options{})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}

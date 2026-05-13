@@ -47,6 +47,17 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 
+	// Schema migrations for existing databases. These are idempotent:
+	// errors from "column already exists" are expected and ignored.
+	for _, ddl := range []string{
+		`ALTER TABLE rooms ADD COLUMN mode TEXT NOT NULL DEFAULT 'scripted'`,
+	} {
+		if _, err := db.ExecContext(ctx, ddl); err != nil {
+			// Ignore "duplicate column name" — that means the migration
+			// already ran on this database.
+		}
+	}
+
 	return &Store{db: db, bus: newBus(), dbPath: path}, nil
 }
 
@@ -63,10 +74,14 @@ func (s *Store) CreateRoom(ctx context.Context, r *room.Room) error {
 	if err != nil {
 		return err
 	}
+	mode := r.Mode
+	if mode == "" {
+		mode = room.ModeScripted
+	}
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO rooms(id, name, created_at, status, cwd, shell, metadata)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		r.ID, nullString(r.Name), r.CreatedAt.UnixMilli(), string(r.Status),
+		`INSERT INTO rooms(id, name, created_at, status, mode, cwd, shell, metadata)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, nullString(r.Name), r.CreatedAt.UnixMilli(), string(r.Status), string(mode),
 		nullString(r.Cwd), nullString(r.Shell), meta,
 	)
 	if err != nil {
@@ -78,14 +93,16 @@ func (s *Store) CreateRoom(ctx context.Context, r *room.Room) error {
 // GetRoom fetches a room by ID. Returns ErrNotFound if missing.
 func (s *Store) GetRoom(ctx context.Context, id string) (*room.Room, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, created_at, closed_at, status, cwd, shell, metadata
+		`SELECT id, name, created_at, closed_at, status,
+		        COALESCE(mode, 'scripted'), cwd, shell, metadata
 		 FROM rooms WHERE id = ?`, id)
 	return scanRoom(row)
 }
 
 // ListRooms returns rooms ordered by created_at descending.
 func (s *Store) ListRooms(ctx context.Context, filter room.ListRoomsFilter) ([]*room.Room, error) {
-	q := `SELECT id, name, created_at, closed_at, status, cwd, shell, metadata FROM rooms`
+	q := `SELECT id, name, created_at, closed_at, status,
+	             COALESCE(mode, 'scripted'), cwd, shell, metadata FROM rooms`
 	args := []any{}
 	if filter.Status != "" {
 		q += ` WHERE status = ?`
@@ -248,8 +265,9 @@ func scanRoom(row rowScanner) (*room.Room, error) {
 		metadata    sql.NullString
 		createdAt   int64
 		status      string
+		mode        string
 	)
-	if err := row.Scan(&r.ID, &name, &createdAt, &closedAt, &status, &cwd, &shell, &metadata); err != nil {
+	if err := row.Scan(&r.ID, &name, &createdAt, &closedAt, &status, &mode, &cwd, &shell, &metadata); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -262,6 +280,10 @@ func scanRoom(row rowScanner) (*room.Room, error) {
 		r.ClosedAt = &t
 	}
 	r.Status = room.Status(status)
+	r.Mode = room.Mode(mode)
+	if r.Mode == "" {
+		r.Mode = room.ModeScripted
+	}
 	r.Cwd = cwd.String
 	r.Shell = shell.String
 	if metadata.Valid && metadata.String != "" {

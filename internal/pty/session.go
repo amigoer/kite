@@ -38,6 +38,7 @@ type Session struct {
 	mu  sync.Mutex
 	cur *execState
 
+	isNative    bool // set at construction; true for Options.Native sessions
 	subMu       sync.Mutex
 	subs        map[int]chan []byte
 	nextSubID   int
@@ -48,6 +49,13 @@ type Session struct {
 
 	exitErr atomic.Value // error
 }
+
+// Native reports whether this session was started with Options.Native=true
+// (i.e. a "natural" interactive shell with user startup files loaded).
+func (s *Session) Native() bool { return s.isNative }
+
+// native is a local helper used inside the package.
+func (s *Session) native() bool { return s.isNative }
 
 type execState struct {
 	cmdID   string
@@ -64,23 +72,60 @@ type ExecResult struct {
 	Err        error
 }
 
-// New starts a fresh bash process attached to a PTY and returns a Session
-// ready to accept Exec calls. cwd may be empty for the parent's working
-// directory; shell defaults to /bin/bash. ctx bounds only the bootstrap
-// handshake — the bash process itself runs until Close is called.
-func New(ctx context.Context, shell, cwd string) (*Session, error) {
+// Options parameterises Session creation.
+type Options struct {
+	// Shell is the binary to start. Empty defaults to /bin/bash.
+	Shell string
+	// Cwd is the initial working directory. Empty inherits the daemon's.
+	Cwd string
+	// Native, when true, starts the shell as a normal login+interactive
+	// shell (`-il`) with the parent's environment untouched, so .zshrc /
+	// .bashrc and the user's prompt theme load like in a fresh terminal.
+	// Marker-based Exec is unavailable on native sessions.
+	//
+	// When false (default), the shell starts in "scripted" mode: bash with
+	// --noediting --norc, PS1 / PS2 / PROMPT_COMMAND silenced, TERM=dumb.
+	// This is the mode that makes Exec's marker protocol reliable.
+	Native bool
+}
+
+// New starts a fresh shell process attached to a PTY and returns a Session
+// ready to accept Exec / WriteStdin calls. ctx bounds only the bootstrap
+// handshake — the shell process itself runs until Close is called.
+func New(ctx context.Context, opts Options) (*Session, error) {
+	shell := opts.Shell
 	if shell == "" {
 		shell = "/bin/bash"
 	}
-	// Intentionally NOT exec.CommandContext: the session must outlive any
-	// single HTTP request. Lifetime is managed by Close.
-	cmd := exec.Command(shell, "--noediting", "--norc", "-i")
-	if cwd != "" {
-		cmd.Dir = cwd
+
+	var cmd *exec.Cmd
+	if opts.Native {
+		// Hand the user their own shell, full startup files and all. -i
+		// makes it interactive; -l makes it a login shell, which
+		// matches what most terminal emulators do for a new tab.
+		cmd = exec.Command(shell, "-il")
+	} else {
+		// Scripted: keep the shell quiet and predictable so the marker
+		// protocol works.
+		cmd = exec.Command(shell, "--noediting", "--norc", "-i")
 	}
-	env := append([]string(nil), os.Environ()...)
-	env = append(env, "PS1=", "PS2=", "PROMPT_COMMAND=", "TERM=dumb")
-	cmd.Env = env
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
+	}
+
+	if opts.Native {
+		// Inherit the user's full environment; set TERM to a sane default
+		// if the parent didn't have one.
+		env := append([]string(nil), os.Environ()...)
+		if !hasEnvKey(env, "TERM") {
+			env = append(env, "TERM=xterm-256color")
+		}
+		cmd.Env = env
+	} else {
+		env := append([]string(nil), os.Environ()...)
+		env = append(env, "PS1=", "PS2=", "PROMPT_COMMAND=", "TERM=dumb")
+		cmd.Env = env
+	}
 
 	f, err := pty.Start(cmd)
 	if err != nil {
@@ -88,18 +133,33 @@ func New(ctx context.Context, shell, cwd string) (*Session, error) {
 	}
 
 	s := &Session{
-		pty:  f,
-		cmd:  cmd,
-		done: make(chan struct{}),
-		subs: make(map[int]chan []byte),
+		pty:      f,
+		cmd:      cmd,
+		done:     make(chan struct{}),
+		subs:     make(map[int]chan []byte),
+		isNative: opts.Native,
 	}
 	go s.readLoop()
 
-	if err := s.bootstrap(ctx); err != nil {
+	if opts.Native {
+		// Native sessions are interactive from the get-go; mark the flag so
+		// marker parsing is skipped and any AttachIO call is a no-op.
+		s.interactive.Store(true)
+	} else if err := s.bootstrap(ctx); err != nil {
 		_ = s.Close()
 		return nil, fmt.Errorf("bootstrap: %w", err)
 	}
 	return s, nil
+}
+
+func hasEnvKey(env []string, key string) bool {
+	pfx := key + "="
+	for _, e := range env {
+		if strings.HasPrefix(e, pfx) {
+			return true
+		}
+	}
+	return false
 }
 
 // bootstrap silences echo and resets prompts, then waits for the boot marker
@@ -401,7 +461,18 @@ func (s *Session) Subscribe() (<-chan []byte, func()) {
 // readLoop skips marker parsing and emits no events for the current Exec
 // (callers must use Subscribe instead). Bash config (echo, PS1) is also
 // reconfigured so an attached human sees a normal prompt.
+//
+// On native sessions (started via Options.Native), this is a no-op: the
+// shell is already in its own native interactive mode and we don't want to
+// muck with its echo / prompt settings.
 func (s *Session) SetInteractive(on bool) error {
+	if s.native() {
+		// Always interactive; pretend the flip succeeded.
+		if on {
+			s.interactive.Store(true)
+		}
+		return nil
+	}
 	if s.closed.Load() {
 		return ErrSessionClosed
 	}

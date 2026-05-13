@@ -28,10 +28,11 @@ type listRoomsResponse struct {
 }
 
 type createRoomRequest struct {
-	Name     string            `json:"name"`
-	Cwd      string            `json:"cwd"`
-	Shell    string            `json:"shell"`
-	Metadata map[string]string `json:"metadata"`
+	Name        string            `json:"name"`
+	Cwd         string            `json:"cwd"`
+	Shell       string            `json:"shell"`
+	Metadata    map[string]string `json:"metadata"`
+	Interactive bool              `json:"interactive,omitempty"`
 }
 
 type execRequest struct {
@@ -80,10 +81,11 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := s.mgr.CreateRoom(r.Context(), room.CreateRoomOptions{
-		Name:     req.Name,
-		Cwd:      req.Cwd,
-		Shell:    req.Shell,
-		Metadata: req.Metadata,
+		Name:        req.Name,
+		Cwd:         req.Cwd,
+		Shell:       req.Shell,
+		Metadata:    req.Metadata,
+		Interactive: req.Interactive,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())

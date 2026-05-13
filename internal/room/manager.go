@@ -70,6 +70,11 @@ type CreateRoomOptions struct {
 	Cwd      string
 	Shell    string
 	Metadata map[string]string
+	// Interactive=true creates a "native" room: the shell is launched as a
+	// normal interactive login shell, loading .zshrc / .bashrc and using
+	// the user's real prompt. Use for `kite shell` / human attach. Marker-
+	// based Exec is rejected on interactive rooms.
+	Interactive bool
 }
 
 // ExecOptions parameterises Manager.ExecCommand.
@@ -109,7 +114,17 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 
 	shell := opts.Shell
 	if shell == "" {
-		shell = defaultShell
+		if opts.Interactive {
+			// Honour the user's $SHELL for `kite shell` so the room feels
+			// like their normal terminal.
+			if s := os.Getenv("SHELL"); s != "" {
+				shell = s
+			} else {
+				shell = defaultShell
+			}
+		} else {
+			shell = defaultShell
+		}
 	}
 	cwd := opts.Cwd
 	if cwd == "" {
@@ -118,16 +133,21 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 		}
 	}
 
-	sess, err := pty.New(ctx, shell, cwd)
+	sess, err := pty.New(ctx, pty.Options{Shell: shell, Cwd: cwd, Native: opts.Interactive})
 	if err != nil {
 		return nil, fmt.Errorf("start session: %w", err)
 	}
 
+	mode := ModeScripted
+	if opts.Interactive {
+		mode = ModeInteractive
+	}
 	r := &Room{
 		ID:        NewRoomID(),
 		Name:      opts.Name,
 		CreatedAt: time.Now(),
 		Status:    StatusActive,
+		Mode:      mode,
 		Cwd:       cwd,
 		Shell:     shell,
 		Metadata:  opts.Metadata,
@@ -138,12 +158,24 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 		return nil, err
 	}
 
+	rs := &roomSession{session: sess}
 	m.mu.Lock()
-	m.sessions[r.ID] = &roomSession{session: sess}
+	m.sessions[r.ID] = rs
 	m.mu.Unlock()
 
 	payload, _ := json.Marshal(RoomCreatedPayload{Name: r.Name, Cwd: r.Cwd, Shell: r.Shell})
 	_ = m.store.AppendEvent(ctx, &Event{RoomID: r.ID, Type: EvtRoomCreated, Payload: payload})
+
+	if opts.Interactive {
+		// Interactive rooms are always live — the user's shell is already
+		// running and emitting bytes. Start the terminal.output logger
+		// immediately so the web viewer can see every byte from second 0.
+		logCh, logUnsub := sess.Subscribe()
+		rs.ioMu.Lock()
+		rs.logStop = logUnsub
+		rs.ioMu.Unlock()
+		go m.logTerminalOutput(r.ID, logCh)
+	}
 
 	go m.watchSession(r.ID, sess)
 	return r, nil
@@ -282,6 +314,13 @@ func (m *Manager) CloseRoom(ctx context.Context, roomID string) error {
 	m.mu.Unlock()
 
 	if ok {
+		rs.ioMu.Lock()
+		stop := rs.logStop
+		rs.logStop = nil
+		rs.ioMu.Unlock()
+		if stop != nil {
+			stop()
+		}
 		_ = rs.session.Close()
 	}
 
@@ -404,12 +443,14 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 			return nil, err
 		}
 		rs.execMu.Unlock()
-		// Start the terminal.output logger: one subscriber per session that
-		// persists raw PTY bytes as events so the web viewer / replay can
-		// reconstruct the interactive transcript.
-		logCh, logUnsub := rs.session.Subscribe()
-		rs.logStop = logUnsub
-		go m.logTerminalOutput(roomID, logCh)
+		// Start the terminal.output logger (one subscriber per session) so
+		// the web viewer / replay can reconstruct the interactive transcript.
+		// Native rooms already start it at CreateRoom — don't double up.
+		if rs.logStop == nil {
+			logCh, logUnsub := rs.session.Subscribe()
+			rs.logStop = logUnsub
+			go m.logTerminalOutput(roomID, logCh)
+		}
 	}
 	rs.ioRefs++
 	rs.ioMu.Unlock()
@@ -417,6 +458,7 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 	sub, unsub := rs.session.Subscribe()
 	detached := false
 	detachOnce := sync.Once{}
+	isNative := rs.session.Native()
 
 	detach := func() {
 		detachOnce.Do(func() {
@@ -425,13 +467,16 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 			rs.ioMu.Lock()
 			rs.ioRefs--
 			last := rs.ioRefs == 0
+			// For "native" rooms the logger is owned by the room itself and
+			// stays running until the room is closed; only attach-managed
+			// loggers (i.e. on scripted rooms) get torn down here.
 			var stopLogger func()
-			if last {
+			if last && !isNative {
 				stopLogger = rs.logStop
 				rs.logStop = nil
 			}
 			rs.ioMu.Unlock()
-			if last {
+			if last && !isNative {
 				if stopLogger != nil {
 					stopLogger()
 				}

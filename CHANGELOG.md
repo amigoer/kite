@@ -8,6 +8,13 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Rooms now have a `mode`: `scripted` (default — bash --norc + marker
+  protocol, what kite exec / agents use) or `interactive` (the user's
+  `$SHELL` launched as a normal login+interactive shell, no PS1 override,
+  no startup-file skipping). `kite shell` creates interactive rooms by
+  default; use `--scripted` for the old behavior. The HTTP API accepts
+  `interactive: true` in the create-room body. Marker-based exec is
+  rejected on interactive rooms.
 - `kite shell` and `kite attach` — true screen-style interactive sessions.
   The CLI puts your terminal in raw mode and pipes bytes directly to the
   room's bash over a new `/api/v1/rooms/{id}/io` WebSocket. You get a

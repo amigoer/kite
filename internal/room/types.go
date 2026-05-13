@@ -13,6 +13,21 @@ const (
 	StatusClosed Status = "closed"
 )
 
+// Mode is how the room's underlying shell is configured.
+type Mode string
+
+const (
+	// ModeScripted is the default for API / MCP usage. bash --norc with PS1
+	// silenced and the marker protocol turned on, so structured Exec calls
+	// can isolate per-command output cleanly.
+	ModeScripted Mode = "scripted"
+	// ModeInteractive is what `kite shell` creates: the user's own $SHELL,
+	// launched as a normal login+interactive shell so .zshrc / .bashrc and
+	// the user's prompt theme are loaded just like in a fresh terminal.
+	// Structured Exec is disabled on these rooms — they're for human attach.
+	ModeInteractive Mode = "interactive"
+)
+
 // Room is an independent, long-running shell execution environment.
 type Room struct {
 	ID        string            `json:"id"`
@@ -20,6 +35,7 @@ type Room struct {
 	CreatedAt time.Time         `json:"created_at"`
 	ClosedAt  *time.Time        `json:"closed_at,omitempty"`
 	Status    Status            `json:"status"`
+	Mode      Mode              `json:"mode"`
 	Cwd       string            `json:"cwd"`
 	Shell     string            `json:"shell"`
 	Metadata  map[string]string `json:"metadata,omitempty"`

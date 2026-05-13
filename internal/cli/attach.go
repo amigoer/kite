@@ -73,15 +73,28 @@ Escape key is Ctrl+A. Then:
 }
 
 func newShellCmd() *cobra.Command {
-	var name, cwd string
+	var name, cwd, shellPath string
+	var scripted bool
 	cmd := &cobra.Command{
 		Use:     "shell",
 		Aliases: []string{"sh"},
-		Short:   "Create a new room and attach to it",
-		Long:    "Shortcut for `kite room create` followed by `kite attach`.",
+		Short:   "Create a new room and attach to it (your native $SHELL)",
+		Long: `Spawn a fresh room running your interactive $SHELL with the same
+startup files a new terminal tab would load (.zshrc / .bashrc / etc.), then
+attach to it raw. No prompt override, no bootstrap — what you'd see in a
+fresh terminal is what you get.
+
+Use --scripted to instead create a quiet bash-with-markers room, which is
+what kite exec / agents talk to.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			c := clientFromFlags(cmd)
-			r, err := c.CreateRoom(cmd.Context(), client.CreateRoomRequest{Name: name, Cwd: cwd})
+			req := client.CreateRoomRequest{
+				Name:        name,
+				Cwd:         cwd,
+				Shell:       shellPath,
+				Interactive: !scripted,
+			}
+			r, err := c.CreateRoom(cmd.Context(), req)
 			if err != nil {
 				return hintIfUnreachable(err)
 			}
@@ -91,6 +104,8 @@ func newShellCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&name, "name", "", "human-readable room name")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "initial working directory")
+	cmd.Flags().StringVar(&shellPath, "shell", "", "shell binary (defaults to $SHELL)")
+	cmd.Flags().BoolVar(&scripted, "scripted", false, "create a scripted (bash --norc + markers) room instead")
 	return cmd
 }
 
