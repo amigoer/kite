@@ -57,10 +57,11 @@ type Manager struct {
 }
 
 type roomSession struct {
-	session  *pty.Session
-	execMu   sync.Mutex // serialises Exec calls per room
-	ioMu     sync.Mutex // guards ioRefs
-	ioRefs   int        // number of attached interactive clients
+	session   *pty.Session
+	execMu    sync.Mutex // serialises Exec calls per room
+	ioMu      sync.Mutex // guards ioRefs / logStop
+	ioRefs    int        // number of attached interactive clients
+	logStop   func()     // unsubscribes the terminal.output logger; nil when not interactive
 }
 
 // CreateRoomOptions parameterises Manager.CreateRoom.
@@ -403,6 +404,12 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 			return nil, err
 		}
 		rs.execMu.Unlock()
+		// Start the terminal.output logger: one subscriber per session that
+		// persists raw PTY bytes as events so the web viewer / replay can
+		// reconstruct the interactive transcript.
+		logCh, logUnsub := rs.session.Subscribe()
+		rs.logStop = logUnsub
+		go m.logTerminalOutput(roomID, logCh)
 	}
 	rs.ioRefs++
 	rs.ioMu.Unlock()
@@ -418,8 +425,16 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 			rs.ioMu.Lock()
 			rs.ioRefs--
 			last := rs.ioRefs == 0
+			var stopLogger func()
+			if last {
+				stopLogger = rs.logStop
+				rs.logStop = nil
+			}
 			rs.ioMu.Unlock()
 			if last {
+				if stopLogger != nil {
+					stopLogger()
+				}
 				rs.execMu.Lock()
 				_ = rs.session.SetInteractive(false)
 				rs.execMu.Unlock()
@@ -446,6 +461,60 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		Resize: resize,
 		Detach: detach,
 	}, nil
+}
+
+// logTerminalOutput reads raw PTY bytes from sub and appends them as
+// terminal.output events. Runs until sub closes (when SetInteractive(false)
+// is called via Detach, or when the session terminates). Small chunks are
+// coalesced to keep the event count reasonable.
+func (m *Manager) logTerminalOutput(roomID string, sub <-chan []byte) {
+	const flushBytes = 4096
+	const flushAfter = 50 * time.Millisecond
+	var buf bytes.Buffer
+	flush := func() {
+		if buf.Len() == 0 {
+			return
+		}
+		payload, _ := json.Marshal(TerminalOutputPayload{Data: append([]byte(nil), buf.Bytes()...)})
+		_ = m.store.AppendEvent(context.Background(), &Event{
+			RoomID: roomID, Type: EvtTerminalOutput, Payload: payload,
+		})
+		buf.Reset()
+	}
+	timer := time.NewTimer(flushAfter)
+	defer timer.Stop()
+	if !timer.Stop() {
+		<-timer.C
+	}
+	for {
+		select {
+		case chunk, ok := <-sub:
+			if !ok {
+				flush()
+				return
+			}
+			buf.Write(chunk)
+			if buf.Len() >= flushBytes {
+				flush()
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+			} else {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(flushAfter)
+			}
+		case <-timer.C:
+			flush()
+		}
+	}
 }
 
 // --- internals ----------------------------------------------------------

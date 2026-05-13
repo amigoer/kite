@@ -242,3 +242,24 @@ table.rooms .status-closed { color: var(--text-dim); }
   color: var(--error);
   margin-bottom: 14px;
 }
+
+.term-view {
+  margin-top: 12px;
+}
+.term-view .term-body {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  height: 65vh;
+  overflow: auto;
+  color: var(--text);
+}
+:root[data-theme="light"] .term-view .term-body {
+  background: #fafbfc;
+}

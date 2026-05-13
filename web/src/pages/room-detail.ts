@@ -2,6 +2,7 @@ import { getRoom, getEvents } from '../api';
 import { RoomStream } from '../ws';
 import { applyEvent, CommandBlock } from '../components/command-block';
 import { Timeline } from '../components/timeline';
+import { TerminalView } from '../components/terminal-view';
 import type { BaseEvent, Room, WSMessage } from '../types';
 
 export function renderRoomDetail(host: HTMLElement, roomId: string): () => void {
@@ -21,6 +22,10 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   liveBtn.textContent = '● Live';
   liveBtn.className = 'primary';
   modeBar.append(liveBtn);
+
+  const termBtn = document.createElement('button');
+  termBtn.textContent = 'Terminal';
+  modeBar.append(termBtn);
 
   const replayBtn = document.createElement('button');
   replayBtn.textContent = 'Replay';
@@ -45,16 +50,20 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   // State
   const allEvents: BaseEvent[] = [];
   const allBlocks = new Map<string, CommandBlock>();
+  const terminal = new TerminalView();
   let room: Room | null = null;
-  let mode: 'live' | 'replay' = 'live';
+  let mode: 'live' | 'terminal' | 'replay' = 'live';
   let stream: RoomStream | null = null;
   let timeline: Timeline | null = null;
   let searchInput: HTMLInputElement | null = null;
   let renderedCutoff = 0; // for replay rendering: events 0..cutoff have been laid out
 
-  const setMode = (next: 'live' | 'replay') => {
+  const hasTerminalEvents = () => allEvents.some((e) => e.type === 'terminal.output');
+
+  const setMode = (next: 'live' | 'terminal' | 'replay') => {
     mode = next;
     liveBtn.className = next === 'live' ? 'primary' : '';
+    termBtn.className = next === 'terminal' ? 'primary' : '';
     replayBtn.className = next === 'replay' ? 'primary' : '';
     if (next === 'live') {
       timelineHost.innerHTML = '';
@@ -62,6 +71,12 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       timeline = null;
       searchInput = null;
       rebuildLive();
+    } else if (next === 'terminal') {
+      timelineHost.innerHTML = '';
+      searchHost.innerHTML = '';
+      timeline = null;
+      searchInput = null;
+      rebuildTerminal();
     } else {
       setupReplayUI();
     }
@@ -83,6 +98,14 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     blocksHost.innerHTML = '';
     allBlocks.clear();
     for (const ev of allEvents) applyEvent(allBlocks, blocksHost, ev);
+  };
+
+  const rebuildTerminal = () => {
+    blocksHost.innerHTML = '';
+    allBlocks.clear();
+    terminal.reset();
+    blocksHost.append(terminal.el);
+    for (const ev of allEvents) terminal.applyEvent(ev);
   };
 
   const setupReplayUI = () => {
@@ -122,6 +145,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   };
 
   liveBtn.addEventListener('click', () => setMode('live'));
+  termBtn.addEventListener('click', () => setMode('terminal'));
   replayBtn.addEventListener('click', () => setMode('replay'));
 
   const handleWS = (msg: WSMessage) => {
@@ -131,11 +155,14 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       allEvents.length = 0;
       allEvents.push(...msg.recent_events);
       if (mode === 'live') rebuildLive();
+      else if (mode === 'terminal') rebuildTerminal();
       else timeline?.update(allEvents);
     } else if (msg.type === 'event') {
       allEvents.push(msg.event);
       if (mode === 'live') {
         applyEvent(allBlocks, blocksHost, msg.event);
+      } else if (mode === 'terminal') {
+        terminal.applyEvent(msg.event);
       } else {
         timeline?.update(allEvents);
       }
@@ -143,7 +170,9 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   };
 
   // Initial load (covers the case where recent_events from WS init has been
-  // truncated). Also gives the user something even if WS fails.
+  // truncated). Also gives the user something even if WS fails. If the room
+  // has terminal.output events, default to Terminal view; otherwise show
+  // command blocks.
   (async () => {
     try {
       room = await getRoom(roomId);
@@ -151,7 +180,11 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       const events = await getEvents(roomId, { limit: 100000 });
       allEvents.length = 0;
       allEvents.push(...events);
-      rebuildLive();
+      if (hasTerminalEvents()) {
+        setMode('terminal');
+      } else {
+        rebuildLive();
+      }
     } catch (err) {
       blocksHost.innerHTML = `<div class="error-banner">${(err as Error).message}</div>`;
       return;
@@ -161,7 +194,9 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   stream = new RoomStream(roomId, { onMessage: handleWS });
   stream.connect();
 
-  setMode('live');
+  // mode is set by the async initial-load handler based on whether the room
+  // has terminal.output events; the default state of mode='live' covers
+  // anything that races before the load completes.
 
   return () => {
     stream?.close();

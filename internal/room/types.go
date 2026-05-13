@@ -34,6 +34,7 @@ const (
 	EvtCommandStarted    EventType = "command.started"
 	EvtCommandOutput     EventType = "command.output"
 	EvtCommandFinished   EventType = "command.finished"
+	EvtTerminalOutput    EventType = "terminal.output"
 	EvtParticipantJoined EventType = "participant.joined"
 	EvtParticipantLeft   EventType = "participant.left"
 )
@@ -66,6 +67,13 @@ type CommandFinishedPayload struct {
 	CommandID  string `json:"command_id"`
 	ExitCode   int    `json:"exit_code"`
 	DurationMs int64  `json:"duration_ms"`
+}
+
+// TerminalOutputPayload is the payload of a terminal.output event — raw
+// bytes emitted by an interactive session's PTY. Use this in the web
+// viewer to render a screen-style transcript.
+type TerminalOutputPayload struct {
+	Data []byte `json:"data"`
 }
 
 // ParticipantPayload is the payload of participant.joined / participant.left.

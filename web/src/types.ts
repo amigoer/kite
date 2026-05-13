@@ -21,6 +21,7 @@ export type EventType =
   | 'command.started'
   | 'command.output'
   | 'command.finished'
+  | 'terminal.output'
   | 'participant.joined'
   | 'participant.left';
 
@@ -48,6 +49,10 @@ export interface CommandFinishedPayload {
   command_id: string;
   exit_code: number;
   duration_ms: number;
+}
+
+export interface TerminalOutputPayload {
+  data: string; // base64-encoded raw bytes
 }
 
 export interface RoomCreatedPayload {

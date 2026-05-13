@@ -402,6 +402,24 @@ func TestInteractiveIO(t *testing.T) {
 	if !strings.Contains(res.Stdout, "after-detach") {
 		t.Errorf("expected after-detach, got %q", res.Stdout)
 	}
+
+	// Verify the interactive session left terminal.output events behind so
+	// the web viewer can replay it.
+	events, _, _ := c.GetEvents(ctx, r.ID, client.GetEventsOptions{})
+	var termBytes bytes.Buffer
+	for _, ev := range events {
+		if ev.Type != "terminal.output" {
+			continue
+		}
+		var p struct {
+			Data []byte `json:"data"`
+		}
+		_ = json.Unmarshal(ev.Payload, &p)
+		termBytes.Write(p.Data)
+	}
+	if !strings.Contains(termBytes.String(), "IO-WORKS") {
+		t.Errorf("terminal.output events missing IO-WORKS, got %q", termBytes.String())
+	}
 }
 
 // TestPersistedOutputMatchesEvents verifies that the bytes the daemon
