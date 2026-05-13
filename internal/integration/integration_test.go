@@ -288,6 +288,122 @@ func TestTimeoutReturnsRequestTimeout(t *testing.T) {
 	}
 }
 
+// TestInteractiveIO drives the /io WebSocket as a raw byte pipe: send a
+// command, read bash's echo + result, send a Ctrl+C to interrupt a long-
+// running command, and verify a parallel HTTP Exec is rejected with 409
+// while the interactive session is attached.
+func TestInteractiveIO(t *testing.T) {
+	s := newStack(t)
+	c := client.New(s.httpURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	r, err := c.CreateRoom(ctx, client.CreateRoomRequest{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	u, _ := url.Parse(s.httpURL)
+	u.Scheme = "ws"
+	u.Path = "/api/v1/rooms/" + r.ID + "/io"
+	conn, _, err := websocket.Dial(ctx, u.String(), nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+	conn.SetReadLimit(1 << 20)
+
+	// Stream reads into a channel so we can poll with a timeout without
+	// cancelling the underlying WS context (coder/websocket closes the
+	// connection when its read ctx expires).
+	frames := make(chan []byte, 64)
+	readErr := make(chan error, 1)
+	go func() {
+		for {
+			typ, data, err := conn.Read(ctx)
+			if err != nil {
+				readErr <- err
+				close(frames)
+				return
+			}
+			if typ == websocket.MessageBinary {
+				cp := make([]byte, len(data))
+				copy(cp, data)
+				frames <- cp
+			}
+		}
+	}()
+
+	readUntil := func(want string, deadline time.Duration) (string, bool) {
+		var buf bytes.Buffer
+		until := time.After(deadline)
+		for {
+			select {
+			case f, ok := <-frames:
+				if !ok {
+					return buf.String(), false
+				}
+				buf.Write(f)
+				if want != "" && strings.Contains(buf.String(), want) {
+					return buf.String(), true
+				}
+			case <-until:
+				return buf.String(), want == ""
+			}
+		}
+	}
+
+	// Drain bootstrap output (PS1).
+	_, _ = readUntil("", 400*time.Millisecond)
+
+	// Send a command and verify the result comes back.
+	if err := conn.Write(ctx, websocket.MessageBinary, []byte("echo IO-WORKS\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	out, ok := readUntil("IO-WORKS", 2*time.Second)
+	if !ok {
+		t.Fatalf("expected IO-WORKS in output, got %q", out)
+	}
+
+	// While we're attached, structured exec should be rejected with 409.
+	_, err = c.Exec(ctx, r.ID, client.ExecRequest{Cmd: "echo from-exec"})
+	var apiErr *client.APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "interactive_attached" {
+		t.Errorf("expected interactive_attached 409 during attach, got %v", err)
+	}
+
+	// Send Ctrl+C against a running sleep, confirm we get a fresh prompt
+	// back within 2s (well under sleep's 5s).
+	if err := conn.Write(ctx, websocket.MessageBinary, []byte("sleep 5\n")); err != nil {
+		t.Fatalf("write sleep: %v", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if err := conn.Write(ctx, websocket.MessageBinary, []byte{0x03}); err != nil {
+		t.Fatalf("write ^C: %v", err)
+	}
+	if got, ok := readUntil("$ ", 2500*time.Millisecond); !ok {
+		t.Errorf("Ctrl+C did not yield a fresh prompt: %q", got)
+	}
+
+	// Detach cleanly so the next test's exec works.
+	_ = conn.Close(websocket.StatusNormalClosure, "test done")
+	select {
+	case <-readErr:
+	case <-time.After(1 * time.Second):
+	}
+
+	// Give the daemon a moment to flip back to scripted mode, then verify
+	// exec works again.
+	time.Sleep(300 * time.Millisecond)
+	res, err := c.Exec(ctx, r.ID, client.ExecRequest{Cmd: "echo after-detach"})
+	if err != nil {
+		t.Fatalf("exec after detach: %v", err)
+	}
+	if !strings.Contains(res.Stdout, "after-detach") {
+		t.Errorf("expected after-detach, got %q", res.Stdout)
+	}
+}
+
 // TestPersistedOutputMatchesEvents verifies that the bytes the daemon
 // streams to the listener match what we get back via GET /events.
 func TestPersistedOutputMatchesEvents(t *testing.T) {

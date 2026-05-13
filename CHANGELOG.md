@@ -8,14 +8,30 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- `kite shell` and `kite attach` — screen-style interactive room sessions.
-  Enter a room once, type commands at a `kite (room_id)>` prompt, and detach
-  with `Ctrl+D` or close with `:close`. Meta commands (`:help`, `:detach`,
-  `:close`, `:status`, `:url`, `:history`, `:clear`) start with `:`. `kite
-  attach` with no id auto-resolves to the most recently active room.
+- `kite shell` and `kite attach` — true screen-style interactive sessions.
+  The CLI puts your terminal in raw mode and pipes bytes directly to the
+  room's bash over a new `/api/v1/rooms/{id}/io` WebSocket. You get a
+  native bash prompt, Ctrl+C interrupts the running command (not the
+  client), Ctrl+L clears, vim/less/top work, terminal resize is forwarded
+  via SIGWINCH. Escape is `Ctrl+A`; then `d` detaches, `k` closes the
+  room, `?` shows help, `Ctrl+A` sends a literal `Ctrl+A`. `kite attach`
+  with no id auto-resolves to the most recently active room.
+- New `GET /api/v1/rooms/{id}/io` WebSocket: binary frames are raw stdin /
+  stdout bytes; text frames carry JSON control messages (`{"type":"resize",
+  "rows":N,"cols":N}`, `{"type":"detach"}`).
+- Per-room bash mode switching: scripted (markers, echo off, no prompt) by
+  default; flips to interactive (echo on, normal PS1) when any client
+  attaches to `/io`, and flips back when the last detaches. Refcounted so
+  multiple humans can co-attach.
 - `source` field on `command.started` events now uniquely identifies which
   caller initiated a command, allowing concurrent clients to tell their own
   events apart from background activity.
+
+### Changed
+
+- `POST /api/v1/rooms/{id}/exec` returns HTTP 409 with code
+  `interactive_attached` while any interactive client is attached to the
+  room. Structured exec resumes automatically once everyone detaches.
 
 ### Fixed
 

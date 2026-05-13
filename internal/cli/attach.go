@@ -1,27 +1,33 @@
 package cli
 
 import (
-	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
+	"os/signal"
+	"runtime"
 	"sync"
-	"time"
+	"syscall"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/amigoer/kite/internal/client"
 )
+
+// Escape protocol (screen-style):
+//   default escape byte is Ctrl+A (0x01). After Ctrl+A:
+//     d    -> detach (leave room running)
+//     k    -> close the room and detach
+//     ?    -> print help
+//     Ctrl+A (0x01) -> send a literal Ctrl+A to the room
+//     anything else -> ignored
+const escapeByte byte = 0x01 // Ctrl+A
 
 // ─── public commands ──────────────────────────────────────────────────────
 
@@ -30,24 +36,19 @@ func newAttachCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "attach [room_id]",
 		Aliases: []string{"a"},
-		Short:   "Enter a room and run commands interactively (screen-style)",
-		Long: `Attach to a kite room and run commands inside it without re-typing
-the room id every time. Output streams live; the room keeps running after you
-detach.
+		Short:   "Enter a room — screen-style interactive bash with the daemon's PTY.",
+		Long: `Attach to a kite room and drop into its bash session. Keystrokes are
+forwarded to the room's bash; output streams back live. This is a pure
+byte pipe — no kite prompt, no per-command HTTP round trip.
 
-If no room id is given, attaches to the most recently active room, or creates
-a new one if none exist.
+If no room id is given, attaches to the most recently active room, or
+creates a new one if none exist.
 
-Inside the session:
-  Type any shell command — it runs in the attached room.
-
-  :help              show available meta commands
-  :detach (Ctrl+D)   leave the room running and return to your shell
-  :close             close the room and detach
-  :status            show room metadata
-  :url               print the web viewer URL
-  :history [N]       show last N commands (default 20)
-  :clear             clear the screen`,
+Escape key is Ctrl+A. Then:
+  d         detach (room keeps running, come back with 'kite attach')
+  k         close the room and detach
+  ?         show this help
+  Ctrl+A    send a literal Ctrl+A to the room`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c := clientFromFlags(cmd)
@@ -114,209 +115,181 @@ func pickOrCreateRoom(ctx context.Context, c *client.Client, forceNew bool) (str
 	return r.ID, nil
 }
 
-// ─── session state ────────────────────────────────────────────────────────
-
-// attachSession holds the bits the WebSocket reader and the main input loop
-// share while the user is inside a room.
-type attachSession struct {
-	out io.Writer
-
-	mu        sync.Mutex
-	streaming bool       // true between command submit and command.finished
-	wantSrc   string     // we'll capture the started event whose source matches this
-	cmdID     string     // captured command_id; "" until command.started arrives
-	finish    chan endInfo
-	lastByte  byte // last byte we wrote to out (to decide whether to add a newline)
-}
-
-type endInfo struct {
-	exitCode   int
-	durationMs int64
-}
-
-func (s *attachSession) writeOutput(p []byte) {
-	if len(p) == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, _ = s.out.Write(p)
-	s.lastByte = p[len(p)-1]
-}
-
-// needsTrailingNewline reports whether the last streamed byte was NOT a
-// newline, so the caller can print one before the next prompt.
-func (s *attachSession) needsTrailingNewline() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lastByte != 0 && s.lastByte != '\n'
-}
-
-func (s *attachSession) resetForNextCommand() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.lastByte = 0
-}
-
-// ─── attach loop ──────────────────────────────────────────────────────────
+// ─── raw-mode attach loop ────────────────────────────────────────────────
 
 func runAttach(cmd *cobra.Command, c *client.Client, roomID string) error {
 	ctx := cmd.Context()
 
-	room, err := c.GetRoom(ctx, roomID)
+	rm, err := c.GetRoom(ctx, roomID)
 	if err != nil {
 		return hintIfUnreachable(err)
 	}
-	if room.Status != "active" {
-		return fmt.Errorf("room %s is %s; start a new one with `kite shell`", roomID, room.Status)
+	if rm.Status != "active" {
+		return fmt.Errorf("room %s is %s; start a new one with `kite shell`", roomID, rm.Status)
 	}
 
-	label := room.ID
-	if room.Name != "" {
-		label = room.Name
-	}
-
-	wsCtx, wsCancel := context.WithCancel(ctx)
-	defer wsCancel()
-
-	conn, err := dialRoomStream(wsCtx, c.BaseURL, roomID)
+	conn, err := dialRoomIO(ctx, c.BaseURL, roomID)
 	if err != nil {
 		return err
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "detach")
 
-	sess := &attachSession{out: os.Stdout}
-	wsClosed := make(chan struct{})
-	go readWSEvents(wsCtx, conn, sess, wsClosed)
+	stdinFd := int(os.Stdin.Fd())
+	if !term.IsTerminal(stdinFd) {
+		// Not a TTY (e.g. piped input). Run a degraded mode where we just
+		// forward stdin as-is, no raw mode, no escape sequence.
+		return runAttachPipe(ctx, conn, roomID)
+	}
+
+	// Save terminal state and put stdin in raw mode.
+	oldState, err := term.MakeRaw(stdinFd)
+	if err != nil {
+		return fmt.Errorf("raw mode: %w", err)
+	}
+	defer term.Restore(stdinFd, oldState) //nolint:errcheck
 
 	out := os.Stdout
-	fmt.Fprintf(out, "attached to room %s\n", roomID)
-	fmt.Fprintln(out, "type a command, ':help' for meta, Ctrl+D to detach.")
-	fmt.Fprintln(out)
+	fmt.Fprintf(out, "attached to %s — type Ctrl+A then '?' for help, Ctrl+A then 'd' to detach.\r\n", roomID)
 
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Fprintf(out, "kite (%s)> ", label)
+	// Send initial size.
+	sendResize(ctx, conn, stdinFd)
 
-		line, err := reader.ReadString('\n')
-		if errors.Is(err, io.EOF) {
-			fmt.Fprintln(out)
-			fmt.Fprintln(out, "detached.")
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		line = strings.TrimRight(line, "\r\n")
-		if line == "" {
-			continue
-		}
-
-		if strings.HasPrefix(line, ":") {
-			done, err := handleMeta(ctx, c, roomID, line, out)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "error:", err)
-			}
-			if done {
-				return nil
-			}
-			continue
-		}
-
-		if err := runOneCommand(ctx, c, roomID, line, sess, wsClosed); err != nil {
-			var apiErr *client.APIError
-			if errors.As(err, &apiErr) && apiErr.Code == "room_closed" {
-				fmt.Fprintln(out, "room was closed externally; detaching.")
-				return nil
-			}
-			if errors.Is(err, errDaemonGone) {
-				return errDaemonGone
-			}
-			fmt.Fprintln(os.Stderr, "error:", err)
-		}
+	// Handle SIGWINCH for terminal resize.
+	winch := make(chan os.Signal, 1)
+	if runtime.GOOS != "windows" {
+		signal.Notify(winch, syscall.SIGWINCH)
+		defer signal.Stop(winch)
 	}
-}
 
-var errDaemonGone = errors.New("connection to daemon lost")
+	// Bridge stdin → ws, ws → stdout. The first goroutine to finish cancels
+	// the others via the returned reason.
+	reason := make(chan attachReason, 3)
 
-func runOneCommand(ctx context.Context, c *client.Client, roomID, line string, sess *attachSession, wsClosed <-chan struct{}) error {
-	nonce, err := makeNonce()
-	if err != nil {
-		return err
-	}
-	source := "attach-" + nonce
+	var detachWG sync.WaitGroup
+	detachWG.Add(2)
 
-	sess.mu.Lock()
-	sess.streaming = true
-	sess.wantSrc = source
-	sess.cmdID = ""
-	sess.finish = make(chan endInfo, 1)
-	fin := sess.finish
-	sess.mu.Unlock()
-	sess.resetForNextCommand()
-
-	defer func() {
-		sess.mu.Lock()
-		sess.streaming = false
-		sess.wantSrc = ""
-		sess.cmdID = ""
-		sess.finish = nil
-		sess.mu.Unlock()
-	}()
-
-	execCh := make(chan execOutcome, 1)
+	// stdin → ws
 	go func() {
-		_, err := c.Exec(ctx, roomID, client.ExecRequest{Cmd: line, Source: source})
-		execCh <- execOutcome{err: err}
-	}()
-
-	var (
-		end       endInfo
-		gotFinish bool
-		execErr   error
-		gotExec   bool
-	)
-	for !gotFinish || !gotExec {
-		select {
-		case end = <-fin:
-			gotFinish = true
-		case outcome := <-execCh:
-			gotExec = true
-			execErr = outcome.err
-			if execErr != nil {
-				// HTTP failed (room closed, timeout, etc.). Don't keep waiting
-				// for a finish event that will never come.
-				return execErr
+		defer detachWG.Done()
+		r := newEscapeReader(os.Stdin, escapeByte)
+		buf := make([]byte, 4096)
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				if err2 := conn.Write(ctx, websocket.MessageBinary, buf[:n]); err2 != nil {
+					reason <- attachReason{"ws write failed: " + err2.Error(), false}
+					return
+				}
 			}
-		case <-wsClosed:
-			return errDaemonGone
-		case <-time.After(30 * time.Second):
-			// Sanity check: shouldn't happen unless the daemon is misbehaving.
-			if gotExec && !gotFinish {
-				gotFinish = true
-			} else {
-				return errors.New("timed out waiting for command result")
+			if err != nil {
+				if escErr, ok := err.(escapeAction); ok {
+					switch escErr {
+					case actionDetach:
+						reason <- attachReason{"detached.", false}
+					case actionKill:
+						_ = c.CloseRoom(context.Background(), roomID)
+						reason <- attachReason{"closed.", false}
+					case actionHelp:
+						printAttachHelp(out)
+						continue
+					}
+					return
+				}
+				if errors.Is(err, io.EOF) {
+					reason <- attachReason{"stdin closed.", false}
+					return
+				}
+				reason <- attachReason{"stdin error: " + err.Error(), false}
+				return
 			}
 		}
+	}()
+
+	// ws → stdout
+	go func() {
+		defer detachWG.Done()
+		for {
+			typ, data, err := conn.Read(ctx)
+			if err != nil {
+				reason <- attachReason{"connection closed.", true}
+				return
+			}
+			if typ != websocket.MessageBinary {
+				continue
+			}
+			if _, err := out.Write(data); err != nil {
+				reason <- attachReason{"stdout write: " + err.Error(), false}
+				return
+			}
+		}
+	}()
+
+	// resize forwarder
+	go func() {
+		for range winch {
+			sendResize(ctx, conn, stdinFd)
+		}
+	}()
+
+	final := <-reason
+	conn.Close(websocket.StatusNormalClosure, final.msg)
+	// Tell other goroutines to wrap up.
+	_ = os.Stdin.SetReadDeadline // no-op, just to avoid import warnings
+
+	// Best-effort: wait briefly for the writer to drain.
+	done := make(chan struct{})
+	go func() { detachWG.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-ctx.Done():
 	}
 
-	// Ensure the next prompt starts on a fresh line.
-	if sess.needsTrailingNewline() {
-		fmt.Fprintln(sess.out)
-	}
-	if end.exitCode != 0 {
-		fmt.Fprintf(os.Stderr, "[exit %d, %dms]\n", end.exitCode, end.durationMs)
-	}
+	// Restore terminal BEFORE printing the final message so it renders normally.
+	_ = term.Restore(stdinFd, oldState)
+	fmt.Fprintln(out, final.msg)
 	return nil
 }
 
-type execOutcome struct {
-	err error
+type attachReason struct {
+	msg      string
+	remote   bool // remote-initiated close (e.g. bash exited)
 }
 
-// ─── WebSocket reader ─────────────────────────────────────────────────────
+func runAttachPipe(ctx context.Context, conn *websocket.Conn, _ string) error {
+	// Non-TTY mode (piped stdin). Forward stdin → ws; ws → stdout. We don't
+	// close the WS on stdin EOF — the caller is expected to include `exit` in
+	// their input (so bash terminates and the WS closes server-side), or
+	// they can Ctrl+C the kite process to abort.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-func dialRoomStream(ctx context.Context, base, roomID string) (*websocket.Conn, error) {
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if n > 0 {
+				if werr := conn.Write(ctx, websocket.MessageBinary, buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	for {
+		typ, data, err := conn.Read(ctx)
+		if err != nil {
+			return nil
+		}
+		if typ == websocket.MessageBinary {
+			_, _ = os.Stdout.Write(data)
+		}
+	}
+}
+
+func dialRoomIO(ctx context.Context, base, roomID string) (*websocket.Conn, error) {
 	u, err := url.Parse(base)
 	if err != nil {
 		return nil, fmt.Errorf("parse base URL: %w", err)
@@ -327,193 +300,123 @@ func dialRoomStream(ctx context.Context, base, roomID string) (*websocket.Conn, 
 	case "https":
 		u.Scheme = "wss"
 	}
-	u.Path = "/api/v1/rooms/" + roomID + "/stream"
+	u.Path = "/api/v1/rooms/" + roomID + "/io"
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect to room: %w", err)
 	}
+	conn.SetReadLimit(1 << 20)
 	return conn, nil
 }
 
-func readWSEvents(ctx context.Context, conn *websocket.Conn, sess *attachSession, closed chan<- struct{}) {
-	defer close(closed)
-	for {
-		var raw map[string]json.RawMessage
-		if err := wsjson.Read(ctx, conn, &raw); err != nil {
-			return
-		}
-		var typ string
-		_ = json.Unmarshal(raw["type"], &typ)
-		if typ != "event" {
+func sendResize(ctx context.Context, conn *websocket.Conn, fd int) {
+	w, h, err := term.GetSize(fd)
+	if err != nil || w <= 0 || h <= 0 {
+		return
+	}
+	msg, _ := json.Marshal(map[string]any{
+		"type": "resize",
+		"rows": uint16(h),
+		"cols": uint16(w),
+	})
+	_ = conn.Write(ctx, websocket.MessageText, msg)
+}
+
+func printAttachHelp(out io.Writer) {
+	fmt.Fprintln(out, "\r")
+	fmt.Fprintln(out, "kite attach — escape is Ctrl+A, then:\r")
+	fmt.Fprintln(out, "  d         detach (room keeps running)\r")
+	fmt.Fprintln(out, "  k         close the room and detach\r")
+	fmt.Fprintln(out, "  ?         show this help\r")
+	fmt.Fprintln(out, "  Ctrl+A    send a literal Ctrl+A to the room\r")
+	fmt.Fprintln(out, "\r")
+}
+
+// ─── escape-sequence reader ──────────────────────────────────────────────
+
+// escapeAction is returned by escapeReader.Read (as an error sentinel) when
+// the user has just pressed escape + a recognised key. We piggyback on the
+// error channel of io.Reader so the surrounding loop can react.
+type escapeAction int
+
+const (
+	actionDetach escapeAction = iota + 1
+	actionKill
+	actionHelp
+)
+
+func (e escapeAction) Error() string {
+	switch e {
+	case actionDetach:
+		return "user requested detach"
+	case actionKill:
+		return "user requested close"
+	case actionHelp:
+		return "user requested help"
+	default:
+		return "unknown escape action"
+	}
+}
+
+// escapeReader wraps an io.Reader and watches for an escape byte followed by
+// a command key. The escape byte itself is consumed; a literal escape byte
+// is produced when the user types escape twice in a row.
+type escapeReader struct {
+	src    io.Reader
+	escape byte
+	armed  bool // true if we just saw the escape byte
+}
+
+func newEscapeReader(src io.Reader, escape byte) *escapeReader {
+	return &escapeReader{src: src, escape: escape}
+}
+
+func (e *escapeReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	// Read raw from the source.
+	buf := make([]byte, len(p))
+	n, err := e.src.Read(buf)
+	out := 0
+	for i := 0; i < n; i++ {
+		b := buf[i]
+		if e.armed {
+			e.armed = false
+			switch b {
+			case e.escape:
+				// Literal escape: emit it.
+				p[out] = b
+				out++
+			case 'd', 'D':
+				// Flush what we have, then signal detach.
+				if out == 0 {
+					return 0, actionDetach
+				}
+				// Stash the remaining bytes? For simplicity, we discard them —
+				// the surrounding loop will exit anyway.
+				return out, actionDetach
+			case 'k', 'K':
+				if out == 0 {
+					return 0, actionKill
+				}
+				return out, actionKill
+			case '?', 'h', 'H':
+				return out, actionHelp
+			default:
+				// Unknown escape — drop it silently to avoid misfires.
+			}
 			continue
 		}
-		var ev struct {
-			Type    string          `json:"type"`
-			Payload json.RawMessage `json:"payload"`
+		if b == e.escape {
+			e.armed = true
+			continue
 		}
-		_ = json.Unmarshal(raw["event"], &ev)
-
-		switch ev.Type {
-		case "command.started":
-			handleStartedEvent(sess, ev.Payload)
-		case "command.output":
-			handleOutputEvent(sess, ev.Payload)
-		case "command.finished":
-			handleFinishedEvent(sess, ev.Payload)
-		case "room.closed":
-			return
-		}
+		p[out] = b
+		out++
 	}
-}
-
-func handleStartedEvent(sess *attachSession, payload json.RawMessage) {
-	var p struct {
-		CommandID string `json:"command_id"`
-		Source    string `json:"source"`
+	if err != nil && out == 0 {
+		return 0, err
 	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return
-	}
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	if !sess.streaming || sess.cmdID != "" {
-		return
-	}
-	if p.Source == sess.wantSrc {
-		sess.cmdID = p.CommandID
-	}
-}
-
-func handleOutputEvent(sess *attachSession, payload json.RawMessage) {
-	var p struct {
-		CommandID string `json:"command_id"`
-		Data      []byte `json:"data"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return
-	}
-	sess.mu.Lock()
-	matched := sess.streaming && p.CommandID == sess.cmdID
-	sess.mu.Unlock()
-	if matched {
-		sess.writeOutput(p.Data)
-	}
-}
-
-func handleFinishedEvent(sess *attachSession, payload json.RawMessage) {
-	var p struct {
-		CommandID  string `json:"command_id"`
-		ExitCode   int    `json:"exit_code"`
-		DurationMs int64  `json:"duration_ms"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return
-	}
-	sess.mu.Lock()
-	fin := sess.finish
-	matches := sess.streaming && p.CommandID == sess.cmdID
-	if matches {
-		sess.finish = nil
-	}
-	sess.mu.Unlock()
-	if matches && fin != nil {
-		fin <- endInfo{exitCode: p.ExitCode, durationMs: p.DurationMs}
-	}
-}
-
-// ─── meta commands ────────────────────────────────────────────────────────
-
-func handleMeta(ctx context.Context, c *client.Client, roomID, line string, out io.Writer) (bool, error) {
-	parts := strings.Fields(line)
-	if len(parts) == 0 {
-		return false, nil
-	}
-	switch parts[0] {
-	case ":help", ":h", ":?":
-		printMetaHelp(out)
-		return false, nil
-
-	case ":detach", ":exit", ":q":
-		fmt.Fprintln(out, "detached.")
-		return true, nil
-
-	case ":close", ":kill":
-		if err := c.CloseRoom(ctx, roomID); err != nil {
-			return false, err
-		}
-		fmt.Fprintln(out, "room closed. detached.")
-		return true, nil
-
-	case ":status":
-		r, err := c.GetRoom(ctx, roomID)
-		if err != nil {
-			return false, err
-		}
-		fmt.Fprintf(out, "  id:       %s\n", r.ID)
-		fmt.Fprintf(out, "  name:     %s\n", r.Name)
-		fmt.Fprintf(out, "  status:   %s\n", r.Status)
-		fmt.Fprintf(out, "  cwd:      %s\n", r.Cwd)
-		fmt.Fprintf(out, "  shell:    %s\n", r.Shell)
-		fmt.Fprintf(out, "  commands: %d\n", r.CommandCount)
-		return false, nil
-
-	case ":url":
-		fmt.Fprintln(out, c.BaseURL+"/rooms/"+roomID)
-		return false, nil
-
-	case ":history":
-		n := 20
-		if len(parts) > 1 {
-			if x, err := strconv.Atoi(parts[1]); err == nil && x > 0 {
-				n = x
-			}
-		}
-		commands, err := c.GetCommands(ctx, roomID)
-		if err != nil {
-			return false, err
-		}
-		if len(commands) > n {
-			commands = commands[len(commands)-n:]
-		}
-		if len(commands) == 0 {
-			fmt.Fprintln(out, "  no commands yet")
-			return false, nil
-		}
-		for _, cm := range commands {
-			exitStr := "  ·  "
-			if cm.ExitCode != nil {
-				exitStr = fmt.Sprintf("%5d", *cm.ExitCode)
-			}
-			fmt.Fprintf(out, "  [%s] %s\n", exitStr, cm.Cmd)
-		}
-		return false, nil
-
-	case ":clear":
-		fmt.Fprint(out, "\033[2J\033[H")
-		return false, nil
-
-	default:
-		return false, fmt.Errorf("unknown meta command: %s (try :help)", parts[0])
-	}
-}
-
-func printMetaHelp(out io.Writer) {
-	fmt.Fprintln(out, "Meta commands:")
-	fmt.Fprintln(out, "  :help, :?         show this help")
-	fmt.Fprintln(out, "  :detach, :exit    leave the room running and return to your shell (Ctrl+D)")
-	fmt.Fprintln(out, "  :close, :kill     close the room and detach")
-	fmt.Fprintln(out, "  :status           show room metadata")
-	fmt.Fprintln(out, "  :url              print the web viewer URL")
-	fmt.Fprintln(out, "  :history [N]      show the last N commands (default 20)")
-	fmt.Fprintln(out, "  :clear            clear the screen")
-}
-
-// ─── helpers ──────────────────────────────────────────────────────────────
-
-func makeNonce() (string, error) {
-	b := make([]byte, 6)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
+	return out, nil
 }

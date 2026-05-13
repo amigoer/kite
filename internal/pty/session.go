@@ -38,6 +38,11 @@ type Session struct {
 	mu  sync.Mutex
 	cur *execState
 
+	subMu       sync.Mutex
+	subs        map[int]chan []byte
+	nextSubID   int
+	interactive atomic.Bool // when true, raw bytes are NOT scanned for markers
+
 	done   chan struct{}
 	closed atomic.Bool
 
@@ -82,7 +87,12 @@ func New(ctx context.Context, shell, cwd string) (*Session, error) {
 		return nil, fmt.Errorf("pty start: %w", err)
 	}
 
-	s := &Session{pty: f, cmd: cmd, done: make(chan struct{})}
+	s := &Session{
+		pty:  f,
+		cmd:  cmd,
+		done: make(chan struct{}),
+		subs: make(map[int]chan []byte),
+	}
 	go s.readLoop()
 
 	if err := s.bootstrap(ctx); err != nil {
@@ -199,22 +209,61 @@ func (s *Session) ExitError() error {
 // --- internals ----------------------------------------------------------
 
 func (s *Session) readLoop() {
-	defer close(s.done)
+	defer func() {
+		// Close all subscriber channels so reads return EOF cleanly.
+		s.subMu.Lock()
+		for id, ch := range s.subs {
+			close(ch)
+			delete(s.subs, id)
+		}
+		s.subMu.Unlock()
+		close(s.done)
+	}()
 	buf := make([]byte, 8192)
 	var carry bytes.Buffer
 	for {
 		n, err := s.pty.Read(buf)
 		if n > 0 {
-			carry.Write(buf[:n])
-			s.process(&carry)
+			// Broadcast a copy to every subscriber first; they get raw bytes
+			// regardless of marker mode.
+			s.broadcast(buf[:n])
+			if s.interactive.Load() {
+				// Raw passthrough: don't touch carry at all. Drain it (in case
+				// we just flipped modes) so we don't replay old buffered data.
+				carry.Reset()
+			} else {
+				carry.Write(buf[:n])
+				s.process(&carry)
+			}
 		}
 		if err != nil {
-			s.process(&carry)
+			if !s.interactive.Load() {
+				s.process(&carry)
+			}
 			if !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
 				s.exitErr.Store(err)
 			}
 			s.failPending(err)
 			return
+		}
+	}
+}
+
+// broadcast sends a copy of data to every subscriber. Slow subscribers
+// drop bytes rather than blocking the read loop.
+func (s *Session) broadcast(data []byte) {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	if len(s.subs) == 0 {
+		return
+	}
+	cp := make([]byte, len(data))
+	copy(cp, data)
+	for _, ch := range s.subs {
+		select {
+		case ch <- cp:
+		default:
+			// Subscriber is too slow; skip this chunk for them.
 		}
 	}
 }
@@ -304,6 +353,80 @@ func newInternalCommandID() string {
 	enc := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf))
 	return "c_" + enc[:12]
 }
+
+// --- raw IO surface (used by interactive attach) ------------------------
+
+// WriteStdin writes raw bytes directly to the PTY. Use during interactive
+// attach to forward keystrokes; for structured Exec calls, use Exec.
+func (s *Session) WriteStdin(p []byte) error {
+	if s.closed.Load() {
+		return ErrSessionClosed
+	}
+	_, err := s.pty.Write(p)
+	return err
+}
+
+// Resize changes the PTY window size. Triggers SIGWINCH inside bash so
+// applications like vim / less / top redraw.
+func (s *Session) Resize(rows, cols uint16) error {
+	if s.closed.Load() {
+		return ErrSessionClosed
+	}
+	return pty.Setsize(s.pty, &pty.Winsize{Rows: rows, Cols: cols})
+}
+
+// Subscribe returns a channel that receives copies of every byte read from
+// the PTY (no marker filtering — that's the consumer's problem). Call the
+// returned unsubscribe to stop. The channel is closed when the session
+// terminates.
+func (s *Session) Subscribe() (<-chan []byte, func()) {
+	ch := make(chan []byte, 64)
+	s.subMu.Lock()
+	id := s.nextSubID
+	s.nextSubID++
+	s.subs[id] = ch
+	s.subMu.Unlock()
+	unsub := func() {
+		s.subMu.Lock()
+		if cur, ok := s.subs[id]; ok {
+			delete(s.subs, id)
+			close(cur)
+		}
+		s.subMu.Unlock()
+	}
+	return ch, unsub
+}
+
+// SetInteractive flips the session into raw-passthrough mode. When on, the
+// readLoop skips marker parsing and emits no events for the current Exec
+// (callers must use Subscribe instead). Bash config (echo, PS1) is also
+// reconfigured so an attached human sees a normal prompt.
+func (s *Session) SetInteractive(on bool) error {
+	if s.closed.Load() {
+		return ErrSessionClosed
+	}
+	prev := s.interactive.Swap(on)
+	if prev == on {
+		return nil
+	}
+	// Use a here-doc-style configuration that's safe to write at any moment:
+	// bash buffers it until the current command (if any) ends and then
+	// processes it as a fresh prompt.
+	var cfg string
+	if on {
+		// Restore echo, enable canonical line discipline, give bash a normal
+		// prompt. We intentionally use a simple PS1 so it works without the
+		// user's full bashrc.
+		cfg = "stty echo onlcr icanon 2>/dev/null; export PS1='\\u@\\h:\\w$ '; PS2='> '\n"
+	} else {
+		cfg = "stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; unset PROMPT_COMMAND\n"
+	}
+	_, err := s.pty.Write([]byte(cfg))
+	return err
+}
+
+// Interactive reports whether the session is currently in raw passthrough.
+func (s *Session) Interactive() bool { return s.interactive.Load() }
 
 // failPending fires the finish channel with err so callers waiting on a
 // command don't hang when bash dies under them.

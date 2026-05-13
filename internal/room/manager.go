@@ -39,6 +39,12 @@ const (
 // is no longer running.
 var ErrRoomClosed = errors.New("room is closed")
 
+// ErrInteractiveAttached is returned by ExecCommand when one or more
+// interactive clients are attached to the room. Structured exec and
+// interactive byte-streaming can't share the same bash safely, so the
+// caller should wait until the human detaches.
+var ErrInteractiveAttached = errors.New("interactive session attached; exec is disabled")
+
 // Manager binds the store to live pty sessions. It is the only writer to the
 // event log and owns the lifecycle of each room's bash process.
 type Manager struct {
@@ -51,8 +57,10 @@ type Manager struct {
 }
 
 type roomSession struct {
-	session *pty.Session
-	execMu  sync.Mutex // serialises Exec calls per room
+	session  *pty.Session
+	execMu   sync.Mutex // serialises Exec calls per room
+	ioMu     sync.Mutex // guards ioRefs
+	ioRefs   int        // number of attached interactive clients
 }
 
 // CreateRoomOptions parameterises Manager.CreateRoom.
@@ -163,6 +171,10 @@ func (m *Manager) ExecCommand(ctx context.Context, roomID, cmdLine string, opts 
 
 	rs.execMu.Lock()
 	defer rs.execMu.Unlock()
+
+	if rs.session.Interactive() {
+		return nil, ErrInteractiveAttached
+	}
 
 	cmdID := NewCommandID()
 	source := opts.Source
@@ -350,6 +362,90 @@ func (m *Manager) RecoverActiveRooms(ctx context.Context) error {
 		_ = m.store.AppendEvent(ctx, &Event{RoomID: r.ID, Type: EvtRoomClosed, Payload: payload})
 	}
 	return nil
+}
+
+// IOAttachment is what AttachIO hands back: a duplex byte interface to a
+// room's PTY plus a resize hook and a detach hook.
+type IOAttachment struct {
+	// Output streams raw PTY bytes as they arrive. Closed when the bash
+	// process exits or Detach is called.
+	Output <-chan []byte
+	// Stdin forwards raw bytes to the PTY (keystrokes from a human).
+	Stdin func(p []byte) error
+	// Resize changes the PTY window size.
+	Resize func(rows, cols uint16) error
+	// Detach releases this attachment. After Detach, Output is closed and
+	// Stdin / Resize return errors. The room's bash is left running unless
+	// this was the last attachment AND the caller also calls CloseRoom.
+	Detach func()
+}
+
+// AttachIO returns a duplex byte interface to the room. The first call
+// switches the underlying bash into interactive mode (echo on, normal PS1).
+// Subsequent calls share the same mode. When the last attachment Detaches,
+// bash is switched back to scripted (marker) mode.
+func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
+	m.mu.Lock()
+	rs, ok := m.sessions[roomID]
+	m.mu.Unlock()
+	if !ok {
+		return nil, ErrRoomClosed
+	}
+
+	rs.ioMu.Lock()
+	if rs.ioRefs == 0 {
+		// Briefly take execMu so we don't flip mode while a scripted Exec is
+		// in flight.
+		rs.execMu.Lock()
+		if err := rs.session.SetInteractive(true); err != nil {
+			rs.execMu.Unlock()
+			rs.ioMu.Unlock()
+			return nil, err
+		}
+		rs.execMu.Unlock()
+	}
+	rs.ioRefs++
+	rs.ioMu.Unlock()
+
+	sub, unsub := rs.session.Subscribe()
+	detached := false
+	detachOnce := sync.Once{}
+
+	detach := func() {
+		detachOnce.Do(func() {
+			detached = true
+			unsub()
+			rs.ioMu.Lock()
+			rs.ioRefs--
+			last := rs.ioRefs == 0
+			rs.ioMu.Unlock()
+			if last {
+				rs.execMu.Lock()
+				_ = rs.session.SetInteractive(false)
+				rs.execMu.Unlock()
+			}
+		})
+	}
+
+	stdin := func(p []byte) error {
+		if detached {
+			return ErrRoomClosed
+		}
+		return rs.session.WriteStdin(p)
+	}
+	resize := func(rows, cols uint16) error {
+		if detached {
+			return ErrRoomClosed
+		}
+		return rs.session.Resize(rows, cols)
+	}
+
+	return &IOAttachment{
+		Output: sub,
+		Stdin:  stdin,
+		Resize: resize,
+		Detach: detach,
+	}, nil
 }
 
 // --- internals ----------------------------------------------------------

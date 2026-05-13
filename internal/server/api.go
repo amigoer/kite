@@ -170,6 +170,8 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "room_not_found", fmt.Sprintf("Room %s does not exist", id))
 		case errors.Is(err, room.ErrRoomClosed):
 			writeError(w, http.StatusConflict, "room_closed", "Room is closed")
+		case errors.Is(err, room.ErrInteractiveAttached):
+			writeError(w, http.StatusConflict, "interactive_attached", "An interactive session is attached; exec is paused until it detaches")
 		case errors.Is(err, context.DeadlineExceeded):
 			writeError(w, http.StatusRequestTimeout, "timeout", "Command exceeded the requested timeout")
 		default:
