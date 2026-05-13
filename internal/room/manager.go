@@ -57,11 +57,18 @@ type Manager struct {
 }
 
 type roomSession struct {
-	session   *pty.Session
-	execMu    sync.Mutex // serialises Exec calls per room
-	ioMu      sync.Mutex // guards ioRefs / logStop
-	ioRefs    int        // number of attached interactive clients
-	logStop   func()     // unsubscribes the terminal.output logger; nil when not interactive
+	session     *pty.Session
+	execMu      sync.Mutex // serialises Exec calls per room
+	ioMu        sync.Mutex // guards ioRefs / logStop / clientSizes / nextAttachID
+	ioRefs      int        // number of attached interactive clients
+	logStop     func()     // unsubscribes the terminal.output logger; nil when not interactive
+	clientSizes map[int]winSize
+	nextAttachID int
+}
+
+type winSize struct {
+	rows uint16
+	cols uint16
 }
 
 // CreateRoomOptions parameterises Manager.CreateRoom.
@@ -158,7 +165,7 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 		return nil, err
 	}
 
-	rs := &roomSession{session: sess}
+	rs := &roomSession{session: sess, clientSizes: make(map[int]winSize)}
 	m.mu.Lock()
 	m.sessions[r.ID] = rs
 	m.mu.Unlock()
@@ -453,6 +460,8 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		}
 	}
 	rs.ioRefs++
+	attachID := rs.nextAttachID
+	rs.nextAttachID++
 	rs.ioMu.Unlock()
 
 	sub, unsub := rs.session.Subscribe()
@@ -467,15 +476,19 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 			rs.ioMu.Lock()
 			rs.ioRefs--
 			last := rs.ioRefs == 0
-			// For "native" rooms the logger is owned by the room itself and
-			// stays running until the room is closed; only attach-managed
-			// loggers (i.e. on scripted rooms) get torn down here.
+			delete(rs.clientSizes, attachID)
+			// Recompute the PTY size from the remaining clients so the room
+			// fits whoever's still watching.
+			newRows, newCols, ok := minSize(rs.clientSizes)
 			var stopLogger func()
 			if last && !isNative {
 				stopLogger = rs.logStop
 				rs.logStop = nil
 			}
 			rs.ioMu.Unlock()
+			if ok {
+				_ = rs.session.Resize(newRows, newCols)
+			}
 			if last && !isNative {
 				if stopLogger != nil {
 					stopLogger()
@@ -497,7 +510,14 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		if detached {
 			return ErrRoomClosed
 		}
-		return rs.session.Resize(rows, cols)
+		if rows == 0 || cols == 0 {
+			return nil
+		}
+		rs.ioMu.Lock()
+		rs.clientSizes[attachID] = winSize{rows: rows, cols: cols}
+		minR, minC, _ := minSize(rs.clientSizes)
+		rs.ioMu.Unlock()
+		return rs.session.Resize(minR, minC)
 	}
 
 	return &IOAttachment{
@@ -506,6 +526,27 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		Resize: resize,
 		Detach: detach,
 	}, nil
+}
+
+// minSize returns the cell-by-cell minimum (rows, cols) across all
+// attached clients. ok is true when at least one client has reported a
+// size. Used to keep the PTY narrow enough that starship / vim / less
+// don't wrap on the smallest viewer.
+func minSize(m map[int]winSize) (rows, cols uint16, ok bool) {
+	for _, w := range m {
+		if !ok {
+			rows, cols = w.rows, w.cols
+			ok = true
+			continue
+		}
+		if w.rows < rows {
+			rows = w.rows
+		}
+		if w.cols < cols {
+			cols = w.cols
+		}
+	}
+	return rows, cols, ok
 }
 
 // logTerminalOutput reads raw PTY bytes from sub and appends them as
