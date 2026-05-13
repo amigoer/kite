@@ -50,7 +50,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   // State
   const allEvents: BaseEvent[] = [];
   const allBlocks = new Map<string, CommandBlock>();
-  const terminal = new TerminalView();
+  let terminal: TerminalView | null = null;
   let room: Room | null = null;
   let mode: 'live' | 'terminal' | 'replay' = 'live';
   let stream: RoomStream | null = null;
@@ -60,22 +60,26 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
 
   const hasTerminalEvents = () => allEvents.some((e) => e.type === 'terminal.output');
 
+  const disposeTerminal = () => {
+    if (terminal) {
+      terminal.dispose();
+      terminal = null;
+    }
+  };
+
   const setMode = (next: 'live' | 'terminal' | 'replay') => {
+    if (mode === 'terminal' && next !== 'terminal') disposeTerminal();
     mode = next;
     liveBtn.className = next === 'live' ? 'primary' : '';
     termBtn.className = next === 'terminal' ? 'primary' : '';
     replayBtn.className = next === 'replay' ? 'primary' : '';
+    timelineHost.innerHTML = '';
+    searchHost.innerHTML = '';
+    timeline = null;
+    searchInput = null;
     if (next === 'live') {
-      timelineHost.innerHTML = '';
-      searchHost.innerHTML = '';
-      timeline = null;
-      searchInput = null;
       rebuildLive();
     } else if (next === 'terminal') {
-      timelineHost.innerHTML = '';
-      searchHost.innerHTML = '';
-      timeline = null;
-      searchInput = null;
       rebuildTerminal();
     } else {
       setupReplayUI();
@@ -103,8 +107,12 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   const rebuildTerminal = () => {
     blocksHost.innerHTML = '';
     allBlocks.clear();
-    terminal.reset();
+    // Always rebuild from scratch — xterm.js terminals are not reusable
+    // after their host element is detached from the DOM.
+    disposeTerminal();
+    terminal = new TerminalView();
     blocksHost.append(terminal.el);
+    terminal.reset();
     for (const ev of allEvents) terminal.applyEvent(ev);
   };
 
@@ -162,7 +170,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       if (mode === 'live') {
         applyEvent(allBlocks, blocksHost, msg.event);
       } else if (mode === 'terminal') {
-        terminal.applyEvent(msg.event);
+        terminal?.applyEvent(msg.event);
       } else {
         timeline?.update(allEvents);
       }
@@ -200,6 +208,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
 
   return () => {
     stream?.close();
+    disposeTerminal();
   };
 }
 

@@ -414,12 +414,23 @@ func (s *Session) SetInteractive(on bool) error {
 	// processes it as a fresh prompt.
 	var cfg string
 	if on {
-		// Restore echo, enable canonical line discipline, give bash a normal
-		// prompt. We intentionally use a simple PS1 so it works without the
-		// user's full bashrc.
-		cfg = "stty echo onlcr icanon 2>/dev/null; export PS1='\\u@\\h:\\w$ '; PS2='> '\n"
+		// Restore echo + line editing + a normal prompt. Source the user's
+		// interactive rc files (.bashrc / .bash_profile) so they get their
+		// aliases, prompt theme, PATH, etc. — making attach feel like their
+		// native terminal. The "2>/dev/null || true" prefixes keep us silent
+		// if those files don't exist or have noisy startup messages.
+		cfg = "stty echo onlcr icanon 2>/dev/null; " +
+			"export TERM=xterm-256color; " +
+			"export PS1='\\u@\\h:\\w$ '; PS2='> '; " +
+			"[ -r ~/.bashrc ] && . ~/.bashrc 2>/dev/null || true; " +
+			"[ -r ~/.bash_profile ] && . ~/.bash_profile 2>/dev/null || true\n"
 	} else {
-		cfg = "stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; unset PROMPT_COMMAND\n"
+		// Restore the scripted-mode environment: silence echo, blank prompts,
+		// drop any PROMPT_COMMAND that .bashrc may have set, and put TERM
+		// back to "dumb" so colour-producing commands don't litter the
+		// marker stream with ANSI escapes.
+		cfg = "stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; " +
+			"unset PROMPT_COMMAND; export TERM=dumb\n"
 	}
 	_, err := s.pty.Write([]byte(cfg))
 	return err
