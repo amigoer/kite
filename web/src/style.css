@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme="dark"] {
   --bg: #0d1117;
   --panel: #161b22;
   --panel-2: #1c232c;
@@ -10,7 +11,25 @@
   --success: #3fb950;
   --error: #f85149;
   --warn: #d29922;
+  --primary-fg: #ffffff;
+  --error-bg: rgba(248, 81, 73, 0.1);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --panel-2: #eaeef2;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-dim: #656d76;
+  --accent: #0969da;
+  --accent-dim: #0969da;
+  --success: #1a7f37;
+  --error: #cf222e;
+  --warn: #9a6700;
+  --primary-fg: #ffffff;
+  --error-bg: rgba(207, 34, 46, 0.08);
 }
 
 * {
@@ -43,8 +62,14 @@ button {
   cursor: pointer;
 }
 button:hover { background: var(--panel-2); border-color: var(--accent); }
-button.primary { background: var(--accent-dim); border-color: var(--accent-dim); color: white; }
+button.primary { background: var(--accent-dim); border-color: var(--accent-dim); color: var(--primary-fg); }
 button.primary:hover { background: var(--accent); border-color: var(--accent); }
+
+button.icon-btn {
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1;
+}
 
 input, select {
   background: var(--panel);
@@ -210,7 +235,7 @@ table.rooms .status-closed { color: var(--text-dim); }
 .search-row input { width: 100%; }
 
 .error-banner {
-  background: rgba(248, 81, 73, 0.1);
+  background: var(--error-bg);
   border: 1px solid var(--error);
   border-radius: 6px;
   padding: 10px 12px;
