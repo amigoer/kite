@@ -22,7 +22,7 @@ const (
 
 type wsInitMessage struct {
 	Type         string        `json:"type"` // "init"
-	Room         *room.Room    `json:"room"`
+	Room         any           `json:"room"`
 	RecentEvents []*room.Event `json:"recent_events"`
 }
 
@@ -69,7 +69,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	if err := sendJSON(ctx, conn, wsInitMessage{
 		Type:         "init",
-		Room:         rm,
+		Room:         s.roomResponse(ctx, rm),
 		RecentEvents: recent,
 	}); err != nil {
 		return

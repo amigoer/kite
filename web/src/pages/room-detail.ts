@@ -5,38 +5,51 @@ import { Timeline } from '../components/timeline';
 import { TerminalView } from '../components/terminal-view';
 import type { BaseEvent, Room, WSMessage } from '../types';
 
+type Mode = 'live' | 'terminal' | 'replay';
+
 export function renderRoomDetail(host: HTMLElement, roomId: string): () => void {
   host.innerHTML = '';
   const main = document.createElement('main');
+  main.className = 'room-detail';
   host.append(main);
+
+  // --- Header card ----------------------------------------------------
+  const card = document.createElement('div');
+  card.className = 'room-card';
+  main.append(card);
 
   const meta = document.createElement('div');
   meta.className = 'room-meta';
-  main.append(meta);
+  card.append(meta);
 
   const modeBar = document.createElement('div');
   modeBar.className = 'mode-bar';
-  main.append(modeBar);
+  card.append(modeBar);
 
-  const liveBtn = document.createElement('button');
-  liveBtn.textContent = '● Live';
-  liveBtn.className = 'primary';
-  modeBar.append(liveBtn);
+  // mode buttons live in a left-aligned group; back link is on the right.
+  const modeGroup = document.createElement('div');
+  modeGroup.className = 'mode-group';
+  modeBar.append(modeGroup);
 
-  const termBtn = document.createElement('button');
-  termBtn.textContent = 'Terminal';
-  modeBar.append(termBtn);
+  const liveBtn = makeBtn('● Live');
+  const termBtn = makeBtn('Terminal');
+  const replayBtn = makeBtn('Replay');
+  modeGroup.append(liveBtn, termBtn, replayBtn);
 
-  const replayBtn = document.createElement('button');
-  replayBtn.textContent = 'Replay';
-  modeBar.append(replayBtn);
+  const right = document.createElement('div');
+  right.className = 'mode-right';
+  modeBar.append(right);
+
+  const attachHint = document.createElement('span');
+  attachHint.className = 'attach-hint';
+  right.append(attachHint);
 
   const back = document.createElement('a');
   back.href = '#/rooms';
   back.textContent = '← back to rooms';
-  back.style.marginLeft = 'auto';
-  modeBar.append(back);
+  right.append(back);
 
+  // --- Body -----------------------------------------------------------
   const timelineHost = document.createElement('div');
   main.append(timelineHost);
 
@@ -45,21 +58,24 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   main.append(searchHost);
 
   const blocksHost = document.createElement('div');
+  blocksHost.className = 'blocks-host';
   main.append(blocksHost);
 
-  // State
+  // --- State ----------------------------------------------------------
   const allEvents: BaseEvent[] = [];
   const allBlocks = new Map<string, CommandBlock>();
   let terminal: TerminalView | null = null;
   let room: Room | null = null;
-  let mode: 'live' | 'terminal' | 'replay' = 'live';
+  let mode: Mode = 'live';
   let stream: RoomStream | null = null;
   let timeline: Timeline | null = null;
   let searchInput: HTMLInputElement | null = null;
-  let renderedCutoff = 0; // for replay rendering: events 0..cutoff have been laid out
+  let renderedCutoff = 0;
 
   const hasTerminalEvents = () => allEvents.some((e) => e.type === 'terminal.output');
+  const isInteractive = () => room?.mode === 'interactive';
 
+  // --- Mode handling --------------------------------------------------
   const disposeTerminal = () => {
     if (terminal) {
       terminal.dispose();
@@ -67,48 +83,85 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     }
   };
 
-  const setMode = (next: 'live' | 'terminal' | 'replay') => {
+  const setMode = (next: Mode) => {
     if (mode === 'terminal' && next !== 'terminal') disposeTerminal();
     mode = next;
-    liveBtn.className = next === 'live' ? 'primary' : '';
-    termBtn.className = next === 'terminal' ? 'primary' : '';
-    replayBtn.className = next === 'replay' ? 'primary' : '';
+    liveBtn.classList.toggle('primary', next === 'live');
+    termBtn.classList.toggle('primary', next === 'terminal');
+    replayBtn.classList.toggle('primary', next === 'replay');
+
     timelineHost.innerHTML = '';
     searchHost.innerHTML = '';
     timeline = null;
     searchInput = null;
-    if (next === 'live') {
-      rebuildLive();
-    } else if (next === 'terminal') {
-      rebuildTerminal();
-    } else {
-      setupReplayUI();
+
+    if (next === 'live') rebuildLive();
+    else if (next === 'terminal') rebuildTerminal();
+    else setupReplayUI();
+  };
+
+  const refreshModeBar = () => {
+    if (!room) return;
+    // Interactive rooms only make sense as a terminal — hide structured
+    // views. Scripted rooms show all three, with Terminal becoming visible
+    // only once we have terminal.output bytes to render.
+    const interactive = isInteractive();
+    liveBtn.style.display = interactive ? 'none' : '';
+    replayBtn.style.display = interactive ? 'none' : '';
+    termBtn.style.display = interactive || hasTerminalEvents() ? '' : 'none';
+    // Re-label for clarity.
+    termBtn.textContent = interactive ? '● Live' : 'Terminal';
+  };
+
+  // --- Header rendering ----------------------------------------------
+  const updateMeta = () => {
+    if (!room) return;
+    const interactive = isInteractive();
+    const statusActive = room.status === 'active';
+    const cwd = collapsedPath(room.cwd);
+    meta.innerHTML = `
+      <div class="meta-line">
+        <span class="status-pill ${statusActive ? 'on' : 'off'}">
+          <span class="status-dot"></span>${statusActive ? 'active' : 'closed'}
+        </span>
+        <span class="mode-pill ${interactive ? 'interactive' : 'scripted'}">
+          ${interactive ? 'interactive' : 'scripted'}
+        </span>
+        <code class="room-id" title="click to copy" data-id="${room.id}">${room.id}</code>
+        ${room.name ? `<span class="name">${escape(room.name)}</span>` : ''}
+      </div>
+      <div class="meta-line dim">
+        <span title="${escape(room.shell)}">${shellName(room.shell)}</span>
+        <span class="sep">·</span>
+        <span title="${escape(room.cwd)}">${cwd}</span>
+        ${!interactive ? `<span class="sep">·</span><span>${room.command_count ?? 0} command${(room.command_count ?? 0) === 1 ? '' : 's'}</span>` : ''}
+      </div>
+    `;
+    // Copy room id to clipboard on click.
+    const idEl = meta.querySelector<HTMLElement>('.room-id');
+    if (idEl) {
+      idEl.addEventListener('click', () => copyToClipboard(room!.id, idEl));
+    }
+    // Show CLI attach hint for active interactive rooms.
+    attachHint.innerHTML = '';
+    if (statusActive && interactive) {
+      attachHint.innerHTML = `<code>kite attach ${room.id}</code>`;
     }
   };
 
-  const updateMeta = () => {
-    if (!room) return;
-    const dot = room.status === 'active' ? '<span class="live-dot"></span>' : '<span class="live-dot dim"></span>';
-    meta.innerHTML = `
-      ${dot}<span class="${room.status === 'active' ? 'live' : 'closed'}">${room.status.toUpperCase()}</span>
-      <span class="label">id</span><span class="value" style="font-family:var(--mono)">${room.id}</span>
-      ${room.name ? `<span class="label">name</span><span class="value">${escape(room.name)}</span>` : ''}
-      <span class="label">cwd</span><span class="value">${escape(room.cwd)}</span>
-      <span class="label">commands</span><span class="value">${room.command_count}</span>
-    `;
-  };
-
+  // --- Renderers ------------------------------------------------------
   const rebuildLive = () => {
     blocksHost.innerHTML = '';
     allBlocks.clear();
     for (const ev of allEvents) applyEvent(allBlocks, blocksHost, ev);
+    if (!allBlocks.size) {
+      blocksHost.innerHTML = `<div class="empty">no commands yet — agents talk here via <code>POST /api/v1/rooms/${roomId}/exec</code></div>`;
+    }
   };
 
   const rebuildTerminal = () => {
     blocksHost.innerHTML = '';
     allBlocks.clear();
-    // Always rebuild from scratch — xterm.js terminals are not reusable
-    // after their host element is detached from the DOM.
     disposeTerminal();
     terminal = new TerminalView();
     blocksHost.append(terminal.el);
@@ -142,7 +195,6 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
 
   const renderReplayCutoff = (cutoff: number) => {
     if (cutoff < renderedCutoff) {
-      // Going backwards: rebuild from scratch up to cutoff.
       blocksHost.innerHTML = '';
       allBlocks.clear();
       for (let i = 0; i < cutoff; i++) applyEvent(allBlocks, blocksHost, allEvents[i]);
@@ -152,6 +204,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     renderedCutoff = cutoff;
   };
 
+  // --- Wiring ---------------------------------------------------------
   liveBtn.addEventListener('click', () => setMode('live'));
   termBtn.addEventListener('click', () => setMode('terminal'));
   replayBtn.addEventListener('click', () => setMode('replay'));
@@ -162,11 +215,16 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       updateMeta();
       allEvents.length = 0;
       allEvents.push(...msg.recent_events);
-      if (mode === 'live') rebuildLive();
+      refreshModeBar();
+      if (mode === 'live' && isInteractive()) {
+        // Auto-promote interactive rooms to Terminal mode.
+        setMode('terminal');
+      } else if (mode === 'live') rebuildLive();
       else if (mode === 'terminal') rebuildTerminal();
       else timeline?.update(allEvents);
     } else if (msg.type === 'event') {
       allEvents.push(msg.event);
+      refreshModeBar();
       if (mode === 'live') {
         applyEvent(allBlocks, blocksHost, msg.event);
       } else if (mode === 'terminal') {
@@ -177,10 +235,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     }
   };
 
-  // Initial load (covers the case where recent_events from WS init has been
-  // truncated). Also gives the user something even if WS fails. If the room
-  // has terminal.output events, default to Terminal view; otherwise show
-  // command blocks.
+  // --- Initial load --------------------------------------------------
   (async () => {
     try {
       room = await getRoom(roomId);
@@ -188,7 +243,8 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       const events = await getEvents(roomId, { limit: 100000 });
       allEvents.length = 0;
       allEvents.push(...events);
-      if (hasTerminalEvents()) {
+      refreshModeBar();
+      if (isInteractive() || hasTerminalEvents()) {
         setMode('terminal');
       } else {
         rebuildLive();
@@ -202,16 +258,56 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   stream = new RoomStream(roomId, { onMessage: handleWS });
   stream.connect();
 
-  // mode is set by the async initial-load handler based on whether the room
-  // has terminal.output events; the default state of mode='live' covers
-  // anything that races before the load completes.
-
   return () => {
     stream?.close();
     disposeTerminal();
   };
 }
 
+// --- helpers --------------------------------------------------------
+
+function makeBtn(text: string): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.textContent = text;
+  return b;
+}
+
 function escape(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function shellName(p: string): string {
+  if (!p) return 'shell';
+  const parts = p.split('/');
+  return parts[parts.length - 1] || p;
+}
+
+function collapsedPath(p: string): string {
+  if (!p) return '';
+  const home = guessHome();
+  if (home && p.startsWith(home)) return '~' + p.slice(home.length);
+  return p;
+}
+
+let cachedHome: string | null = null;
+function guessHome(): string | null {
+  if (cachedHome !== null) return cachedHome;
+  // The room's cwd often starts with /Users/foo or /home/foo. We can't ask
+  // the OS from the browser, but the path itself reveals it.
+  return (cachedHome = null);
+}
+
+function copyToClipboard(text: string, srcEl: HTMLElement) {
+  navigator.clipboard?.writeText(text).then(
+    () => {
+      const before = srcEl.textContent;
+      srcEl.textContent = 'copied!';
+      setTimeout(() => {
+        srcEl.textContent = before ?? text;
+      }, 900);
+    },
+    () => {
+      /* ignore */
+    },
+  );
 }

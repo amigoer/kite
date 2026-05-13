@@ -31,7 +31,13 @@ export function renderRoomsList(host: HTMLElement) {
     }
   });
 
-  headerBar.append(title, newBtn);
+  const hint = document.createElement('span');
+  hint.style.color = 'var(--text-dim)';
+  hint.style.fontSize = '12px';
+  hint.style.marginRight = '8px';
+  hint.innerHTML = `or <code style="background:var(--panel);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">kite shell</code> for an interactive room`;
+
+  headerBar.append(title, hint, newBtn);
   main.append(headerBar);
 
   const body = document.createElement('div');
@@ -63,9 +69,10 @@ function renderTable(host: HTMLElement, rooms: Room[]) {
     <thead>
       <tr>
         <th>ID</th>
+        <th>Mode</th>
         <th>Name</th>
         <th>Status</th>
-        <th>Commands</th>
+        <th>Activity</th>
         <th>Cwd</th>
         <th>Created</th>
       </tr>
@@ -77,17 +84,30 @@ function renderTable(host: HTMLElement, rooms: Room[]) {
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => (window.location.hash = `#/rooms/${r.id}`));
+    const mode = r.mode ?? 'scripted';
+    const activity = mode === 'interactive' ? '— terminal —' : `${r.command_count} cmd`;
     tr.innerHTML = `
       <td class="id"><a href="#/rooms/${r.id}">${r.id}</a></td>
+      <td><span class="mode-pill ${mode}">${mode}</span></td>
       <td>${escape(r.name ?? '')}</td>
       <td class="status-${r.status}">${r.status}</td>
-      <td>${r.command_count}</td>
+      <td>${activity}</td>
       <td>${escape(r.cwd)}</td>
-      <td>${new Date(r.created_at).toLocaleString()}</td>
+      <td>${formatTime(r.created_at)}</td>
     `;
     tbody.append(tr);
   }
   host.append(table);
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60_000) return 'just now';
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} min ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3600_000)} h ago`;
+  return d.toLocaleString();
 }
 
 function escape(s: string): string {

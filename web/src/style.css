@@ -105,6 +105,9 @@ main {
   max-width: 1100px;
   margin: 0 auto;
 }
+main.room-detail {
+  max-width: 1280px;
+}
 
 table.rooms {
   width: 100%;
@@ -127,26 +130,96 @@ table.rooms .status-closed { color: var(--text-dim); }
   color: var(--text-dim);
 }
 
+.room-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
 .room-meta {
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  color: var(--text-dim);
+  flex-direction: column;
+  gap: 6px;
   font-size: 13px;
-  margin-bottom: 18px;
 }
-.room-meta .live { color: var(--success); }
-.room-meta .closed { color: var(--text-dim); }
-.room-meta .label { color: var(--text-dim); }
-.room-meta .value { color: var(--text); }
+.room-meta .meta-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text);
+}
+.room-meta .meta-line.dim {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.room-meta .meta-line.dim .sep { opacity: 0.5; }
+.room-meta .name { color: var(--text-dim); font-style: italic; }
+
+.status-pill, .mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.status-pill .status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-dim);
+}
+.status-pill.on { color: var(--success); border-color: var(--success); }
+.status-pill.on .status-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent); }
+.status-pill.off { color: var(--text-dim); }
+.mode-pill.interactive { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.mode-pill.scripted { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); }
+
+.room-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: all;
+}
+.room-id:hover { color: var(--accent); border-color: var(--accent); }
 
 .mode-bar {
   display: flex;
-  gap: 8px;
-  padding: 12px 0;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0 0;
+  margin-top: 14px;
   border-top: 1px solid var(--border);
-  margin-top: 18px;
 }
+.mode-bar .mode-group { display: flex; gap: 6px; }
+.mode-bar .mode-right {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.mode-bar .mode-right a { color: var(--accent); font-size: 13px; }
+.mode-bar .attach-hint code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.blocks-host { min-height: 200px; }
 
 .cmd-block {
   background: var(--panel);
@@ -244,12 +317,14 @@ table.rooms .status-closed { color: var(--text-dim); }
 }
 
 .term-view {
-  margin-top: 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 12px 14px;
   background: var(--bg);
-  height: 65vh;
+  /* Fill the viewport minus header + meta card. */
+  height: calc(100vh - 240px);
+  min-height: 320px;
+  overflow: hidden;
 }
 :root[data-theme="light"] .term-view {
   background: #fafbfc;
@@ -258,6 +333,9 @@ table.rooms .status-closed { color: var(--text-dim); }
    our card border shows through cleanly. */
 .term-view .xterm {
   height: 100%;
+}
+.term-view .xterm .xterm-viewport {
+  background-color: transparent !important;
 }
 .term-view .xterm-screen,
 .term-view .xterm-viewport {

@@ -2,12 +2,15 @@
 
 export type RoomStatus = 'active' | 'closed';
 
+export type RoomMode = 'scripted' | 'interactive';
+
 export interface Room {
   id: string;
   name?: string;
   created_at: string;
   closed_at?: string | null;
   status: RoomStatus;
+  mode: RoomMode;
   cwd: string;
   shell: string;
   metadata?: Record<string, string>;

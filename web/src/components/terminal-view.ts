@@ -1,4 +1,5 @@
 import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { decodeBase64 } from '../ansi';
 import type { BaseEvent, TerminalOutputPayload } from '../types';
@@ -14,7 +15,9 @@ import type { BaseEvent, TerminalOutputPayload } from '../types';
 export class TerminalView {
   el: HTMLDivElement;
   private term: Terminal;
+  private fit: FitAddon;
   private mounted = false;
+  private ro: ResizeObserver | null = null;
 
   constructor() {
     this.el = document.createElement('div');
@@ -22,6 +25,7 @@ export class TerminalView {
 
     // Inherit the current page theme so the terminal blends in.
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    this.fit = new FitAddon();
     this.term = new Terminal({
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       fontSize: 13,
@@ -62,27 +66,24 @@ export class TerminalView {
   /** Mount the terminal into the DOM and size it. Idempotent. */
   private mount() {
     if (this.mounted) return;
+    this.term.loadAddon(this.fit);
     this.term.open(this.el);
-    this.fitToHost();
+    // First fit needs the layout pass to have happened.
+    requestAnimationFrame(() => {
+      try { this.fit.fit(); } catch { /* element not in DOM yet */ }
+    });
+    // Track container size changes (theme toggles, sidebar collapses, etc.).
+    this.ro = new ResizeObserver(() => {
+      try { this.fit.fit(); } catch { /* ignore */ }
+    });
+    this.ro.observe(this.el);
     window.addEventListener('resize', this.onResize);
     this.mounted = true;
   }
 
   private onResize = () => {
-    this.fitToHost();
+    try { this.fit.fit(); } catch { /* ignore */ }
   };
-
-  private fitToHost() {
-    // Estimate cell size from a hidden span; xterm.js exposes _core.actualCellWidth
-    // but that's private. The simple math here gives us a working layout
-    // without pulling in @xterm/addon-fit (which is 30KB on its own).
-    const rect = this.el.getBoundingClientRect();
-    const charWidth = 7.7; // approx for fontSize 13 monospace
-    const charHeight = 17;
-    const cols = Math.max(20, Math.floor(rect.width / charWidth));
-    const rows = Math.max(8, Math.floor(rect.height / charHeight));
-    this.term.resize(cols, rows);
-  }
 
   reset() {
     this.mount();
@@ -104,6 +105,8 @@ export class TerminalView {
 
   dispose() {
     window.removeEventListener('resize', this.onResize);
+    this.ro?.disconnect();
+    this.ro = null;
     this.term.dispose();
     this.mounted = false;
   }
