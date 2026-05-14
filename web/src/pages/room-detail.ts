@@ -1,5 +1,6 @@
 import { getRoom, getEvents } from '../api';
 import { RoomStream } from '../ws';
+import { RoomIO } from '../room-io';
 import { applyEvent, CommandBlock } from '../components/command-block';
 import { Timeline } from '../components/timeline';
 import { TerminalView } from '../components/terminal-view';
@@ -68,6 +69,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   let room: Room | null = null;
   let mode: Mode = 'live';
   let stream: RoomStream | null = null;
+  let io: RoomIO | null = null;
   let timeline: Timeline | null = null;
   let searchInput: HTMLInputElement | null = null;
   let renderedCutoff = 0;
@@ -81,7 +83,15 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       terminal.dispose();
       terminal = null;
     }
+    if (io) {
+      io.close();
+      io = null;
+    }
   };
+
+  /** True while we're hooked up to /io and rendering live PTY bytes from it
+   *  instead of from the slower /stream terminal.output events. */
+  let ioLive = false;
 
   const setMode = (next: Mode) => {
     if (mode === 'terminal' && next !== 'terminal') disposeTerminal();
@@ -89,6 +99,11 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     liveBtn.classList.toggle('primary', next === 'live');
     termBtn.classList.toggle('primary', next === 'terminal');
     replayBtn.classList.toggle('primary', next === 'replay');
+
+    // Toggle a class on <main> so CSS can switch to a viewport-locked flex
+    // layout in terminal mode (otherwise the page scrolls and rows can be
+    // clipped mid-cell at the boundary).
+    main.classList.toggle('terminal-mode', next === 'terminal');
 
     timelineHost.innerHTML = '';
     searchHost.innerHTML = '';
@@ -163,10 +178,58 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     blocksHost.innerHTML = '';
     allBlocks.clear();
     disposeTerminal();
-    terminal = new TerminalView();
+    ioLive = false;
+
+    // Only wire interactive input when the room is live (active) AND
+    // interactive. Closed rooms or scripted history views stay read-only.
+    const interactive = isInteractive() && room?.status === 'active';
+    const decoder = interactive ? new TextDecoder() : null;
+
+    terminal = new TerminalView({
+      onInput: interactive
+        ? (data) => {
+            io?.send(data);
+          }
+        : undefined,
+      onResize: interactive
+        ? (rows, cols) => {
+            io?.resize(rows, cols);
+          }
+        : undefined,
+    });
     blocksHost.append(terminal.el);
     terminal.reset();
     for (const ev of allEvents) terminal.applyEvent(ev);
+
+    // After history replay, snap to the latest line and re-fit once layout
+    // has settled (the flex container's height isn't final until the next
+    // paint).
+    requestAnimationFrame(() => {
+      terminal?.refit();
+      terminal?.scrollToBottom();
+    });
+
+    if (interactive) {
+      io = new RoomIO(roomId, {
+        onOpen: () => {
+          ioLive = true;
+          // Push our current dimensions; /stream events are now suppressed
+          // (we'll render directly from /io to avoid duplicate output).
+          const dim = terminal?.dimensions();
+          if (dim) io?.resize(dim.rows, dim.cols);
+        },
+        onOutput: (bytes) => {
+          if (!terminal || !decoder) return;
+          terminal.writeText(decoder.decode(bytes, { stream: true }));
+        },
+        onClose: () => {
+          ioLive = false;
+        },
+      });
+      io.connect();
+      // Focus the terminal so the user can just start typing.
+      requestAnimationFrame(() => terminal?.focus());
+    }
   };
 
   const setupReplayUI = () => {
@@ -228,7 +291,11 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       if (mode === 'live') {
         applyEvent(allBlocks, blocksHost, msg.event);
       } else if (mode === 'terminal') {
-        terminal?.applyEvent(msg.event);
+        // When /io is live, we already render PTY bytes directly from there;
+        // applying the persisted terminal.output event would double-render.
+        if (!(ioLive && msg.event.type === 'terminal.output')) {
+          terminal?.applyEvent(msg.event);
+        }
       } else {
         timeline?.update(allEvents);
       }
@@ -261,6 +328,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   return () => {
     stream?.close();
     disposeTerminal();
+    main.classList.remove('terminal-mode');
   };
 }
 

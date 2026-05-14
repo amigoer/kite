@@ -9,29 +9,43 @@ import type { BaseEvent, TerminalOutputPayload } from '../types';
  * renderer: backspace, cursor moves, line erase, ANSI colours, alt-screen
  * apps (vim/less/top) all render the way they do in a native terminal.
  *
- * It's display-only for now — the user can attach interactively from the
- * CLI for actual input.
+ * It can be either display-only (default) or interactive (pass `onInput`)
+ * — in the latter case keystrokes are routed back through the callback.
  */
+export interface TerminalViewOptions {
+  /** Wire stdin so the user can type into the terminal. */
+  onInput?: (data: string) => void;
+  /** Called when the terminal's cell dimensions change. */
+  onResize?: (rows: number, cols: number) => void;
+}
+
 export class TerminalView {
   el: HTMLDivElement;
   private term: Terminal;
   private fit: FitAddon;
   private mounted = false;
   private ro: ResizeObserver | null = null;
+  private onInput?: (data: string) => void;
+  private onResizeCb?: (rows: number, cols: number) => void;
+  private lastRows = 0;
+  private lastCols = 0;
 
-  constructor() {
+  constructor(opts: TerminalViewOptions = {}) {
     this.el = document.createElement('div');
     this.el.className = 'term-view';
+    this.onInput = opts.onInput;
+    this.onResizeCb = opts.onResize;
 
     // Inherit the current page theme so the terminal blends in.
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     this.fit = new FitAddon();
+    const interactive = Boolean(this.onInput);
     this.term = new Terminal({
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       fontSize: 13,
       convertEol: true, // treat \n as \r\n on write — friendlier for our streams
-      cursorBlink: false,
-      disableStdin: true,
+      cursorBlink: interactive,
+      disableStdin: !interactive,
       scrollback: 5000,
       theme: isLight
         ? {
@@ -68,6 +82,17 @@ export class TerminalView {
     if (this.mounted) return;
     this.term.loadAddon(this.fit);
     this.term.open(this.el);
+    if (this.onInput) {
+      this.term.onData((data) => this.onInput?.(data));
+    }
+    if (this.onResizeCb) {
+      this.term.onResize(({ rows, cols }) => {
+        if (rows === this.lastRows && cols === this.lastCols) return;
+        this.lastRows = rows;
+        this.lastCols = cols;
+        this.onResizeCb?.(rows, cols);
+      });
+    }
     // First fit needs the layout pass to have happened.
     requestAnimationFrame(() => {
       try { this.fit.fit(); } catch { /* element not in DOM yet */ }
@@ -77,13 +102,25 @@ export class TerminalView {
       try { this.fit.fit(); } catch { /* ignore */ }
     });
     this.ro.observe(this.el);
-    window.addEventListener('resize', this.onResize);
+    window.addEventListener('resize', this.onWinResize);
     this.mounted = true;
   }
 
-  private onResize = () => {
+  private onWinResize = () => {
     try { this.fit.fit(); } catch { /* ignore */ }
   };
+
+  /** Move keyboard focus into the terminal so keystrokes flow. */
+  focus() {
+    if (!this.mounted) return;
+    this.term.focus();
+  }
+
+  /** Current cell dimensions, or null if not yet measured. */
+  dimensions(): { rows: number; cols: number } | null {
+    if (!this.lastRows || !this.lastCols) return null;
+    return { rows: this.lastRows, cols: this.lastCols };
+  }
 
   reset() {
     this.mount();
@@ -103,8 +140,20 @@ export class TerminalView {
     this.writeText(decodeBase64(p.data));
   }
 
+  /** Scroll the viewport to the latest line. */
+  scrollToBottom() {
+    if (!this.mounted) return;
+    this.term.scrollToBottom();
+  }
+
+  /** Force a re-fit. Useful after parent flexbox changes shape. */
+  refit() {
+    if (!this.mounted) return;
+    try { this.fit.fit(); } catch { /* ignore */ }
+  }
+
   dispose() {
-    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('resize', this.onWinResize);
     this.ro?.disconnect();
     this.ro = null;
     this.term.dispose();

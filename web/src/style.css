@@ -109,6 +109,32 @@ main.room-detail {
   max-width: 1280px;
 }
 
+/* Terminal mode locks the page to the viewport so the terminal can fill
+   the leftover area precisely — no page scroll, no half-clipped rows. */
+main.room-detail.terminal-mode {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 50px); /* viewport minus the top header */
+  padding: 16px 24px;
+  gap: 12px;
+  overflow: hidden;
+}
+main.room-detail.terminal-mode .room-card {
+  margin-bottom: 0;
+  padding: 10px 14px;
+  flex: 0 0 auto;
+}
+main.room-detail.terminal-mode .mode-bar {
+  padding: 8px 0 0;
+  margin-top: 10px;
+}
+main.room-detail.terminal-mode .blocks-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 table.rooms {
   width: 100%;
   border-collapse: collapse;
@@ -319,12 +345,18 @@ table.rooms .status-closed { color: var(--text-dim); }
 .term-view {
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 8px 12px;
   background: var(--bg);
-  /* Fill the viewport minus header + meta card. */
+  /* In terminal-mode, this gets stretched by flexbox. Otherwise (legacy
+     scripted history view) fall back to a viewport-relative height. */
   height: calc(100vh - 240px);
   min-height: 320px;
   overflow: hidden;
+}
+main.room-detail.terminal-mode .term-view {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 :root[data-theme="light"] .term-view {
   background: #fafbfc;

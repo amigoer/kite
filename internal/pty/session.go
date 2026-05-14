@@ -284,9 +284,20 @@ func (s *Session) readLoop() {
 	for {
 		n, err := s.pty.Read(buf)
 		if n > 0 {
+			out := buf[:n]
+			if s.interactive.Load() {
+				// `clear` in modern terminfo sends `\x1b[H\x1b[2J\x1b[3J` —
+				// cursor home, erase screen, then erase scrollback. The
+				// scrollback wipe is the "extension" bit; stripping it
+				// preserves history in xterm.js / Terminal.app while still
+				// scrolling the visible screen out of view. The DB event log
+				// is untouched at the event layer — only what's broadcast to
+				// live subscribers is filtered.
+				out = stripScrollbackClear(out)
+			}
 			// Broadcast a copy to every subscriber first; they get raw bytes
 			// regardless of marker mode.
-			s.broadcast(buf[:n])
+			s.broadcast(out)
 			if s.interactive.Load() {
 				// Raw passthrough: don't touch carry at all. Drain it (in case
 				// we just flipped modes) so we don't replay old buffered data.
@@ -307,6 +318,19 @@ func (s *Session) readLoop() {
 			return
 		}
 	}
+}
+
+// scrollbackClear is the ANSI sequence the `clear` command sends to wipe
+// the terminal's scrollback buffer (an xterm extension; see ECMA-48 ED 3).
+// We strip it from interactive PTY output so users can scroll back even
+// after `clear`.
+var scrollbackClear = []byte{0x1b, '[', '3', 'J'}
+
+func stripScrollbackClear(p []byte) []byte {
+	if !bytes.Contains(p, scrollbackClear) {
+		return p
+	}
+	return bytes.ReplaceAll(p, scrollbackClear, nil)
 }
 
 // broadcast sends a copy of data to every subscriber. Slow subscribers
@@ -459,12 +483,18 @@ func (s *Session) Subscribe() (<-chan []byte, func()) {
 
 // SetInteractive flips the session into raw-passthrough mode. When on, the
 // readLoop skips marker parsing and emits no events for the current Exec
-// (callers must use Subscribe instead). Bash config (echo, PS1) is also
-// reconfigured so an attached human sees a normal prompt.
+// (callers must use Subscribe instead).
+//
+// For scripted sessions, "on" spawns the user's native $SHELL as a child
+// of the underlying bash so an attached human sees their real shell —
+// zsh with starship, .zshrc loaded, aliases and all — exactly like a
+// fresh Terminal.app tab. Crucially we don't `exec`: when the user
+// detaches and we feed `exit\n` to the PTY, the child shell terminates
+// and bash regains control, so the marker protocol stays intact for any
+// subsequent agent kite-exec calls.
 //
 // On native sessions (started via Options.Native), this is a no-op: the
-// shell is already in its own native interactive mode and we don't want to
-// muck with its echo / prompt settings.
+// shell is already in its own native interactive mode.
 func (s *Session) SetInteractive(on bool) error {
 	if s.native() {
 		// Always interactive; pretend the flip succeeded.
@@ -480,27 +510,39 @@ func (s *Session) SetInteractive(on bool) error {
 	if prev == on {
 		return nil
 	}
-	// Use a here-doc-style configuration that's safe to write at any moment:
-	// bash buffers it until the current command (if any) ends and then
-	// processes it as a fresh prompt.
+	// Writes here go into bash's stdin. bash buffers them until any
+	// currently-running command finishes and then processes them as a
+	// fresh prompt.
 	var cfg string
 	if on {
-		// Restore echo + line editing + a normal prompt. Source the user's
-		// interactive rc files (.bashrc / .bash_profile) so they get their
-		// aliases, prompt theme, PATH, etc. — making attach feel like their
-		// native terminal. The "2>/dev/null || true" prefixes keep us silent
-		// if those files don't exist or have noisy startup messages.
-		cfg = "stty echo onlcr icanon 2>/dev/null; " +
-			"export TERM=xterm-256color; " +
-			"export PS1='\\u@\\h:\\w$ '; PS2='> '; " +
-			"[ -r ~/.bashrc ] && . ~/.bashrc 2>/dev/null || true; " +
-			"[ -r ~/.bash_profile ] && . ~/.bash_profile 2>/dev/null || true\n"
+		// Spawn the user's native shell as a child of bash. -i makes it
+		// interactive; -l makes it a login shell so it reads ~/.zprofile,
+		// /etc/profile, etc. — matching what a new terminal tab does.
+		//
+		// Two subtleties:
+		//  1. We *unset* PS1/PS2/PROMPT_COMMAND before fork so the child
+		//     doesn't inherit the empty scripted-mode prompt. Without this,
+		//     the child shell starts with PS1='' and the user sees no
+		//     prompt at all — the shell is running, just invisible.
+		//  2. We bump TERM up to xterm-256color so colour, readline editing,
+		//     and alt-screen apps (vim, less, top) behave like a real tab.
+		// stty restores cooked mode (echo + line-buffered + CRLF on output)
+		// for the user's typing; the spawned shell will (re)set anything
+		// else it cares about on startup.
+		userShell := os.Getenv("SHELL")
+		if userShell == "" {
+			userShell = "/bin/bash"
+		}
+		cfg = "stty echo onlcr icanon 2>/dev/null\n" +
+			"unset PS1 PS2 PROMPT_COMMAND\n" +
+			"export TERM=xterm-256color\n" +
+			userShell + " -il\n"
 	} else {
-		// Restore the scripted-mode environment: silence echo, blank prompts,
-		// drop any PROMPT_COMMAND that .bashrc may have set, and put TERM
-		// back to "dumb" so colour-producing commands don't litter the
-		// marker stream with ANSI escapes.
-		cfg = "stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; " +
+		// Detach: exit the user's shell first so bash gets the PTY back,
+		// then restore the scripted-mode environment (silent echo, blank
+		// prompts, TERM=dumb) so the marker protocol works again.
+		cfg = "exit\n" +
+			"stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; " +
 			"unset PROMPT_COMMAND; export TERM=dumb\n"
 	}
 	_, err := s.pty.Write([]byte(cfg))

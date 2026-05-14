@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -200,10 +201,23 @@ func runAttach(cmd *cobra.Command, c *client.Client, roomID string) error {
 				if escErr, ok := err.(escapeAction); ok {
 					switch escErr {
 					case actionDetach:
-						reason <- attachReason{"detached.", false}
+						// Immediate feedback while still in raw mode so the user
+						// sees something the instant they hit Ctrl+A d.
+						fmt.Fprintf(out, "\r\n\x1b[36m[detaching from %s…]\x1b[0m\r\n", roomID)
+						reason <- attachReason{
+							msg: fmt.Sprintf(
+								"\x1b[36m✓ detached from %s.\x1b[0m  reattach with \x1b[1mkite attach %s\x1b[0m",
+								roomID, roomID,
+							),
+							remote: false,
+						}
 					case actionKill:
+						fmt.Fprintf(out, "\r\n\x1b[33m[closing %s…]\x1b[0m\r\n", roomID)
 						_ = c.CloseRoom(context.Background(), roomID)
-						reason <- attachReason{"closed.", false}
+						reason <- attachReason{
+							msg:    fmt.Sprintf("\x1b[33m✓ closed room %s.\x1b[0m", roomID),
+							remote: false,
+						}
 					case actionHelp:
 						printAttachHelp(out)
 						continue
@@ -226,7 +240,13 @@ func runAttach(cmd *cobra.Command, c *client.Client, roomID string) error {
 		for {
 			typ, data, err := conn.Read(ctx)
 			if err != nil {
-				reason <- attachReason{"connection closed.", true}
+				reason <- attachReason{
+					msg: fmt.Sprintf(
+						"\x1b[31m✗ connection to %s lost.\x1b[0m  is the daemon still running?",
+						roomID,
+					),
+					remote: true,
+				}
 				return
 			}
 			if typ != websocket.MessageBinary {
@@ -315,7 +335,10 @@ func dialRoomIO(ctx context.Context, base, roomID string) (*websocket.Conn, erro
 	case "https":
 		u.Scheme = "wss"
 	}
-	u.Path = "/api/v1/rooms/" + roomID + "/io"
+	// Preserve any existing prefix (e.g. /d/<daemon> when routing through
+	// a hub); append the API path onto it instead of replacing.
+	prefix := strings.TrimRight(u.Path, "/")
+	u.Path = prefix + "/api/v1/rooms/" + roomID + "/io"
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect to room: %w", err)

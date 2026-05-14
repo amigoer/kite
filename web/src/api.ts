@@ -1,4 +1,5 @@
 import type { Room, BaseEvent } from './types';
+import { apiURL } from './config';
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -6,8 +7,8 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(input, init);
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(apiURL(path), init);
   if (!r.ok) {
     let code = 'http_error';
     let msg = r.statusText;

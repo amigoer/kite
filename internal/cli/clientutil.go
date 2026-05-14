@@ -9,17 +9,31 @@ import (
 	"github.com/amigoer/kite/internal/client"
 )
 
-// clientFromFlags builds a Client honoring --host / --port.
+// clientFromFlags builds a Client honoring --host / --port / --daemon /
+// --scheme. When --daemon is set, requests target a kite-hub at
+// http(s)://host:port/d/<name>/...
 func clientFromFlags(cmd *cobra.Command) *client.Client {
 	host, _ := cmd.Flags().GetString("host")
 	port, _ := cmd.Flags().GetInt("port")
+	scheme, _ := cmd.Flags().GetString("scheme")
+	daemon, _ := cmd.Flags().GetString("daemon")
+
 	if host == "" {
 		host = "127.0.0.1"
 	}
 	if port == 0 {
 		port = 8787
 	}
-	return client.New(fmt.Sprintf("http://%s:%d", host, port))
+	if scheme == "" {
+		// Default to http for the typical local-daemon case; users
+		// hitting a public hub will set --scheme https.
+		scheme = "http"
+	}
+	base := fmt.Sprintf("%s://%s:%d", scheme, host, port)
+	if daemon != "" {
+		base += "/d/" + daemon
+	}
+	return client.New(base)
 }
 
 // hintIfUnreachable wraps an error with a "did you start the daemon?" hint.

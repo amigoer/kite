@@ -66,3 +66,30 @@ func TestMarkerRegexFindsInMiddleOfStream(t *testing.T) {
 		t.Errorf("post-marker: %q", stream[idx[1]:])
 	}
 }
+
+func TestStripScrollbackClear(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"no_clear", "hello world", "hello world"},
+		{"just_clear_scrollback", "\x1b[3J", ""},
+		{"full_clear", "\x1b[H\x1b[2J\x1b[3J", "\x1b[H\x1b[2J"},
+		{"clear_amid_output", "before\x1b[3Jafter", "beforeafter"},
+		{"multiple_clears", "a\x1b[3Jb\x1b[3Jc", "abc"},
+		// We must NOT touch the "erase screen" sequence — only the
+		// scrollback extension. Otherwise `clear` wouldn't visibly clear.
+		{"keep_erase_screen", "\x1b[2J", "\x1b[2J"},
+		// Don't get fooled by lookalikes.
+		{"keep_other_csi", "\x1b[3K", "\x1b[3K"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := string(stripScrollbackClear([]byte(tc.in)))
+			if got != tc.want {
+				t.Errorf("stripScrollbackClear(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}

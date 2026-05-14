@@ -20,11 +20,14 @@ func NewRootCommand(version string) *cobra.Command {
 		Version:       version,
 	}
 
-	root.PersistentFlags().String("host", defaultHost, "daemon host")
-	root.PersistentFlags().Int("port", defaultPort, "daemon port")
+	root.PersistentFlags().String("host", defaultHost, "daemon (or hub) host")
+	root.PersistentFlags().Int("port", defaultPort, "daemon (or hub) port")
+	root.PersistentFlags().String("scheme", "http", "URL scheme: http or https (use https for a hub behind TLS)")
+	root.PersistentFlags().String("daemon", "", "when talking to a hub, route to this daemon name (becomes /d/<name>/ prefix)")
 
 	root.AddCommand(newVersionCmd(version))
 	root.AddCommand(newServeCmd(version))
+	root.AddCommand(newHubCmd())
 	root.AddCommand(newShellCmd())
 	root.AddCommand(newAttachCmd())
 	root.AddCommand(newRoomCmd())

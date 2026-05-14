@@ -293,6 +293,12 @@ func TestTimeoutReturnsRequestTimeout(t *testing.T) {
 // running command, and verify a parallel HTTP Exec is rejected with 409
 // while the interactive session is attached.
 func TestInteractiveIO(t *testing.T) {
+	// SetInteractive now spawns the user's $SHELL as a child of bash so
+	// attached humans see their real shell. Pin SHELL to bash inside the
+	// test so prompt-matching stays deterministic regardless of the dev
+	// machine's $SHELL.
+	t.Setenv("SHELL", "/bin/bash")
+
 	s := newStack(t)
 	c := client.New(s.httpURL)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

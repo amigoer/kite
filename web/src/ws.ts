@@ -1,4 +1,5 @@
 import type { WSMessage } from './types';
+import { wsURL } from './config';
 
 export interface StreamHandlers {
   onMessage: (msg: WSMessage) => void;
@@ -14,8 +15,7 @@ export class RoomStream {
   constructor(private roomId: string, private handlers: StreamHandlers) {}
 
   connect() {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${proto}//${window.location.host}/api/v1/rooms/${this.roomId}/stream`;
+    const url = wsURL(`/api/v1/rooms/${this.roomId}/stream`);
     const ws = new WebSocket(url);
     this.ws = ws;
 
