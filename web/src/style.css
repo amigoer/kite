@@ -203,8 +203,27 @@ table.rooms .status-closed { color: var(--text-dim); }
 .status-pill.on { color: var(--success); border-color: var(--success); }
 .status-pill.on .status-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent); }
 .status-pill.off { color: var(--text-dim); }
-.mode-pill.interactive { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
-.mode-pill.scripted { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); }
+.writer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.writer-pill.busy {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+.take-control {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
 
 .room-id {
   font-family: var(--mono);

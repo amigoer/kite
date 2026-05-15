@@ -69,10 +69,9 @@ function renderTable(host: HTMLElement, rooms: Room[]) {
     <thead>
       <tr>
         <th>ID</th>
-        <th>Mode</th>
         <th>Name</th>
         <th>Status</th>
-        <th>Activity</th>
+        <th>Commands</th>
         <th>Cwd</th>
         <th>Created</th>
       </tr>
@@ -84,14 +83,11 @@ function renderTable(host: HTMLElement, rooms: Room[]) {
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => (window.location.hash = `#/rooms/${r.id}`));
-    const mode = r.mode ?? 'scripted';
-    const activity = mode === 'interactive' ? '— terminal —' : `${r.command_count} cmd`;
     tr.innerHTML = `
       <td class="id"><a href="#/rooms/${r.id}">${r.id}</a></td>
-      <td><span class="mode-pill ${mode}">${mode}</span></td>
       <td>${escape(r.name ?? '')}</td>
       <td class="status-${r.status}">${r.status}</td>
-      <td>${activity}</td>
+      <td>${r.command_count}</td>
       <td>${escape(r.cwd)}</td>
       <td>${formatTime(r.created_at)}</td>
     `;

@@ -2,15 +2,12 @@
 
 export type RoomStatus = 'active' | 'closed';
 
-export type RoomMode = 'scripted' | 'interactive';
-
 export interface Room {
   id: string;
   name?: string;
   created_at: string;
   closed_at?: string | null;
   status: RoomStatus;
-  mode: RoomMode;
   cwd: string;
   shell: string;
   metadata?: Record<string, string>;
@@ -25,8 +22,8 @@ export type EventType =
   | 'command.output'
   | 'command.finished'
   | 'terminal.output'
-  | 'participant.joined'
-  | 'participant.left';
+  | 'write.claimed'
+  | 'write.released';
 
 export interface BaseEvent {
   id: number;
@@ -68,10 +65,28 @@ export interface RoomClosedPayload {
   reason?: string;
 }
 
+export interface WriteHolder {
+  id: string;
+  kind: string; // "exec" | "attach" | "ws"
+  label?: string;
+}
+
+export interface WriteClaimedPayload {
+  holder_id: string;
+  kind: string;
+  label?: string;
+}
+
+export interface WriteReleasedPayload {
+  holder_id: string;
+}
+
 export interface WSInitMessage {
   type: 'init';
+  role: 'read' | 'write';
   room: Room;
   recent_events: BaseEvent[];
+  current_writer: WriteHolder | null;
 }
 
 export interface WSEventMessage {
@@ -79,4 +94,19 @@ export interface WSEventMessage {
   event: BaseEvent;
 }
 
-export type WSMessage = WSInitMessage | WSEventMessage;
+export interface WSClaimChangedMessage {
+  type: 'claim_changed';
+  holder: WriteHolder | null;
+}
+
+export interface WSErrorMessage {
+  type: 'error';
+  code: string;
+  message: string;
+}
+
+export type WSMessage =
+  | WSInitMessage
+  | WSEventMessage
+  | WSClaimChangedMessage
+  | WSErrorMessage;

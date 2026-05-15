@@ -7,6 +7,12 @@ export interface StreamHandlers {
   onClose?: () => void;
 }
 
+/**
+ * RoomStream subscribes to the unified /ws endpoint with role=read. The
+ * daemon sends a mix of text JSON frames (init / event / claim_changed /
+ * error) and binary frames (raw PTY bytes); this stream only consumes the
+ * JSON channel. Use RoomIO for the byte pipe.
+ */
 export class RoomStream {
   private ws: WebSocket | null = null;
   private closed = false;
@@ -15,12 +21,15 @@ export class RoomStream {
   constructor(private roomId: string, private handlers: StreamHandlers) {}
 
   connect() {
-    const url = wsURL(`/api/v1/rooms/${this.roomId}/stream`);
+    const url = wsURL(`/api/v1/rooms/${this.roomId}/ws?role=read`);
     const ws = new WebSocket(url);
     this.ws = ws;
 
     ws.addEventListener('open', () => this.handlers.onOpen?.());
     ws.addEventListener('message', (ev) => {
+      // Ignore binary frames — those are the live PTY byte stream and are
+      // handled by RoomIO when the user enters terminal mode.
+      if (typeof ev.data !== 'string') return;
       try {
         const msg = JSON.parse(ev.data) as WSMessage;
         this.handlers.onMessage(msg);

@@ -4,7 +4,7 @@ import { RoomIO } from '../room-io';
 import { applyEvent, CommandBlock } from '../components/command-block';
 import { Timeline } from '../components/timeline';
 import { TerminalView } from '../components/terminal-view';
-import type { BaseEvent, Room, WSMessage } from '../types';
+import type { BaseEvent, Room, WriteHolder, WSMessage } from '../types';
 
 type Mode = 'live' | 'terminal' | 'replay';
 
@@ -41,6 +41,14 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   right.className = 'mode-right';
   modeBar.append(right);
 
+  const writerPill = document.createElement('span');
+  writerPill.className = 'writer-pill';
+  right.append(writerPill);
+
+  const takeControlBtn = makeBtn('Take control');
+  takeControlBtn.className = 'take-control';
+  right.append(takeControlBtn);
+
   const attachHint = document.createElement('span');
   attachHint.className = 'attach-hint';
   right.append(attachHint);
@@ -73,9 +81,10 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   let timeline: Timeline | null = null;
   let searchInput: HTMLInputElement | null = null;
   let renderedCutoff = 0;
+  let currentWriter: WriteHolder | null = null;
+  let wantsWrite = false;
 
   const hasTerminalEvents = () => allEvents.some((e) => e.type === 'terminal.output');
-  const isInteractive = () => room?.mode === 'interactive';
 
   // --- Mode handling --------------------------------------------------
   const disposeTerminal = () => {
@@ -113,34 +122,53 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     if (next === 'live') rebuildLive();
     else if (next === 'terminal') rebuildTerminal();
     else setupReplayUI();
+    updateWriterUI();
   };
 
   const refreshModeBar = () => {
     if (!room) return;
-    // Interactive rooms only make sense as a terminal — hide structured
-    // views. Scripted rooms show all three, with Terminal becoming visible
-    // only once we have terminal.output bytes to render.
-    const interactive = isInteractive();
-    liveBtn.style.display = interactive ? 'none' : '';
-    replayBtn.style.display = interactive ? 'none' : '';
-    termBtn.style.display = interactive || hasTerminalEvents() ? '' : 'none';
-    // Re-label for clarity.
-    termBtn.textContent = interactive ? '● Live' : 'Terminal';
+    // All three views are always available; Terminal becomes the most
+    // useful once there's PTY activity to render. We don't hide buttons
+    // anymore — the user picks.
+    liveBtn.style.display = '';
+    termBtn.style.display = '';
+    replayBtn.style.display = '';
+    termBtn.textContent = 'Terminal';
+  };
+
+  const updateWriterUI = () => {
+    if (!room) return;
+    if (currentWriter) {
+      const who = currentWriter.label || currentWriter.id;
+      writerPill.textContent = `writer: ${who} (${currentWriter.kind})`;
+      writerPill.classList.add('busy');
+    } else {
+      writerPill.textContent = 'idle';
+      writerPill.classList.remove('busy');
+    }
+    // Take-control is only meaningful in Terminal mode on an active room.
+    const canControl = room.status === 'active' && mode === 'terminal';
+    takeControlBtn.style.display = canControl ? '' : 'none';
+    if (!canControl) return;
+    if (wantsWrite) {
+      // We currently hold (or are queued for) the claim — offer release.
+      takeControlBtn.textContent = currentWriter ? 'Release control' : 'Waiting for claim…';
+      takeControlBtn.disabled = !currentWriter;
+    } else {
+      takeControlBtn.textContent = currentWriter ? 'Take control (queue)' : 'Take control';
+      takeControlBtn.disabled = false;
+    }
   };
 
   // --- Header rendering ----------------------------------------------
   const updateMeta = () => {
     if (!room) return;
-    const interactive = isInteractive();
     const statusActive = room.status === 'active';
     const cwd = collapsedPath(room.cwd);
     meta.innerHTML = `
       <div class="meta-line">
         <span class="status-pill ${statusActive ? 'on' : 'off'}">
           <span class="status-dot"></span>${statusActive ? 'active' : 'closed'}
-        </span>
-        <span class="mode-pill ${interactive ? 'interactive' : 'scripted'}">
-          ${interactive ? 'interactive' : 'scripted'}
         </span>
         <code class="room-id" title="click to copy" data-id="${room.id}">${room.id}</code>
         ${room.name ? `<span class="name">${escape(room.name)}</span>` : ''}
@@ -149,19 +177,15 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
         <span title="${escape(room.shell)}">${shellName(room.shell)}</span>
         <span class="sep">·</span>
         <span title="${escape(room.cwd)}">${cwd}</span>
-        ${!interactive ? `<span class="sep">·</span><span>${room.command_count ?? 0} command${(room.command_count ?? 0) === 1 ? '' : 's'}</span>` : ''}
+        <span class="sep">·</span>
+        <span>${room.command_count ?? 0} command${(room.command_count ?? 0) === 1 ? '' : 's'}</span>
       </div>
     `;
-    // Copy room id to clipboard on click.
     const idEl = meta.querySelector<HTMLElement>('.room-id');
     if (idEl) {
       idEl.addEventListener('click', () => copyToClipboard(room!.id, idEl));
     }
-    // Show CLI attach hint for active interactive rooms.
-    attachHint.innerHTML = '';
-    if (statusActive && interactive) {
-      attachHint.innerHTML = `<code>kite attach ${room.id}</code>`;
-    }
+    attachHint.innerHTML = statusActive ? `<code>kite attach ${room.id}</code>` : '';
   };
 
   // --- Renderers ------------------------------------------------------
@@ -180,18 +204,16 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     disposeTerminal();
     ioLive = false;
 
-    // Only wire interactive input when the room is live (active) AND
-    // interactive. Closed rooms or scripted history views stay read-only.
-    const interactive = isInteractive() && room?.status === 'active';
-    const decoder = interactive ? new TextDecoder() : null;
+    const writable = wantsWrite && room?.status === 'active';
+    const decoder = writable ? new TextDecoder() : null;
 
     terminal = new TerminalView({
-      onInput: interactive
+      onInput: writable
         ? (data) => {
             io?.send(data);
           }
         : undefined,
-      onResize: interactive
+      onResize: writable
         ? (rows, cols) => {
             io?.resize(rows, cols);
           }
@@ -201,20 +223,15 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     terminal.reset();
     for (const ev of allEvents) terminal.applyEvent(ev);
 
-    // After history replay, snap to the latest line and re-fit once layout
-    // has settled (the flex container's height isn't final until the next
-    // paint).
     requestAnimationFrame(() => {
       terminal?.refit();
       terminal?.scrollToBottom();
     });
 
-    if (interactive) {
+    if (writable) {
       io = new RoomIO(roomId, {
         onOpen: () => {
           ioLive = true;
-          // Push our current dimensions; /stream events are now suppressed
-          // (we'll render directly from /io to avoid duplicate output).
           const dim = terminal?.dimensions();
           if (dim) io?.resize(dim.rows, dim.cols);
         },
@@ -222,14 +239,20 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
           if (!terminal || !decoder) return;
           terminal.writeText(decoder.decode(bytes, { stream: true }));
         },
+        onClaimChanged: (holder) => {
+          currentWriter = holder;
+          updateWriterUI();
+        },
         onClose: () => {
           ioLive = false;
+          wantsWrite = false;
+          updateWriterUI();
         },
       });
       io.connect();
-      // Focus the terminal so the user can just start typing.
       requestAnimationFrame(() => terminal?.focus());
     }
+    updateWriterUI();
   };
 
   const setupReplayUI = () => {
@@ -272,17 +295,30 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   termBtn.addEventListener('click', () => setMode('terminal'));
   replayBtn.addEventListener('click', () => setMode('replay'));
 
+  takeControlBtn.addEventListener('click', () => {
+    if (wantsWrite) {
+      // Release: close the RoomIO, drop out of writable mode, re-render
+      // terminal read-only.
+      wantsWrite = false;
+      rebuildTerminal();
+      return;
+    }
+    // Acquire: switch into writable mode and let RoomIO queue for the claim.
+    wantsWrite = true;
+    if (mode !== 'terminal') setMode('terminal');
+    else rebuildTerminal();
+  });
+
   const handleWS = (msg: WSMessage) => {
     if (msg.type === 'init') {
       room = msg.room;
+      currentWriter = msg.current_writer;
       updateMeta();
+      updateWriterUI();
       allEvents.length = 0;
       allEvents.push(...msg.recent_events);
       refreshModeBar();
-      if (mode === 'live' && isInteractive()) {
-        // Auto-promote interactive rooms to Terminal mode.
-        setMode('terminal');
-      } else if (mode === 'live') rebuildLive();
+      if (mode === 'live') rebuildLive();
       else if (mode === 'terminal') rebuildTerminal();
       else timeline?.update(allEvents);
     } else if (msg.type === 'event') {
@@ -291,14 +327,17 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
       if (mode === 'live') {
         applyEvent(allBlocks, blocksHost, msg.event);
       } else if (mode === 'terminal') {
-        // When /io is live, we already render PTY bytes directly from there;
-        // applying the persisted terminal.output event would double-render.
         if (!(ioLive && msg.event.type === 'terminal.output')) {
           terminal?.applyEvent(msg.event);
         }
       } else {
         timeline?.update(allEvents);
       }
+    } else if (msg.type === 'claim_changed') {
+      currentWriter = msg.holder;
+      updateWriterUI();
+    } else if (msg.type === 'error') {
+      console.warn('[kite] ws error', msg.code, msg.message);
     }
   };
 
@@ -307,11 +346,14 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     try {
       room = await getRoom(roomId);
       updateMeta();
+      updateWriterUI();
       const events = await getEvents(roomId, { limit: 100000 });
       allEvents.length = 0;
       allEvents.push(...events);
       refreshModeBar();
-      if (isInteractive() || hasTerminalEvents()) {
+      // Default to the command-block dashboard, but jump straight to the
+      // terminal if there's already raw PTY history to show.
+      if (hasTerminalEvents()) {
         setMode('terminal');
       } else {
         rebuildLive();
