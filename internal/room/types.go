@@ -13,29 +13,16 @@ const (
 	StatusClosed Status = "closed"
 )
 
-// Mode is how the room's underlying shell is configured.
-type Mode string
-
-const (
-	// ModeScripted is the default for API / MCP usage. bash --norc with PS1
-	// silenced and the marker protocol turned on, so structured Exec calls
-	// can isolate per-command output cleanly.
-	ModeScripted Mode = "scripted"
-	// ModeInteractive is what `kite shell` creates: the user's own $SHELL,
-	// launched as a normal login+interactive shell so .zshrc / .bashrc and
-	// the user's prompt theme are loaded just like in a fresh terminal.
-	// Structured Exec is disabled on these rooms — they're for human attach.
-	ModeInteractive Mode = "interactive"
-)
-
-// Room is an independent, long-running shell execution environment.
+// Room is an independent, long-running shell execution environment. Every
+// room is a single PTY-backed shell with an always-on prompt sentinel; the
+// daemon admits read-only and read-write clients side-by-side via the
+// writeArbiter rather than baking access mode into the room itself.
 type Room struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name,omitempty"`
 	CreatedAt time.Time         `json:"created_at"`
 	ClosedAt  *time.Time        `json:"closed_at,omitempty"`
 	Status    Status            `json:"status"`
-	Mode      Mode              `json:"mode"`
 	Cwd       string            `json:"cwd"`
 	Shell     string            `json:"shell"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
@@ -45,14 +32,14 @@ type Room struct {
 type EventType string
 
 const (
-	EvtRoomCreated       EventType = "room.created"
-	EvtRoomClosed        EventType = "room.closed"
-	EvtCommandStarted    EventType = "command.started"
-	EvtCommandOutput     EventType = "command.output"
-	EvtCommandFinished   EventType = "command.finished"
-	EvtTerminalOutput    EventType = "terminal.output"
-	EvtParticipantJoined EventType = "participant.joined"
-	EvtParticipantLeft   EventType = "participant.left"
+	EvtRoomCreated     EventType = "room.created"
+	EvtRoomClosed      EventType = "room.closed"
+	EvtCommandStarted  EventType = "command.started"
+	EvtCommandOutput   EventType = "command.output"
+	EvtCommandFinished EventType = "command.finished"
+	EvtTerminalOutput  EventType = "terminal.output"
+	EvtWriteClaimed    EventType = "write.claimed"
+	EvtWriteReleased   EventType = "write.released"
 )
 
 // Event is an append-only record of something that happened in a room.
@@ -86,17 +73,25 @@ type CommandFinishedPayload struct {
 }
 
 // TerminalOutputPayload is the payload of a terminal.output event — raw
-// bytes emitted by an interactive session's PTY. Use this in the web
-// viewer to render a screen-style transcript.
+// bytes emitted by the PTY. Use this in the web viewer to render a
+// screen-style transcript.
 type TerminalOutputPayload struct {
 	Data []byte `json:"data"`
 }
 
-// ParticipantPayload is the payload of participant.joined / participant.left.
-type ParticipantPayload struct {
-	ParticipantID string `json:"participant_id"`
-	Type          string `json:"type"`
-	Name          string `json:"name,omitempty"`
+// WriteClaimedPayload is the payload of a write.claimed event: a client
+// just became the active stdin writer.
+type WriteClaimedPayload struct {
+	HolderID string `json:"holder_id"`
+	Kind     string `json:"kind"`           // "exec" | "attach" | "web"
+	Label    string `json:"label,omitempty"`
+}
+
+// WriteReleasedPayload is the payload of a write.released event: the
+// previous holder yielded and the room is now idle (or a new holder is
+// about to claim — that fires as a separate write.claimed).
+type WriteReleasedPayload struct {
+	HolderID string `json:"holder_id"`
 }
 
 // RoomClosedPayload is the payload of a room.closed event.

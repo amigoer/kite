@@ -38,28 +38,19 @@ type Session struct {
 	mu  sync.Mutex
 	cur *execState
 
-	isNative    bool // set at construction; true for Options.Native sessions
-	subMu       sync.Mutex
-	subs        map[int]chan []byte
-	nextSubID   int
-	interactive atomic.Bool // when true, raw bytes are NOT scanned for markers
+	subMu     sync.Mutex
+	subs      map[int]chan []byte
+	nextSubID int
 
-	idleMu       sync.Mutex
-	idleSubs     map[int]chan struct{}
-	nextIdleID   int
+	idleMu     sync.Mutex
+	idleSubs   map[int]chan struct{}
+	nextIdleID int
 
 	done   chan struct{}
 	closed atomic.Bool
 
 	exitErr atomic.Value // error
 }
-
-// Native reports whether this session was started with Options.Native=true
-// (i.e. a "natural" interactive shell with user startup files loaded).
-func (s *Session) Native() bool { return s.isNative }
-
-// native is a local helper used inside the package.
-func (s *Session) native() bool { return s.isNative }
 
 type execState struct {
 	cmdID   string
@@ -82,54 +73,33 @@ type Options struct {
 	Shell string
 	// Cwd is the initial working directory. Empty inherits the daemon's.
 	Cwd string
-	// Native, when true, starts the shell as a normal login+interactive
-	// shell (`-il`) with the parent's environment untouched, so .zshrc /
-	// .bashrc and the user's prompt theme load like in a fresh terminal.
-	// Marker-based Exec is unavailable on native sessions.
-	//
-	// When false (default), the shell starts in "scripted" mode: bash with
-	// --noediting --norc, PS1 / PS2 / PROMPT_COMMAND silenced, TERM=dumb.
-	// This is the mode that makes Exec's marker protocol reliable.
-	Native bool
 }
 
 // New starts a fresh shell process attached to a PTY and returns a Session
 // ready to accept Exec / WriteStdin calls. ctx bounds only the bootstrap
 // handshake — the shell process itself runs until Close is called.
+//
+// The shell starts as a non-login interactive bash with --norc (so the
+// daemon controls PS1 / PROMPT_COMMAND) and TERM=xterm-256color so
+// attached humans get a sane environment. The prompt sentinel is always
+// installed; both Exec and human keystrokes share the same PTY, with
+// concurrency handled by the room-level writeArbiter.
 func New(ctx context.Context, opts Options) (*Session, error) {
 	shell := opts.Shell
 	if shell == "" {
 		shell = "/bin/bash"
 	}
 
-	var cmd *exec.Cmd
-	if opts.Native {
-		// Hand the user their own shell, full startup files and all. -i
-		// makes it interactive; -l makes it a login shell, which
-		// matches what most terminal emulators do for a new tab.
-		cmd = exec.Command(shell, "-il")
-	} else {
-		// Scripted: keep the shell quiet and predictable so the marker
-		// protocol works.
-		cmd = exec.Command(shell, "--noediting", "--norc", "-i")
-	}
+	cmd := exec.Command(shell, "--noediting", "--norc", "-i")
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-
-	if opts.Native {
-		// Inherit the user's full environment; set TERM to a sane default
-		// if the parent didn't have one.
-		env := append([]string(nil), os.Environ()...)
-		if !hasEnvKey(env, "TERM") {
-			env = append(env, "TERM=xterm-256color")
-		}
-		cmd.Env = env
-	} else {
-		env := append([]string(nil), os.Environ()...)
-		env = append(env, "PS1=", "PS2=", "PROMPT_COMMAND=", "TERM=dumb")
-		cmd.Env = env
+	env := append([]string(nil), os.Environ()...)
+	if !hasEnvKey(env, "TERM") {
+		env = append(env, "TERM=xterm-256color")
 	}
+	env = append(env, "PS1=", "PS2=", "PROMPT_COMMAND=")
+	cmd.Env = env
 
 	f, err := pty.Start(cmd)
 	if err != nil {
@@ -142,15 +112,10 @@ func New(ctx context.Context, opts Options) (*Session, error) {
 		done:     make(chan struct{}),
 		subs:     make(map[int]chan []byte),
 		idleSubs: make(map[int]chan struct{}),
-		isNative: opts.Native,
 	}
 	go s.readLoop()
 
-	if opts.Native {
-		// Native sessions are interactive from the get-go; mark the flag so
-		// marker parsing is skipped and any AttachIO call is a no-op.
-		s.interactive.Store(true)
-	} else if err := s.bootstrap(ctx); err != nil {
+	if err := s.bootstrap(ctx); err != nil {
 		_ = s.Close()
 		return nil, fmt.Errorf("bootstrap: %w", err)
 	}
@@ -298,21 +263,15 @@ func (s *Session) readLoop() {
 	for {
 		n, err := s.pty.Read(buf)
 		if n > 0 {
-			out := buf[:n]
-			if s.interactive.Load() {
-				// `clear` in modern terminfo sends `\x1b[H\x1b[2J\x1b[3J` —
-				// cursor home, erase screen, then erase scrollback. The
-				// scrollback wipe is the "extension" bit; stripping it
-				// preserves history in xterm.js / Terminal.app while still
-				// scrolling the visible screen out of view. The DB event log
-				// is untouched at the event layer — only what's broadcast to
-				// live subscribers is filtered.
-				out = stripScrollbackClear(out)
-			}
-			// Filter both marker types out of what subscribers see; markers
-			// are an internal protocol detail. A marker spanning two reads
-			// can still leak partial bytes, but that's rare enough that we
-			// accept it.
+			// `clear` in modern terminfo sends `\x1b[H\x1b[2J\x1b[3J` —
+			// cursor home, erase screen, then erase scrollback. The
+			// scrollback wipe is the "extension" bit; stripping it
+			// preserves history in xterm.js / Terminal.app while still
+			// scrolling the visible screen out of view. Markers are an
+			// internal protocol detail and never leak to subscribers. A
+			// marker spanning two reads can still leak partial bytes, but
+			// that's rare enough that we accept it.
+			out := stripScrollbackClear(buf[:n])
 			s.broadcast(stripMarkers(out))
 			carry.Write(buf[:n])
 			s.process(&carry)
@@ -540,78 +499,6 @@ func (s *Session) Subscribe() (<-chan []byte, func()) {
 	}
 	return ch, unsub
 }
-
-// SetInteractive flips the session into raw-passthrough mode. When on, the
-// readLoop skips marker parsing and emits no events for the current Exec
-// (callers must use Subscribe instead).
-//
-// For scripted sessions, "on" spawns the user's native $SHELL as a child
-// of the underlying bash so an attached human sees their real shell —
-// zsh with starship, .zshrc loaded, aliases and all — exactly like a
-// fresh Terminal.app tab. Crucially we don't `exec`: when the user
-// detaches and we feed `exit\n` to the PTY, the child shell terminates
-// and bash regains control, so the marker protocol stays intact for any
-// subsequent agent kite-exec calls.
-//
-// On native sessions (started via Options.Native), this is a no-op: the
-// shell is already in its own native interactive mode.
-func (s *Session) SetInteractive(on bool) error {
-	if s.native() {
-		// Always interactive; pretend the flip succeeded.
-		if on {
-			s.interactive.Store(true)
-		}
-		return nil
-	}
-	if s.closed.Load() {
-		return ErrSessionClosed
-	}
-	prev := s.interactive.Swap(on)
-	if prev == on {
-		return nil
-	}
-	// Writes here go into bash's stdin. bash buffers them until any
-	// currently-running command finishes and then processes them as a
-	// fresh prompt.
-	var cfg string
-	if on {
-		// Spawn the user's native shell as a child of bash. -i makes it
-		// interactive; -l makes it a login shell so it reads ~/.zprofile,
-		// /etc/profile, etc. — matching what a new terminal tab does.
-		//
-		// Two subtleties:
-		//  1. We *unset* PS1/PS2/PROMPT_COMMAND before fork so the child
-		//     doesn't inherit the empty scripted-mode prompt. Without this,
-		//     the child shell starts with PS1='' and the user sees no
-		//     prompt at all — the shell is running, just invisible.
-		//  2. We bump TERM up to xterm-256color so colour, readline editing,
-		//     and alt-screen apps (vim, less, top) behave like a real tab.
-		// stty restores cooked mode (echo + line-buffered + CRLF on output)
-		// for the user's typing; the spawned shell will (re)set anything
-		// else it cares about on startup.
-		userShell := os.Getenv("SHELL")
-		if userShell == "" {
-			userShell = "/bin/bash"
-		}
-		cfg = "stty echo onlcr icanon 2>/dev/null\n" +
-			"unset PS1 PS2 PROMPT_COMMAND\n" +
-			"export TERM=xterm-256color\n" +
-			userShell + " -il\n"
-	} else {
-		// Detach: exit the user's shell first so bash gets the PTY back,
-		// then restore the scripted-mode environment (silent echo, blank
-		// prompts, TERM=dumb) and re-install the prompt sentinel so the
-		// marker protocol works again.
-		cfg = "exit\n" +
-			"stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; " +
-			`PROMPT_COMMAND='printf "\n__KITE_PROMPT__\n"'; export TERM=dumb` + "\n"
-	}
-	_, err := s.pty.Write([]byte(cfg))
-	return err
-}
-
-// Interactive reports whether the session is currently in raw passthrough.
-func (s *Session) Interactive() bool { return s.interactive.Load() }
 
 // failPending fires the finish channel with err so callers waiting on a
 // command don't hang when bash dies under them.

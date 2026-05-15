@@ -28,11 +28,10 @@ type listRoomsResponse struct {
 }
 
 type createRoomRequest struct {
-	Name        string            `json:"name"`
-	Cwd         string            `json:"cwd"`
-	Shell       string            `json:"shell"`
-	Metadata    map[string]string `json:"metadata"`
-	Interactive bool              `json:"interactive,omitempty"`
+	Name     string            `json:"name"`
+	Cwd      string            `json:"cwd"`
+	Shell    string            `json:"shell"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 type execRequest struct {
@@ -81,11 +80,10 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := s.mgr.CreateRoom(r.Context(), room.CreateRoomOptions{
-		Name:        req.Name,
-		Cwd:         req.Cwd,
-		Shell:       req.Shell,
-		Metadata:    req.Metadata,
-		Interactive: req.Interactive,
+		Name:     req.Name,
+		Cwd:      req.Cwd,
+		Shell:    req.Shell,
+		Metadata: req.Metadata,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
@@ -172,8 +170,6 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "room_not_found", fmt.Sprintf("Room %s does not exist", id))
 		case errors.Is(err, room.ErrRoomClosed):
 			writeError(w, http.StatusConflict, "room_closed", "Room is closed")
-		case errors.Is(err, room.ErrInteractiveAttached):
-			writeError(w, http.StatusConflict, "interactive_attached", "An interactive session is attached; exec is paused until it detaches")
 		case errors.Is(err, context.DeadlineExceeded):
 			writeError(w, http.StatusRequestTimeout, "timeout", "Command exceeded the requested timeout")
 		default:

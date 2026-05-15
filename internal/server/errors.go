@@ -1,9 +1,22 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"encoding/json"
 	"net/http"
+	"strings"
 )
+
+// randomShortID returns a lowercase base32 token suitable for tagging
+// transient daemon-side handles (e.g. attach holder IDs).
+func randomShortID() string {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("kite/server: rand failed: " + err.Error())
+	}
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:]))
+}
 
 // APIError is the shape every JSON error response uses.
 type APIError struct {

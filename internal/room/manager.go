@@ -39,11 +39,9 @@ const (
 // is no longer running.
 var ErrRoomClosed = errors.New("room is closed")
 
-// ErrInteractiveAttached is returned by ExecCommand when one or more
-// interactive clients are attached to the room. Structured exec and
-// interactive byte-streaming can't share the same bash safely, so the
-// caller should wait until the human detaches.
-var ErrInteractiveAttached = errors.New("interactive session attached; exec is disabled")
+// ErrReadOnlyClient is returned when a read-only attachment tries to send
+// stdin bytes or resize the PTY without claiming the write role.
+var ErrReadOnlyClient = errors.New("client is read-only")
 
 // Manager binds the store to live pty sessions. It is the only writer to the
 // event log and owns the lifecycle of each room's bash process.
@@ -57,12 +55,14 @@ type Manager struct {
 }
 
 type roomSession struct {
-	session     *pty.Session
-	execMu      sync.Mutex // serialises Exec calls per room
-	ioMu        sync.Mutex // guards ioRefs / logStop / clientSizes / nextAttachID
-	ioRefs      int        // number of attached interactive clients
-	logStop     func()     // unsubscribes the terminal.output logger; nil when not interactive
-	clientSizes map[int]winSize
+	session *pty.Session
+	arbiter *writeArbiter
+	// logStop unsubscribes the terminal.output logger. Always non-nil for
+	// the room's lifetime; cleared on close.
+	logStop func()
+
+	sizeMu       sync.Mutex
+	clientSizes  map[int]winSize
 	nextAttachID int
 }
 
@@ -77,11 +77,26 @@ type CreateRoomOptions struct {
 	Cwd      string
 	Shell    string
 	Metadata map[string]string
-	// Interactive=true creates a "native" room: the shell is launched as a
-	// normal interactive login shell, loading .zshrc / .bashrc and using
-	// the user's real prompt. Use for `kite shell` / human attach. Marker-
-	// based Exec is rejected on interactive rooms.
-	Interactive bool
+}
+
+// ClientRole names the access tier requested by a client attachment.
+type ClientRole string
+
+const (
+	// RoleRead grants live read access (Output stream) but blocks Stdin and
+	// Resize. Multiple readers are always allowed.
+	RoleRead ClientRole = "read"
+	// RoleWrite asks for the writer claim. Blocks until granted by the
+	// room's writeArbiter (FIFO).
+	RoleWrite ClientRole = "write"
+)
+
+// ClientOptions parameterises Manager.AttachClient.
+type ClientOptions struct {
+	Role  ClientRole
+	ID    string // daemon-unique handle; appears in write.* events
+	Kind  string // "attach" | "web"; appears in write.claimed payload
+	Label string // human-readable description for write.claimed
 }
 
 // ExecOptions parameterises Manager.ExecCommand.
@@ -121,17 +136,7 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 
 	shell := opts.Shell
 	if shell == "" {
-		if opts.Interactive {
-			// Honour the user's $SHELL for `kite shell` so the room feels
-			// like their normal terminal.
-			if s := os.Getenv("SHELL"); s != "" {
-				shell = s
-			} else {
-				shell = defaultShell
-			}
-		} else {
-			shell = defaultShell
-		}
+		shell = defaultShell
 	}
 	cwd := opts.Cwd
 	if cwd == "" {
@@ -140,21 +145,16 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 		}
 	}
 
-	sess, err := pty.New(ctx, pty.Options{Shell: shell, Cwd: cwd, Native: opts.Interactive})
+	sess, err := pty.New(ctx, pty.Options{Shell: shell, Cwd: cwd})
 	if err != nil {
 		return nil, fmt.Errorf("start session: %w", err)
 	}
 
-	mode := ModeScripted
-	if opts.Interactive {
-		mode = ModeInteractive
-	}
 	r := &Room{
 		ID:        NewRoomID(),
 		Name:      opts.Name,
 		CreatedAt: time.Now(),
 		Status:    StatusActive,
-		Mode:      mode,
 		Cwd:       cwd,
 		Shell:     shell,
 		Metadata:  opts.Metadata,
@@ -165,7 +165,13 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 		return nil, err
 	}
 
-	rs := &roomSession{session: sess, clientSizes: make(map[int]winSize)}
+	rs := &roomSession{
+		session:     sess,
+		clientSizes: make(map[int]winSize),
+	}
+	rs.arbiter = newWriteArbiter(func(h *WriteHolder) {
+		m.recordWriteChange(r.ID, h)
+	})
 	m.mu.Lock()
 	m.sessions[r.ID] = rs
 	m.mu.Unlock()
@@ -173,19 +179,27 @@ func (m *Manager) CreateRoom(ctx context.Context, opts CreateRoomOptions) (*Room
 	payload, _ := json.Marshal(RoomCreatedPayload{Name: r.Name, Cwd: r.Cwd, Shell: r.Shell})
 	_ = m.store.AppendEvent(ctx, &Event{RoomID: r.ID, Type: EvtRoomCreated, Payload: payload})
 
-	if opts.Interactive {
-		// Interactive rooms are always live — the user's shell is already
-		// running and emitting bytes. Start the terminal.output logger
-		// immediately so the web viewer can see every byte from second 0.
-		logCh, logUnsub := sess.Subscribe()
-		rs.ioMu.Lock()
-		rs.logStop = logUnsub
-		rs.ioMu.Unlock()
-		go m.logTerminalOutput(r.ID, logCh)
-	}
+	// Always log raw PTY bytes so the web viewer and replay see every keystroke
+	// — including ones from human attaches — without an explicit attach event.
+	logCh, logUnsub := sess.Subscribe()
+	rs.logStop = logUnsub
+	go m.logTerminalOutput(r.ID, logCh)
 
 	go m.watchSession(r.ID, sess)
 	return r, nil
+}
+
+// recordWriteChange persists a write.claimed / write.released event whenever
+// the arbiter's onChange callback fires.
+func (m *Manager) recordWriteChange(roomID string, h *WriteHolder) {
+	ctx := context.Background()
+	if h == nil {
+		payload, _ := json.Marshal(WriteReleasedPayload{})
+		_ = m.store.AppendEvent(ctx, &Event{RoomID: roomID, Type: EvtWriteReleased, Payload: payload})
+		return
+	}
+	payload, _ := json.Marshal(WriteClaimedPayload{HolderID: h.ID, Kind: h.Kind, Label: h.Label})
+	_ = m.store.AppendEvent(ctx, &Event{RoomID: roomID, Type: EvtWriteClaimed, Payload: payload})
 }
 
 // ExecCommand runs cmdLine in the room and returns its aggregate output. It
@@ -209,13 +223,6 @@ func (m *Manager) ExecCommand(ctx context.Context, roomID, cmdLine string, opts 
 		return nil, ErrRoomClosed
 	}
 
-	rs.execMu.Lock()
-	defer rs.execMu.Unlock()
-
-	if rs.session.Interactive() {
-		return nil, ErrInteractiveAttached
-	}
-
 	cmdID := NewCommandID()
 	source := opts.Source
 	if source == "" {
@@ -226,16 +233,25 @@ func (m *Manager) ExecCommand(ctx context.Context, roomID, cmdLine string, opts 
 		maxOutput = defaultMaxOutputBytes
 	}
 
-	startPayload, _ := json.Marshal(CommandStartedPayload{CommandID: cmdID, Cmd: cmdLine, Source: source})
-	if err := m.store.AppendEvent(ctx, &Event{RoomID: roomID, Type: EvtCommandStarted, Payload: startPayload}); err != nil {
-		return nil, fmt.Errorf("append start: %w", err)
-	}
-
 	execCtx := ctx
 	var cancel context.CancelFunc
 	if opts.Timeout > 0 {
 		execCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
 		defer cancel()
+	}
+
+	// Queue behind any human attach (or earlier exec) holding the write claim.
+	release, err := rs.arbiter.Claim(execCtx, WriteHolder{
+		ID: cmdID, Kind: "exec", Label: cmdLine,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("claim write: %w", err)
+	}
+	defer release()
+
+	startPayload, _ := json.Marshal(CommandStartedPayload{CommandID: cmdID, Cmd: cmdLine, Source: source})
+	if err := m.store.AppendEvent(ctx, &Event{RoomID: roomID, Type: EvtCommandStarted, Payload: startPayload}); err != nil {
+		return nil, fmt.Errorf("append start: %w", err)
 	}
 
 	out, finish, err := rs.session.Exec(execCtx, cmdLine, cmdID)
@@ -321,12 +337,10 @@ func (m *Manager) CloseRoom(ctx context.Context, roomID string) error {
 	m.mu.Unlock()
 
 	if ok {
-		rs.ioMu.Lock()
-		stop := rs.logStop
-		rs.logStop = nil
-		rs.ioMu.Unlock()
-		if stop != nil {
-			stop()
+		rs.arbiter.Close()
+		if rs.logStop != nil {
+			rs.logStop()
+			rs.logStop = nil
 		}
 		_ = rs.session.Close()
 	}
@@ -411,27 +425,30 @@ func (m *Manager) RecoverActiveRooms(ctx context.Context) error {
 	return nil
 }
 
-// IOAttachment is what AttachIO hands back: a duplex byte interface to a
-// room's PTY plus a resize hook and a detach hook.
-type IOAttachment struct {
+// Attachment is what AttachClient hands back: a byte interface to a room's
+// PTY. Write-role clients can forward stdin and resize; read-role clients
+// only observe Output.
+type Attachment struct {
 	// Output streams raw PTY bytes as they arrive. Closed when the bash
 	// process exits or Detach is called.
 	Output <-chan []byte
-	// Stdin forwards raw bytes to the PTY (keystrokes from a human).
+	// Stdin forwards raw bytes to the PTY. Returns ErrReadOnlyClient for
+	// clients attached with RoleRead.
 	Stdin func(p []byte) error
-	// Resize changes the PTY window size.
+	// Resize changes the PTY window size. Returns ErrReadOnlyClient for
+	// read-role clients.
 	Resize func(rows, cols uint16) error
 	// Detach releases this attachment. After Detach, Output is closed and
-	// Stdin / Resize return errors. The room's bash is left running unless
-	// this was the last attachment AND the caller also calls CloseRoom.
+	// Stdin / Resize return errors. If this attachment held the write
+	// claim, the claim is released so the next queued waiter can run.
 	Detach func()
 }
 
-// AttachIO returns a duplex byte interface to the room. The first call
-// switches the underlying bash into interactive mode (echo on, normal PS1).
-// Subsequent calls share the same mode. When the last attachment Detaches,
-// bash is switched back to scripted (marker) mode.
-func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
+// AttachClient subscribes a client to a room. For RoleWrite, blocks (until
+// ctx fires) waiting for the writeArbiter to grant the claim — after which
+// the caller has exclusive stdin access. For RoleRead, attaches immediately
+// with no Stdin / Resize capability.
+func (m *Manager) AttachClient(ctx context.Context, roomID string, opts ClientOptions) (*Attachment, error) {
 	m.mu.Lock()
 	rs, ok := m.sessions[roomID]
 	m.mu.Unlock()
@@ -439,63 +456,49 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		return nil, ErrRoomClosed
 	}
 
-	rs.ioMu.Lock()
-	if rs.ioRefs == 0 {
-		// Briefly take execMu so we don't flip mode while a scripted Exec is
-		// in flight.
-		rs.execMu.Lock()
-		if err := rs.session.SetInteractive(true); err != nil {
-			rs.execMu.Unlock()
-			rs.ioMu.Unlock()
-			return nil, err
-		}
-		rs.execMu.Unlock()
-		// Start the terminal.output logger (one subscriber per session) so
-		// the web viewer / replay can reconstruct the interactive transcript.
-		// Native rooms already start it at CreateRoom — don't double up.
-		if rs.logStop == nil {
-			logCh, logUnsub := rs.session.Subscribe()
-			rs.logStop = logUnsub
-			go m.logTerminalOutput(roomID, logCh)
-		}
-	}
-	rs.ioRefs++
+	rs.sizeMu.Lock()
 	attachID := rs.nextAttachID
 	rs.nextAttachID++
-	rs.ioMu.Unlock()
+	rs.sizeMu.Unlock()
 
 	sub, unsub := rs.session.Subscribe()
-	detached := false
-	detachOnce := sync.Once{}
-	isNative := rs.session.Native()
+
+	var (
+		release    func()
+		detachOnce sync.Once
+		detached   bool
+	)
+	if opts.Role == RoleWrite {
+		r, err := rs.arbiter.Claim(ctx, WriteHolder{
+			ID: opts.ID, Kind: opts.Kind, Label: opts.Label,
+		})
+		if err != nil {
+			unsub()
+			return nil, err
+		}
+		release = r
+		// Flip the PTY into cooked + echo and show a visible PS1 so typed
+		// keystrokes and the prompt appear. The bootstrap left it in raw /
+		// no-echo with empty PS1 for clean Exec output; detach restores that.
+		_ = rs.session.WriteStdin([]byte("stty echo onlcr icanon 2>/dev/null; PS1='$ '\n"))
+	}
 
 	detach := func() {
 		detachOnce.Do(func() {
 			detached = true
 			unsub()
-			rs.ioMu.Lock()
-			rs.ioRefs--
-			last := rs.ioRefs == 0
+			rs.sizeMu.Lock()
 			delete(rs.clientSizes, attachID)
-			// Recompute the PTY size from the remaining clients so the room
-			// fits whoever's still watching.
 			newRows, newCols, ok := minSize(rs.clientSizes)
-			var stopLogger func()
-			if last && !isNative {
-				stopLogger = rs.logStop
-				rs.logStop = nil
-			}
-			rs.ioMu.Unlock()
+			rs.sizeMu.Unlock()
 			if ok {
 				_ = rs.session.Resize(newRows, newCols)
 			}
-			if last && !isNative {
-				if stopLogger != nil {
-					stopLogger()
-				}
-				rs.execMu.Lock()
-				_ = rs.session.SetInteractive(false)
-				rs.execMu.Unlock()
+			if release != nil {
+				// Restore the exec-friendly tty state before yielding so the
+				// next claimer (likely an exec) sees a clean PTY.
+				_ = rs.session.WriteStdin([]byte("stty -echo -onlcr 2>/dev/null; PS1=''\n"))
+				release()
 			}
 		})
 	}
@@ -504,28 +507,46 @@ func (m *Manager) AttachIO(roomID string) (*IOAttachment, error) {
 		if detached {
 			return ErrRoomClosed
 		}
+		if opts.Role != RoleWrite {
+			return ErrReadOnlyClient
+		}
 		return rs.session.WriteStdin(p)
 	}
 	resize := func(rows, cols uint16) error {
 		if detached {
 			return ErrRoomClosed
 		}
+		if opts.Role != RoleWrite {
+			return ErrReadOnlyClient
+		}
 		if rows == 0 || cols == 0 {
 			return nil
 		}
-		rs.ioMu.Lock()
+		rs.sizeMu.Lock()
 		rs.clientSizes[attachID] = winSize{rows: rows, cols: cols}
 		minR, minC, _ := minSize(rs.clientSizes)
-		rs.ioMu.Unlock()
+		rs.sizeMu.Unlock()
 		return rs.session.Resize(minR, minC)
 	}
 
-	return &IOAttachment{
+	return &Attachment{
 		Output: sub,
 		Stdin:  stdin,
 		Resize: resize,
 		Detach: detach,
 	}, nil
+}
+
+// CurrentWriter returns the holder of the write claim for the room, or nil
+// when no one is currently writing. ErrRoomClosed signals an unknown room.
+func (m *Manager) CurrentWriter(roomID string) (*WriteHolder, error) {
+	m.mu.Lock()
+	rs, ok := m.sessions[roomID]
+	m.mu.Unlock()
+	if !ok {
+		return nil, ErrRoomClosed
+	}
+	return rs.arbiter.Holder(), nil
 }
 
 // minSize returns the cell-by-cell minimum (rows, cols) across all

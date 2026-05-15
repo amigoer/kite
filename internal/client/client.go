@@ -54,7 +54,6 @@ type Room struct {
 	CreatedAt    time.Time         `json:"created_at"`
 	ClosedAt     *time.Time        `json:"closed_at,omitempty"`
 	Status       string            `json:"status"`
-	Mode         string            `json:"mode"`
 	Cwd          string            `json:"cwd"`
 	Shell        string            `json:"shell"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
@@ -64,11 +63,10 @@ type Room struct {
 
 // CreateRoomRequest is the body of POST /api/v1/rooms.
 type CreateRoomRequest struct {
-	Name        string            `json:"name,omitempty"`
-	Cwd         string            `json:"cwd,omitempty"`
-	Shell       string            `json:"shell,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	Interactive bool              `json:"interactive,omitempty"`
+	Name     string            `json:"name,omitempty"`
+	Cwd      string            `json:"cwd,omitempty"`
+	Shell    string            `json:"shell,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // ExecRequest is the body of POST /api/v1/rooms/{id}/exec.

@@ -38,7 +38,12 @@ func (s *Server) handleIO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	att, err := s.mgr.AttachIO(id)
+	att, err := s.mgr.AttachClient(r.Context(), id, room.ClientOptions{
+		Role:  room.RoleWrite,
+		ID:    "attach-" + randomShortID(),
+		Kind:  "attach",
+		Label: r.RemoteAddr,
+	})
 	if err != nil {
 		if errors.Is(err, room.ErrRoomClosed) {
 			writeError(w, http.StatusConflict, "room_closed", "Room is closed")

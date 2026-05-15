@@ -290,13 +290,9 @@ func TestTimeoutReturnsRequestTimeout(t *testing.T) {
 
 // TestInteractiveIO drives the /io WebSocket as a raw byte pipe: send a
 // command, read bash's echo + result, send a Ctrl+C to interrupt a long-
-// running command, and verify a parallel HTTP Exec is rejected with 409
-// while the interactive session is attached.
+// running command, and verify exec works again after the interactive
+// session detaches (it queues behind the attach, not rejected).
 func TestInteractiveIO(t *testing.T) {
-	// SetInteractive now spawns the user's $SHELL as a child of bash so
-	// attached humans see their real shell. Pin SHELL to bash inside the
-	// test so prompt-matching stays deterministic regardless of the dev
-	// machine's $SHELL.
 	t.Setenv("SHELL", "/bin/bash")
 
 	s := newStack(t)
@@ -371,11 +367,18 @@ func TestInteractiveIO(t *testing.T) {
 		t.Fatalf("expected IO-WORKS in output, got %q", out)
 	}
 
-	// While we're attached, structured exec should be rejected with 409.
-	_, err = c.Exec(ctx, r.ID, client.ExecRequest{Cmd: "echo from-exec"})
-	var apiErr *client.APIError
-	if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "interactive_attached" {
-		t.Errorf("expected interactive_attached 409 during attach, got %v", err)
+	// While we're attached, exec should queue behind us — kick one off in a
+	// goroutine and verify it stays pending until we detach.
+	execDone := make(chan error, 1)
+	go func() {
+		_, err := c.Exec(ctx, r.ID, client.ExecRequest{Cmd: "echo from-exec"})
+		execDone <- err
+	}()
+	select {
+	case err := <-execDone:
+		t.Errorf("exec returned %v while attach held the write claim; expected it to queue", err)
+	case <-time.After(300 * time.Millisecond):
+		// Good — exec is queued, not rejected.
 	}
 
 	// Send Ctrl+C against a running sleep, confirm we get a fresh prompt
@@ -391,16 +394,25 @@ func TestInteractiveIO(t *testing.T) {
 		t.Errorf("Ctrl+C did not yield a fresh prompt: %q", got)
 	}
 
-	// Detach cleanly so the next test's exec works.
+	// Detach cleanly so the queued exec can run.
 	_ = conn.Close(websocket.StatusNormalClosure, "test done")
 	select {
 	case <-readErr:
 	case <-time.After(1 * time.Second):
 	}
 
-	// Give the daemon a moment to flip back to scripted mode, then verify
-	// exec works again.
-	time.Sleep(300 * time.Millisecond)
+	// Drain the queued exec from before — it should complete now that the
+	// attach has released the write claim.
+	select {
+	case err := <-execDone:
+		if err != nil {
+			t.Errorf("queued exec from-exec failed after detach: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Errorf("queued exec from-exec did not drain after detach")
+	}
+
+	// And a fresh exec should still work.
 	res, err := c.Exec(ctx, r.ID, client.ExecRequest{Cmd: "echo after-detach"})
 	if err != nil {
 		t.Fatalf("exec after detach: %v", err)

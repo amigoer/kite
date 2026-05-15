@@ -4,15 +4,11 @@ CREATE TABLE IF NOT EXISTS rooms (
     created_at INTEGER NOT NULL,
     closed_at  INTEGER,
     status     TEXT NOT NULL,
-    mode       TEXT NOT NULL DEFAULT 'scripted',
     cwd        TEXT,
     shell      TEXT,
     metadata   TEXT
 );
 
--- Add mode column for databases created by an older daemon. Errors (e.g.
--- "duplicate column name") are ignored by the driver via the ALTER… IF NOT
--- EXISTS-style guard below.
 CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY);
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
 
