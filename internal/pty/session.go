@@ -44,6 +44,10 @@ type Session struct {
 	nextSubID   int
 	interactive atomic.Bool // when true, raw bytes are NOT scanned for markers
 
+	idleMu       sync.Mutex
+	idleSubs     map[int]chan struct{}
+	nextIdleID   int
+
 	done   chan struct{}
 	closed atomic.Bool
 
@@ -137,6 +141,7 @@ func New(ctx context.Context, opts Options) (*Session, error) {
 		cmd:      cmd,
 		done:     make(chan struct{}),
 		subs:     make(map[int]chan []byte),
+		idleSubs: make(map[int]chan struct{}),
 		isNative: opts.Native,
 	}
 	go s.readLoop()
@@ -163,10 +168,13 @@ func hasEnvKey(env []string, key string) bool {
 }
 
 // bootstrap silences echo and resets prompts, then waits for the boot marker
-// so callers know subsequent Exec output is clean.
+// so callers know subsequent Exec output is clean. It also installs a
+// PROMPT_COMMAND that emits MarkerPrompt after every command, so the daemon
+// can detect "shell idle" even when a human attaches and types directly into
+// the PTY (no surrounding Exec call to bracket).
 func (s *Session) bootstrap(ctx context.Context) error {
 	bootID := newInternalCommandID()
-	output, finish, err := s.exec(`stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; unset PROMPT_COMMAND`, bootID)
+	output, finish, err := s.exec(`stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; PROMPT_COMMAND='printf "\n__KITE_PROMPT__\n"'`, bootID)
 	if err != nil {
 		return err
 	}
@@ -277,6 +285,12 @@ func (s *Session) readLoop() {
 			delete(s.subs, id)
 		}
 		s.subMu.Unlock()
+		s.idleMu.Lock()
+		for id, ch := range s.idleSubs {
+			close(ch)
+			delete(s.idleSubs, id)
+		}
+		s.idleMu.Unlock()
 		close(s.done)
 	}()
 	buf := make([]byte, 8192)
@@ -295,22 +309,16 @@ func (s *Session) readLoop() {
 				// live subscribers is filtered.
 				out = stripScrollbackClear(out)
 			}
-			// Broadcast a copy to every subscriber first; they get raw bytes
-			// regardless of marker mode.
-			s.broadcast(out)
-			if s.interactive.Load() {
-				// Raw passthrough: don't touch carry at all. Drain it (in case
-				// we just flipped modes) so we don't replay old buffered data.
-				carry.Reset()
-			} else {
-				carry.Write(buf[:n])
-				s.process(&carry)
-			}
+			// Filter both marker types out of what subscribers see; markers
+			// are an internal protocol detail. A marker spanning two reads
+			// can still leak partial bytes, but that's rare enough that we
+			// accept it.
+			s.broadcast(stripMarkers(out))
+			carry.Write(buf[:n])
+			s.process(&carry)
 		}
 		if err != nil {
-			if !s.interactive.Load() {
-				s.process(&carry)
-			}
+			s.process(&carry)
 			if !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
 				s.exitErr.Store(err)
 			}
@@ -331,6 +339,16 @@ func stripScrollbackClear(p []byte) []byte {
 		return p
 	}
 	return bytes.ReplaceAll(p, scrollbackClear, nil)
+}
+
+// stripMarkers removes both MarkerEnd and MarkerPrompt sentinels from a byte
+// slice so subscribers (web viewer, attach clients) don't see kite's internal
+// protocol bytes in their output stream.
+func stripMarkers(p []byte) []byte {
+	if !bytes.Contains(p, []byte(MarkerEnd)) && !bytes.Contains(p, []byte(MarkerPrompt)) {
+		return p
+	}
+	return markerRe.ReplaceAll(p, nil)
 }
 
 // broadcast sends a copy of data to every subscriber. Slow subscribers
@@ -367,9 +385,9 @@ func (s *Session) process(carry *bytes.Buffer) {
 			return
 		}
 		if idx[0] > 0 {
-			// printf emits "\n__KITE_END_..." so the marker is always on its
-			// own line; strip that leading newline from the command's output
-			// so we don't tack a blank line onto every result.
+			// Markers are always preceded by '\n' (both `printf` emits and
+			// PROMPT_COMMAND wrap their output with newlines), so strip that
+			// leading newline from any captured pre-marker output.
 			pre := data[:idx[0]]
 			if len(pre) > 0 && pre[len(pre)-1] == '\n' {
 				pre = pre[:len(pre)-1]
@@ -377,14 +395,20 @@ func (s *Session) process(carry *bytes.Buffer) {
 			s.emit(pre)
 		}
 		match := markerRe.FindSubmatch(data[idx[0]:idx[1]])
-		exitCode, _ := strconv.Atoi(string(match[1]))
-		cmdID := string(match[2])
-
-		s.finishCmd(cmdID, exitCode, nil)
+		if len(match[4]) > 0 {
+			// Prompt sentinel: shell is now idle. Notify idle subscribers but
+			// don't close any current exec — exec termination is driven by the
+			// per-exec MarkerEnd, which is emitted separately.
+			s.notifyIdle()
+		} else {
+			exitCode, _ := strconv.Atoi(string(match[2]))
+			cmdID := string(match[3])
+			s.finishCmd(cmdID, exitCode, nil)
+		}
 
 		rest := append([]byte(nil), data[idx[1]:]...)
-		// printf writes a leading '\n' before the marker and a trailing '\n'
-		// after; consume that trailing newline.
+		// Markers carry a trailing '\n' from printf; consume it so the next
+		// iteration doesn't think it's the start of fresh output.
 		if len(rest) > 0 && rest[0] == '\n' {
 			rest = rest[1:]
 		}
@@ -459,10 +483,46 @@ func (s *Session) Resize(rows, cols uint16) error {
 	return pty.Setsize(s.pty, &pty.Winsize{Rows: rows, Cols: cols})
 }
 
-// Subscribe returns a channel that receives copies of every byte read from
-// the PTY (no marker filtering — that's the consumer's problem). Call the
-// returned unsubscribe to stop. The channel is closed when the session
+// SubscribeIdle returns a channel that fires every time the daemon observes
+// a MarkerPrompt sentinel — i.e. bash just redrew its prompt, meaning the
+// last command (Exec-driven or human-typed) finished. The channel is
+// buffered (cap 4); if a subscriber lags, additional idle signals collapse
+// into a single pending value. The channel is closed when the session
 // terminates.
+func (s *Session) SubscribeIdle() (<-chan struct{}, func()) {
+	ch := make(chan struct{}, 4)
+	s.idleMu.Lock()
+	id := s.nextIdleID
+	s.nextIdleID++
+	s.idleSubs[id] = ch
+	s.idleMu.Unlock()
+	unsub := func() {
+		s.idleMu.Lock()
+		if cur, ok := s.idleSubs[id]; ok {
+			delete(s.idleSubs, id)
+			close(cur)
+		}
+		s.idleMu.Unlock()
+	}
+	return ch, unsub
+}
+
+func (s *Session) notifyIdle() {
+	s.idleMu.Lock()
+	defer s.idleMu.Unlock()
+	for _, ch := range s.idleSubs {
+		select {
+		case ch <- struct{}{}:
+		default:
+			// Subscriber already has a pending signal; coalesce.
+		}
+	}
+}
+
+// Subscribe returns a channel that receives copies of every byte read from
+// the PTY (markers are stripped by the session, but ANSI escape sequences
+// and command output pass through unchanged). Call the returned unsubscribe
+// to stop. The channel is closed when the session terminates.
 func (s *Session) Subscribe() (<-chan []byte, func()) {
 	ch := make(chan []byte, 64)
 	s.subMu.Lock()
@@ -540,10 +600,11 @@ func (s *Session) SetInteractive(on bool) error {
 	} else {
 		// Detach: exit the user's shell first so bash gets the PTY back,
 		// then restore the scripted-mode environment (silent echo, blank
-		// prompts, TERM=dumb) so the marker protocol works again.
+		// prompts, TERM=dumb) and re-install the prompt sentinel so the
+		// marker protocol works again.
 		cfg = "exit\n" +
 			"stty -echo -onlcr 2>/dev/null; PS1=''; PS2=''; " +
-			"unset PROMPT_COMMAND; export TERM=dumb\n"
+			`PROMPT_COMMAND='printf "\n__KITE_PROMPT__\n"'; export TERM=dumb` + "\n"
 	}
 	_, err := s.pty.Write([]byte(cfg))
 	return err

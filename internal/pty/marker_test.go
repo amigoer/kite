@@ -22,14 +22,32 @@ func TestMarkerRegexMatchesValidExit(t *testing.T) {
 			if m == nil {
 				t.Fatalf("no match for %q", c.in)
 			}
-			gotExit, _ := strconv.Atoi(m[1])
+			// Submatch layout: [1]=full END token, [2]=exit, [3]=cmdID,
+			// [4]=full PROMPT token. END matches must leave [4] empty.
+			if m[4] != "" {
+				t.Errorf("expected end-marker match, got prompt: %q", m[4])
+			}
+			gotExit, _ := strconv.Atoi(m[2])
 			if gotExit != c.wantExit {
 				t.Errorf("exit: %d, want %d", gotExit, c.wantExit)
 			}
-			if m[2] != c.wantCmdID {
-				t.Errorf("cmdID: %s, want %s", m[2], c.wantCmdID)
+			if m[3] != c.wantCmdID {
+				t.Errorf("cmdID: %s, want %s", m[3], c.wantCmdID)
 			}
 		})
+	}
+}
+
+func TestMarkerRegexMatchesPromptSentinel(t *testing.T) {
+	m := markerRe.FindStringSubmatch("__KITE_PROMPT__")
+	if m == nil {
+		t.Fatal("expected prompt sentinel to match")
+	}
+	if m[4] != "__KITE_PROMPT__" {
+		t.Errorf("group [4] should be the prompt sentinel, got %q", m[4])
+	}
+	if m[1] != "" || m[2] != "" || m[3] != "" {
+		t.Errorf("end-marker groups should be empty on prompt match: %v", m[1:4])
 	}
 }
 
