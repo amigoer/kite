@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -33,7 +31,7 @@ const escapeByte byte = 0x01 // Ctrl+A
 // ─── public commands ──────────────────────────────────────────────────────
 
 func newAttachCmd() *cobra.Command {
-	var createNew bool
+	var createNew, readOnly bool
 	cmd := &cobra.Command{
 		Use:     "attach [room_id]",
 		Aliases: []string{"a"},
@@ -43,7 +41,8 @@ forwarded to the room's bash; output streams back live. This is a pure
 byte pipe — no kite prompt, no per-command HTTP round trip.
 
 If no room id is given, attaches to the most recently active room, or
-creates a new one if none exist.
+creates a new one if none exist. Pass --read-only to watch without
+sending input — equivalent to 'kite tail'.
 
 Escape key is Ctrl+A. Then:
   d         detach (room keeps running, come back with 'kite attach')
@@ -66,10 +65,14 @@ Escape key is Ctrl+A. Then:
 				}
 				roomID = resolved
 			}
+			if readOnly {
+				return runTail(cmd, c, roomID)
+			}
 			return runAttach(cmd, c, roomID)
 		},
 	}
 	cmd.Flags().BoolVar(&createNew, "new", false, "always create a fresh room (only when no id is given)")
+	cmd.Flags().BoolVar(&readOnly, "read-only", false, "watch only — do not forward stdin (alias for 'kite tail')")
 	return cmd
 }
 
@@ -318,29 +321,7 @@ func runAttachPipe(ctx context.Context, conn *websocket.Conn, _ string) error {
 }
 
 func dialRoomIO(ctx context.Context, base, roomID string) (*websocket.Conn, error) {
-	u, err := url.Parse(base)
-	if err != nil {
-		return nil, fmt.Errorf("parse base URL: %w", err)
-	}
-	switch u.Scheme {
-	case "http":
-		u.Scheme = "ws"
-	case "https":
-		u.Scheme = "wss"
-	}
-	// Preserve any existing prefix (e.g. /d/<daemon> when routing through
-	// a hub); append the API path onto it instead of replacing.
-	prefix := strings.TrimRight(u.Path, "/")
-	u.Path = prefix + "/api/v1/rooms/" + roomID + "/ws"
-	q := u.Query()
-	q.Set("role", "write")
-	u.RawQuery = q.Encode()
-	conn, _, err := websocket.Dial(ctx, u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("connect to room: %w", err)
-	}
-	conn.SetReadLimit(1 << 20)
-	return conn, nil
+	return dialRoomWS(ctx, base, roomID, "write")
 }
 
 func sendResize(ctx context.Context, conn *websocket.Conn, fd int) {
