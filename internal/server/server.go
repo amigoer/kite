@@ -53,8 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/rooms/{id}/exec", s.handleExec)
 	mux.HandleFunc("GET /api/v1/rooms/{id}/events", s.handleEvents)
 	mux.HandleFunc("GET /api/v1/rooms/{id}/commands", s.handleCommands)
-	mux.HandleFunc("GET /api/v1/rooms/{id}/stream", s.handleStream)
-	mux.HandleFunc("GET /api/v1/rooms/{id}/io", s.handleIO)
+	mux.HandleFunc("GET /api/v1/rooms/{id}/ws", s.handleWS)
 
 	mux.HandleFunc("/", s.handleStatic)
 	return s.withLogging(mux)

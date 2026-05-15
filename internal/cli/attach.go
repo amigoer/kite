@@ -331,7 +331,10 @@ func dialRoomIO(ctx context.Context, base, roomID string) (*websocket.Conn, erro
 	// Preserve any existing prefix (e.g. /d/<daemon> when routing through
 	// a hub); append the API path onto it instead of replacing.
 	prefix := strings.TrimRight(u.Path, "/")
-	u.Path = prefix + "/api/v1/rooms/" + roomID + "/io"
+	u.Path = prefix + "/api/v1/rooms/" + roomID + "/ws"
+	q := u.Query()
+	q.Set("role", "write")
+	u.RawQuery = q.Encode()
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect to room: %w", err)

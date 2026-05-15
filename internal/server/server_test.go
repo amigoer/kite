@@ -222,7 +222,7 @@ func TestWebSocketStreamSendsInit(t *testing.T) {
 
 	u, _ := url.Parse(srv.URL)
 	u.Scheme = "ws"
-	u.Path = "/api/v1/rooms/" + created.ID + "/stream"
+	u.Path = "/api/v1/rooms/" + created.ID + "/ws"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

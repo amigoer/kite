@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 
 	"github.com/amigoer/kite/internal/client"
 	"github.com/amigoer/kite/internal/room"
@@ -124,16 +123,38 @@ func TestWebSocketStreamReceivesEvents(t *testing.T) {
 
 	wsURL, _ := url.Parse(s.httpURL)
 	wsURL.Scheme = "ws"
-	wsURL.Path = "/api/v1/rooms/" + r.ID + "/stream"
+	wsURL.Path = "/api/v1/rooms/" + r.ID + "/ws"
 	conn, _, err := websocket.Dial(ctx, wsURL.String(), nil)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "test done")
 
+	// readText returns the next text-frame payload as a JSON-decoded map.
+	// Binary frames (live PTY bytes) are skipped — this test cares only
+	// about the structured event channel.
+	readText := func(d time.Duration) (map[string]json.RawMessage, error) {
+		rctx, c2 := context.WithTimeout(ctx, d)
+		defer c2()
+		for {
+			typ, data, err := conn.Read(rctx)
+			if err != nil {
+				return nil, err
+			}
+			if typ != websocket.MessageText {
+				continue
+			}
+			var msg map[string]json.RawMessage
+			if err := json.Unmarshal(data, &msg); err != nil {
+				return nil, err
+			}
+			return msg, nil
+		}
+	}
+
 	// First message must be init.
-	var init map[string]json.RawMessage
-	if err := wsjson.Read(ctx, conn, &init); err != nil {
+	init, err := readText(2 * time.Second)
+	if err != nil {
 		t.Fatalf("read init: %v", err)
 	}
 	var typ string
@@ -150,21 +171,21 @@ func TestWebSocketStreamReceivesEvents(t *testing.T) {
 	seen := map[string]bool{}
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) && !(seen["command.started"] && seen["command.finished"]) {
-		var msg struct {
-			Type  string `json:"type"`
-			Event struct {
-				Type string `json:"type"`
-			} `json:"event"`
-		}
-		readCtx, c2 := context.WithTimeout(ctx, 2*time.Second)
-		err := wsjson.Read(readCtx, conn, &msg)
-		c2()
+		msg, err := readText(2 * time.Second)
 		if err != nil {
 			break
 		}
-		if msg.Type == "event" {
-			seen[msg.Event.Type] = true
+		var mtype, etype string
+		_ = json.Unmarshal(msg["type"], &mtype)
+		if mtype != "event" {
+			continue
 		}
+		var ev struct {
+			Type string `json:"type"`
+		}
+		_ = json.Unmarshal(msg["event"], &ev)
+		etype = ev.Type
+		seen[etype] = true
 	}
 	if !seen["command.started"] {
 		t.Errorf("never saw command.started; got: %v", seen)
@@ -288,10 +309,10 @@ func TestTimeoutReturnsRequestTimeout(t *testing.T) {
 	}
 }
 
-// TestInteractiveIO drives the /io WebSocket as a raw byte pipe: send a
-// command, read bash's echo + result, send a Ctrl+C to interrupt a long-
-// running command, and verify exec works again after the interactive
-// session detaches (it queues behind the attach, not rejected).
+// TestInteractiveIO drives the unified /ws endpoint with role=write as a
+// raw byte pipe: send a command, read bash's echo + result, send a Ctrl+C
+// to interrupt a long-running command, and verify exec works again after
+// the interactive session detaches (it queues behind the attach).
 func TestInteractiveIO(t *testing.T) {
 	t.Setenv("SHELL", "/bin/bash")
 
@@ -307,7 +328,10 @@ func TestInteractiveIO(t *testing.T) {
 
 	u, _ := url.Parse(s.httpURL)
 	u.Scheme = "ws"
-	u.Path = "/api/v1/rooms/" + r.ID + "/io"
+	u.Path = "/api/v1/rooms/" + r.ID + "/ws"
+	q := u.Query()
+	q.Set("role", "write")
+	u.RawQuery = q.Encode()
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
