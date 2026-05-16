@@ -8,6 +8,10 @@ import type { BaseEvent, Room, WriteHolder, WSMessage } from '../types';
 
 type Mode = 'live' | 'terminal' | 'replay';
 
+const ICON_SHELL = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;vertical-align:-1px;opacity:0.85"><path d="M3 4l3 3-3 3M8 11h5"/></svg>`;
+const ICON_FOLDER = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;vertical-align:-2px;opacity:0.85"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6c.4 0 .8.15 1.06.42L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5v-7Z"/></svg>`;
+const ICON_PLAY = `<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true" style="margin-right:6px;vertical-align:-1px;opacity:0.85"><path d="M5 3.5v9l8-4.5-8-4.5Z"/></svg>`;
+
 export function renderRoomDetail(host: HTMLElement, roomId: string): () => void {
   host.innerHTML = '';
   const main = document.createElement('main');
@@ -32,7 +36,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
   modeGroup.className = 'mode-group';
   modeBar.append(modeGroup);
 
-  const liveBtn = makeBtn('● Live');
+  const liveBtn = makeBtn('Live');
   const termBtn = makeBtn('Terminal');
   const replayBtn = makeBtn('Replay');
   modeGroup.append(liveBtn, termBtn, replayBtn);
@@ -55,7 +59,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
 
   const back = document.createElement('a');
   back.href = '#/rooms';
-  back.textContent = '← back to rooms';
+  back.innerHTML = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> back to rooms`;
   right.append(back);
 
   // --- Body -----------------------------------------------------------
@@ -165,6 +169,7 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
     if (!room) return;
     const statusActive = room.status === 'active';
     const cwd = collapsedPath(room.cwd);
+    const cmdCount = room.command_count ?? 0;
     meta.innerHTML = `
       <div class="meta-line">
         <span class="status-pill ${statusActive ? 'on' : 'off'}">
@@ -174,18 +179,20 @@ export function renderRoomDetail(host: HTMLElement, roomId: string): () => void 
         ${room.name ? `<span class="name">${escape(room.name)}</span>` : ''}
       </div>
       <div class="meta-line dim">
-        <span title="${escape(room.shell)}">${shellName(room.shell)}</span>
+        <span title="${escape(room.shell)}">${ICON_SHELL}${shellName(room.shell)}</span>
         <span class="sep">·</span>
-        <span title="${escape(room.cwd)}">${cwd}</span>
+        <span title="${escape(room.cwd)}">${ICON_FOLDER}${cwd}</span>
         <span class="sep">·</span>
-        <span>${room.command_count ?? 0} command${(room.command_count ?? 0) === 1 ? '' : 's'}</span>
+        <span>${ICON_PLAY}${cmdCount} command${cmdCount === 1 ? '' : 's'}</span>
       </div>
     `;
     const idEl = meta.querySelector<HTMLElement>('.room-id');
     if (idEl) {
       idEl.addEventListener('click', () => copyToClipboard(room!.id, idEl));
     }
-    attachHint.innerHTML = statusActive ? `<code>kite attach ${room.id}</code>` : '';
+    attachHint.innerHTML = statusActive
+      ? `<code>$ kite attach ${room.id}</code>`
+      : '';
   };
 
   // --- Renderers ------------------------------------------------------

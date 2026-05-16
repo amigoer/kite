@@ -1,26 +1,38 @@
 import { listRooms, createRoom } from '../api';
 import type { Room } from '../types';
 
+const EMPTY_ICON = `
+<svg class="empty-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect x="6" y="12" width="52" height="38" rx="6" stroke="currentColor" stroke-width="2"/>
+  <path d="M14 22l6 6-6 6M24 36h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
 export function renderRoomsList(host: HTMLElement) {
   host.innerHTML = '';
 
   const main = document.createElement('main');
   host.append(main);
 
-  const headerBar = document.createElement('div');
-  headerBar.style.display = 'flex';
-  headerBar.style.alignItems = 'center';
-  headerBar.style.gap = '8px';
-  headerBar.style.marginBottom = '16px';
-
-  const title = document.createElement('h2');
-  title.textContent = 'Rooms';
-  title.style.margin = '0';
-  title.style.flex = '1';
+  const head = document.createElement('div');
+  head.className = 'page-head';
+  head.innerHTML = `
+    <div class="titles">
+      <h2>Rooms</h2>
+      <div class="subtitle">
+        Programmable shell sessions —
+        or run <code>kite shell</code> for an interactive room.
+      </div>
+    </div>
+    <div class="actions"></div>
+  `;
+  main.append(head);
 
   const newBtn = document.createElement('button');
-  newBtn.textContent = '+ New room';
   newBtn.className = 'primary';
+  newBtn.innerHTML = `
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="margin-right:6px;vertical-align:-2px">
+      <path d="M8 3v10M3 8h10"/>
+    </svg>New room`;
   newBtn.addEventListener('click', async () => {
     const name = prompt('Room name (optional):') ?? '';
     try {
@@ -30,15 +42,7 @@ export function renderRoomsList(host: HTMLElement) {
       alert(`Failed to create room: ${(err as Error).message}`);
     }
   });
-
-  const hint = document.createElement('span');
-  hint.style.color = 'var(--text-dim)';
-  hint.style.fontSize = '12px';
-  hint.style.marginRight = '8px';
-  hint.innerHTML = `or <code style="background:var(--panel);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">kite shell</code> for an interactive room`;
-
-  headerBar.append(title, hint, newBtn);
-  main.append(headerBar);
+  head.querySelector('.actions')!.append(newBtn);
 
   const body = document.createElement('div');
   main.append(body);
@@ -48,7 +52,7 @@ export function renderRoomsList(host: HTMLElement) {
       const rooms = await listRooms();
       renderTable(body, rooms);
     } catch (err) {
-      body.innerHTML = `<div class="error-banner">${(err as Error).message}</div>`;
+      body.innerHTML = `<div class="error-banner">${escape((err as Error).message)}</div>`;
     }
   };
 
@@ -60,9 +64,18 @@ export function renderRoomsList(host: HTMLElement) {
 function renderTable(host: HTMLElement, rooms: Room[]) {
   host.innerHTML = '';
   if (rooms.length === 0) {
-    host.innerHTML = `<div class="empty">No rooms yet. Click <strong>+ New room</strong> or run <code>kite room create</code>.</div>`;
+    host.innerHTML = `
+      <div class="rooms-card">
+        <div class="empty">
+          ${EMPTY_ICON}
+          <h3>No rooms yet</h3>
+          <p>Click <strong>New room</strong> above, or run <code>kite room create</code> in your shell.</p>
+        </div>
+      </div>`;
     return;
   }
+  const card = document.createElement('div');
+  card.className = 'rooms-card';
   const table = document.createElement('table');
   table.className = 'rooms';
   table.innerHTML = `
@@ -81,19 +94,29 @@ function renderTable(host: HTMLElement, rooms: Room[]) {
   const tbody = table.querySelector('tbody')!;
   for (const r of rooms) {
     const tr = document.createElement('tr');
-    tr.style.cursor = 'pointer';
-    tr.addEventListener('click', () => (window.location.hash = `#/rooms/${r.id}`));
+    tr.addEventListener('click', (e) => {
+      // Allow native link-click behavior on the ID anchor itself.
+      const target = e.target as HTMLElement;
+      if (target.closest('a')) return;
+      window.location.hash = `#/rooms/${r.id}`;
+    });
+    const statusLabel = r.status === 'active' ? 'active' : 'closed';
     tr.innerHTML = `
-      <td class="id"><a href="#/rooms/${r.id}">${r.id}</a></td>
+      <td class="id"><a href="#/rooms/${r.id}">${escape(r.id)}</a></td>
       <td>${escape(r.name ?? '')}</td>
-      <td class="status-${r.status}">${r.status}</td>
-      <td>${r.command_count}</td>
-      <td>${escape(r.cwd)}</td>
-      <td>${formatTime(r.created_at)}</td>
+      <td>
+        <span class="status-cell status-${escape(r.status)}">
+          <span class="dot"></span>${statusLabel}
+        </span>
+      </td>
+      <td class="count">${r.command_count}</td>
+      <td class="cwd" title="${escape(r.cwd)}">${escape(r.cwd)}</td>
+      <td class="created" title="${escape(r.created_at)}">${formatTime(r.created_at)}</td>
     `;
     tbody.append(tr);
   }
-  host.append(table);
+  card.append(table);
+  host.append(card);
 }
 
 function formatTime(iso: string): string {
